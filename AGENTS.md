@@ -12,14 +12,36 @@
 - 한 작업에서 여러 기능을 동시에 구현하지 않는다.
 - 변경 후 테스트와 빌드를 반드시 실행한다.
 - 기존 테스트를 삭제하거나 완화하지 않는다.
+- AGENTS.md의 요구사항이 서로 충돌하면 구현 전에 충돌 지점을 보고하고 임의로 해석하지 않는다.
+- MVP 범위 밖의 기능은 구조만 확장 가능하게 두고 선행 구현하지 않는다.
+- 게임 판정 로직과 시각 효과를 분리한다.
+
+# Game System
+
+- 게임은 브라우저에서 실행되는 2D 탑다운 좀비 생존 게임이다.
+- 플레이어는 남성 또는 여성 캐릭터 중 하나를 선택할 수 있다. 초기 버전에서는 외형만 다르고 능력치는 동일하게 둔다.
+- 게임 모드는 간단한 스토리 모드와 무한 방어 모드로 구분한다.
+- 플레이어는 무기를 구매하거나 주워서 교체할 수 있다.
+- 기본 화기는 실제 투사체가 이동하지 않는 hitscan 방식으로 처리한다.
+- hitscan 사격은 발사 위치에서 조준 방향으로 판정하며, 무기 설정에 따라 첫 번째 대상에서 멈추거나 여러 대상을 관통할 수 있다.
+- 탄도선, 총구 화염, 피격 효과는 시각 효과이며 게임 판정과 분리한다.
+- 로켓 런처와 같은 특수 무기만 실제 projectile 객체를 생성해 이동과 충돌을 처리할 수 있다.
+- 무기는 단발, 연사, 볼트액션, 펌프액션 방식을 지원할 수 있다.
+- 무기별로 공격력, 사거리, 발사 간격, 탄창 크기, 예비 탄약, 재장전 시간, 관통 수를 설정할 수 있다.
+- 초기 MVP에서는 기본 hitscan 무기 1종, 좀비 1종, 캐릭터 1종, 무한 방어 모드만 구현한다.
+
 
 # Architecture
 
-- src/scenes: Phaser Scene
-- src/entities: Player, Zombie, Bullet
-- src/systems: Weapon, Spawn, Wave, Collision
-- src/config: 밸런스 설정
-- src/tests: 순수 게임 로직 테스트
+- `src/scenes`: Phaser Scene과 게임 상태 전환
+- `src/entities`: Player, Zombie, Projectile
+- `src/systems`: Weapon, Hitscan, Projectile, Spawn, Wave, Damage
+- `src/effects`: Tracer, MuzzleFlash, HitEffect
+- `src/logic`: Phaser에 의존하지 않는 이동, 사격, 충돌, 웨이브 순수 로직
+- `src/config`: 무기, 캐릭터, 좀비, 웨이브 밸런스 설정
+- `src/types`: 공통 타입과 인터페이스
+- `src/tests`: 순수 게임 로직 테스트
+
 
 # Definition of Done
 
