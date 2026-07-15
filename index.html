@@ -29,36 +29,10 @@
         display: block;
       }
 
-      #orientation-notice {
-        position: fixed;
-        inset: 0;
-        z-index: 1;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        box-sizing: border-box;
-        padding: max(24px, env(safe-area-inset-top))
-          max(24px, env(safe-area-inset-right))
-          max(24px, env(safe-area-inset-bottom))
-          max(24px, env(safe-area-inset-left));
-        color: #fff;
-        background: #111;
-        font-family: system-ui, sans-serif;
-        text-align: center;
-      }
-
-      @media (orientation: portrait) and (pointer: coarse) {
-        #orientation-notice {
-          display: flex;
-        }
-      }
     </style>
   </head>
   <body>
     <div id="game"></div>
-    <div id="orientation-notice" role="status">
-      원활한 플레이를 위해 기기를 가로로 돌려 주세요.
-    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
