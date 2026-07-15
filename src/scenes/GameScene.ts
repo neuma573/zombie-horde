@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
+import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
@@ -9,6 +10,8 @@ import { isPrimaryFireInput } from '../logic/fireInput';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { moveToward, moveWithinBounds } from '../logic/movement';
 import { DamageSystem } from '../systems/DamageSystem';
+import { SpawnSystem } from '../systems/SpawnSystem';
+import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
@@ -20,6 +23,8 @@ export class GameScene extends Phaser.Scene {
   private lastAimDirection: Vector2 = { x: 1, y: 0 };
   private zombies: Zombie[] = [];
   private readonly damage = new DamageSystem();
+  private readonly spawn = new SpawnSystem();
+  private readonly wave = new WaveSystem(WAVE_CONFIG);
   private readonly weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
 
   constructor() {
@@ -28,7 +33,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.player = new Player(this, this.scale.width / 2, this.scale.height / 2);
-    this.zombies = [new Zombie(this, 'zombie-1', this.scale.width * 0.75, this.scale.height / 2)];
+    this.zombies = [];
 
     this.movementKeys = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -74,6 +79,12 @@ export class GameScene extends Phaser.Scene {
     for (const zombie of this.zombies) {
       const nextPosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
       zombie.setPosition(nextPosition.x, nextPosition.y);
+    }
+
+    const spawnCount = this.wave.update(deltaMs, this.zombies.length);
+
+    for (let index = 0; index < spawnCount; index += 1) {
+      this.zombies.push(this.spawn.spawn(this));
     }
   }
 
