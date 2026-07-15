@@ -2,8 +2,9 @@ import Phaser from 'phaser';
 
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
+import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
-import { resolveHitscan } from '../logic/hitscan';
+import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { moveWithinBounds } from '../logic/movement';
 import { WeaponSystem } from '../systems/WeaponSystem';
 
@@ -13,6 +14,7 @@ export class GameScene extends Phaser.Scene {
   private player!: Player;
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
+  private lastAimDirection: Vector2 = { x: 1, y: 0 };
   private readonly weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
 
   constructor() {
@@ -29,8 +31,10 @@ export class GameScene extends Phaser.Scene {
       right: Phaser.Input.Keyboard.KeyCodes.D,
     }) as MovementKeys | undefined;
     this.reloadKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.off(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
     });
   }
@@ -63,16 +67,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   private fireWeapon(pointer: Phaser.Input.Pointer): void {
-    if (!isPrimaryFireInput(pointer) || !this.weapon.fire()) {
+    if (!isPrimaryFireInput(pointer)) {
+      return;
+    }
+
+    this.updateAimDirection(pointer);
+
+    if (!this.weapon.fire()) {
       return;
     }
 
     resolveHitscan(
       { x: this.player.x, y: this.player.y },
-      { x: pointer.worldX - this.player.x, y: pointer.worldY - this.player.y },
+      this.lastAimDirection,
       BASIC_WEAPON_CONFIG.range,
       [],
       BASIC_WEAPON_CONFIG.maxTargets,
     );
+  }
+
+  private updateAimDirection(pointer: Phaser.Input.Pointer): void {
+    this.lastAimDirection = resolveAimDirection(
+      { x: pointer.worldX - this.player.x, y: pointer.worldY - this.player.y },
+      this.lastAimDirection,
+    );
+    this.player.setRotation(Math.atan2(this.lastAimDirection.y, this.lastAimDirection.x));
   }
 }
