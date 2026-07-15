@@ -40,3 +40,28 @@ export function moveWithinBounds(
     y: clamp(position.y + directionY * distance, minY, maxY),
   };
 }
+
+export function moveToward(
+  position: Position,
+  target: Position,
+  speed: number,
+  deltaMs: number,
+): Position {
+  const offsetX = target.x - position.x;
+  const offsetY = target.y - position.y;
+  const distanceToTarget = Math.hypot(offsetX, offsetY);
+
+  if (distanceToTarget === 0) {
+    return { ...position };
+  }
+
+  const travelDistance = Math.min(
+    distanceToTarget,
+    Math.max(0, speed) * Math.max(0, deltaMs) / 1_000,
+  );
+
+  return {
+    x: position.x + offsetX / distanceToTarget * travelDistance,
+    y: position.y + offsetY / distanceToTarget * travelDistance,
+  };
+}

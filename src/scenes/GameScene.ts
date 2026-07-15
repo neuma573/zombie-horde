@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
+import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
+import { Zombie } from '../entities/Zombie';
 import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
-import { moveWithinBounds } from '../logic/movement';
+import { moveToward, moveWithinBounds } from '../logic/movement';
+import { DamageSystem } from '../systems/DamageSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
@@ -15,6 +18,8 @@ export class GameScene extends Phaser.Scene {
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
   private lastAimDirection: Vector2 = { x: 1, y: 0 };
+  private zombies: Zombie[] = [];
+  private readonly damage = new DamageSystem();
   private readonly weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
 
   constructor() {
@@ -23,6 +28,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.player = new Player(this, this.scale.width / 2, this.scale.height / 2);
+    this.zombies = [new Zombie(this, 'zombie-1', this.scale.width * 0.75, this.scale.height / 2)];
 
     this.movementKeys = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -64,6 +70,11 @@ export class GameScene extends Phaser.Scene {
 
       this.player.setPosition(nextPosition.x, nextPosition.y);
     }
+
+    for (const zombie of this.zombies) {
+      const nextPosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
+      zombie.setPosition(nextPosition.x, nextPosition.y);
+    }
   }
 
   private fireWeapon(pointer: Phaser.Input.Pointer): void {
@@ -77,13 +88,32 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    resolveHitscan(
+    const result = resolveHitscan(
       { x: this.player.x, y: this.player.y },
       this.lastAimDirection,
       BASIC_WEAPON_CONFIG.range,
-      [],
+      this.zombies.map((zombie) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius,
+      })),
       BASIC_WEAPON_CONFIG.maxTargets,
     );
+
+    const deadIds = new Set<string>();
+
+    for (const hit of result.hits) {
+      const zombie = this.zombies.find((candidate) => candidate.id === hit.targetId);
+
+      if (zombie && this.damage.apply(zombie, BASIC_WEAPON_CONFIG.damage).died) {
+        zombie.destroy();
+        deadIds.add(zombie.id);
+      }
+    }
+
+    if (deadIds.size > 0) {
+      this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
+    }
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer): void {
