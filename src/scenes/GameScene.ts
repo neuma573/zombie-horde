@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
+import { isPrimaryFireInput } from '../logic/fireInput';
 import { resolveHitscan } from '../logic/hitscan';
 import { moveWithinBounds } from '../logic/movement';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -62,7 +63,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private fireWeapon(pointer: Phaser.Input.Pointer): void {
-    if (!this.weapon.fire()) {
+    if (!isPrimaryFireInput(pointer) || !this.weapon.fire()) {
       return;
     }
 
