@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { PLAYER_CONFIG } from '../config/playerConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
@@ -51,6 +52,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
+    const playerStart = { x: this.player.x, y: this.player.y };
+
     this.weapon.update(deltaMs);
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
@@ -76,9 +79,26 @@ export class GameScene extends Phaser.Scene {
       this.player.setPosition(nextPosition.x, nextPosition.y);
     }
 
+    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+
     for (const zombie of this.zombies) {
       const nextPosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
       zombie.setPosition(nextPosition.x, nextPosition.y);
+    }
+
+    const contactDamage = this.damage.resolveZombieContacts(
+      this.player,
+      playerStart,
+      this.zombies,
+      zombieStarts,
+      deltaMs,
+      PLAYER_CONFIG.invulnerabilityMs,
+      ZOMBIE_CONFIG.contactDamage,
+      ZOMBIE_CONFIG.attackIntervalMs,
+    );
+
+    if (contactDamage.died) {
+      this.events.emit('player-died');
     }
 
     const spawnCount = this.wave.update(deltaMs, this.zombies.length);
