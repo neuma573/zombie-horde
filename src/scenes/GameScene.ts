@@ -7,16 +7,42 @@ import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
 import { CombatEffects } from '../effects/CombatEffects';
-import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
+import {
+  claimMobilePointer,
+  canRestartWithMobileTouch,
+  classifyMobilePointer,
+  createMobileControlLayout,
+  createMobilePointerOwnership,
+  didViewportOrientationChange,
+  getViewportOrientation,
+  joystickMovement,
+  releaseMobilePointer,
+  roleForPointer,
+  shouldShowMobileControls,
+  type MobileControlLayout,
+  type MobilePointerOwnership,
+  type ViewportOrientation,
+} from '../logic/mobileInput';
 import {
   constrainToBounds,
   moveToward,
   moveWithinBounds,
   type MovementBounds,
 } from '../logic/movement';
+import {
+  clearActiveInput,
+  consumeFireRequest,
+  consumeReloadRequest,
+  createPlayerInputState,
+  requestFire,
+  requestReload,
+  withAimCandidate,
+  withMovement,
+  type PlayerInputSnapshot,
+} from '../logic/playerInput';
 import {
   createSessionState,
   isPlaying,
@@ -25,6 +51,7 @@ import {
 } from '../logic/session';
 import { DamageSystem } from '../systems/DamageSystem';
 import { HudSystem } from '../systems/HudSystem';
+import { MobileControls } from '../systems/MobileControls';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -36,7 +63,16 @@ export class GameScene extends Phaser.Scene {
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
   private restartKey?: Phaser.Input.Keyboard.Key;
-  private lastAimDirection: Vector2 = { x: 1, y: 0 };
+  private playerInput: PlayerInputSnapshot = createPlayerInputState();
+  private mobileMovement = { x: 0, y: 0 };
+  private mobileOwnership: MobilePointerOwnership = createMobilePointerOwnership();
+  private mobileLayout?: MobileControlLayout;
+  private mobileControlsEnabled = false;
+  private mobileControls?: MobileControls;
+  private coarsePointerQuery?: MediaQueryList;
+  private viewportOrientation?: ViewportOrientation;
+  private readonly activeMobilePointers = new Set<number>();
+  private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
   private sessionState: SessionState = createSessionState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
@@ -53,7 +89,11 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.sessionState = createSessionState();
-    this.lastAimDirection = { x: 1, y: 0 };
+    this.playerInput = createPlayerInputState();
+    this.mobileMovement = { x: 0, y: 0 };
+    this.mobileOwnership = createMobilePointerOwnership();
+    this.activeMobilePointers.clear();
+    this.mobileRestartArmed = true;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
@@ -62,6 +102,9 @@ export class GameScene extends Phaser.Scene {
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
+    this.mobileControls = new MobileControls(this);
+    this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
+    this.refreshInputMode();
     this.resizeHud();
     this.updateHud();
 
@@ -73,22 +116,40 @@ export class GameScene extends Phaser.Scene {
     }) as MovementKeys | undefined;
     this.reloadKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-    this.input.on(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
-    this.input.on(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
+    this.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
+    this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.handlePointerUp, this);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
+    this.coarsePointerQuery.addEventListener('change', this.handleInputModeChange);
+    this.game.canvas.addEventListener('pointercancel', this.handleNativeCancel);
+    this.game.canvas.addEventListener('touchcancel', this.handleNativeCancel);
+    window.addEventListener('blur', this.handleWindowBlur);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.input.off(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
-      this.input.off(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
+      this.cancelAllMobileInput();
+      this.input.off(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
+      this.input.off(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
+      this.input.off(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
+      this.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.handlePointerUp, this);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
+      this.coarsePointerQuery?.removeEventListener('change', this.handleInputModeChange);
+      this.game.canvas.removeEventListener('pointercancel', this.handleNativeCancel);
+      this.game.canvas.removeEventListener('touchcancel', this.handleNativeCancel);
+      window.removeEventListener('blur', this.handleWindowBlur);
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       this.hud?.destroy();
       this.hud = undefined;
       this.effects?.destroy();
       this.effects = undefined;
+      this.mobileControls?.destroy();
+      this.mobileControls = undefined;
     });
   }
 
   update(_time: number, deltaMs: number): void {
     if (!isPlaying(this.sessionState)) {
+      this.resetMobileInput();
       this.updateHud();
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.restartSession();
@@ -101,27 +162,38 @@ export class GameScene extends Phaser.Scene {
     this.weapon.update(deltaMs);
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
+      this.playerInput = requestReload(this.playerInput);
+    }
+
+    const keyboardMovement = this.movementKeys ? {
+      x: Number(this.movementKeys.right.isDown) - Number(this.movementKeys.left.isDown),
+      y: Number(this.movementKeys.down.isDown) - Number(this.movementKeys.up.isDown),
+    } : { x: 0, y: 0 };
+    this.playerInput = withMovement(
+      this.playerInput,
+      keyboardMovement.x !== 0 || keyboardMovement.y !== 0
+        ? keyboardMovement
+        : this.mobileMovement,
+    );
+
+    const reload = consumeReloadRequest(this.playerInput);
+    this.playerInput = reload.state;
+    if (reload.requested) {
       this.weapon.reload();
     }
 
-    if (this.movementKeys) {
-      const nextPosition = moveWithinBounds(
-        this.player,
-        {
-          x: Number(this.movementKeys.right.isDown) - Number(this.movementKeys.left.isDown),
-          y: Number(this.movementKeys.down.isDown) - Number(this.movementKeys.up.isDown),
-        },
-        PLAYER_SPEED,
-        deltaMs,
-        {
-          width: this.playArea.width,
-          height: this.playArea.height,
-          padding: PLAYER_RADIUS,
-        },
-      );
-
-      this.player.setPosition(nextPosition.x, nextPosition.y);
-    }
+    const nextPosition = moveWithinBounds(
+      this.player,
+      this.playerInput.movement,
+      PLAYER_SPEED,
+      deltaMs,
+      {
+        width: this.playArea.width,
+        height: this.playArea.height,
+        padding: PLAYER_RADIUS,
+      },
+    );
+    this.player.setPosition(nextPosition.x, nextPosition.y);
 
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
@@ -149,6 +221,8 @@ export class GameScene extends Phaser.Scene {
         this.events.emit('player-died');
       }
 
+      this.mobileRestartArmed = this.activeMobilePointers.size === 0;
+      this.resetMobileInput();
       this.updateHud();
       this.playPlayerHitEffects(contactDamage.damageEvents.length);
       return;
@@ -164,25 +238,17 @@ export class GameScene extends Phaser.Scene {
     this.playPlayerHitEffects(contactDamage.damageEvents.length);
   }
 
-  private fireWeapon(pointer: Phaser.Input.Pointer): void {
-    if (!isPrimaryFireInput(pointer)) {
-      return;
-    }
+  private resolveFireRequest(): void {
+    const fire = consumeFireRequest(this.playerInput);
+    this.playerInput = fire.state;
 
-    if (!isPlaying(this.sessionState)) {
-      this.restartSession();
-      return;
-    }
-
-    this.updateAimDirection(pointer);
-
-    if (!this.weapon.fire()) {
+    if (!fire.requested || !isPlaying(this.sessionState) || !this.weapon.fire()) {
       return;
     }
 
     const result = resolveHitscan(
       { x: this.player.x, y: this.player.y },
-      this.lastAimDirection,
+      this.playerInput.manualAimDirection,
       BASIC_WEAPON_CONFIG.range,
       this.zombies.map((zombie) => ({
         id: zombie.id,
@@ -232,11 +298,93 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer): void {
-    this.lastAimDirection = resolveAimDirection(
+    this.playerInput = withAimCandidate(
+      this.playerInput,
       { x: pointer.worldX - this.player.x, y: pointer.worldY - this.player.y },
-      this.lastAimDirection,
     );
-    this.player.setRotation(Math.atan2(this.lastAimDirection.y, this.lastAimDirection.x));
+    this.player.setRotation(Math.atan2(
+      this.playerInput.manualAimDirection.y,
+      this.playerInput.manualAimDirection.x,
+    ));
+  }
+
+  private handlePointerDown(pointer: Phaser.Input.Pointer): void {
+    if (!isPlaying(this.sessionState)) {
+      if (!pointer.wasTouch && isPrimaryFireInput(pointer)) {
+        this.restartSession();
+      } else if (pointer.wasTouch && canRestartWithMobileTouch(
+        this.mobileControlsEnabled,
+        this.mobileRestartArmed,
+      )) {
+        this.restartSession();
+      }
+      return;
+    }
+
+    if (!pointer.wasTouch) {
+      if (!isPrimaryFireInput(pointer)) return;
+      this.updateAimDirection(pointer);
+      this.playerInput = requestFire(this.playerInput);
+      this.resolveFireRequest();
+      return;
+    }
+
+    if (!this.mobileControlsEnabled || !this.mobileLayout) return;
+
+    const pointerId = pointer.id;
+    this.activeMobilePointers.add(pointerId);
+    const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
+    this.mobileOwnership = claimMobilePointer(this.mobileOwnership, pointerId, role);
+
+    if (roleForPointer(this.mobileOwnership, pointerId) !== role) return;
+
+    if (role === 'movement') {
+      this.updateMobileMovement(pointer);
+    } else if (role === 'aim') {
+      this.updateAimDirection(pointer);
+    } else if (role === 'fire') {
+      this.playerInput = requestFire(this.playerInput);
+      this.resolveFireRequest();
+    } else if (role === 'reload') {
+      this.playerInput = requestReload(this.playerInput);
+    }
+  }
+
+  private handlePointerMove(pointer: Phaser.Input.Pointer): void {
+    if (!isPlaying(this.sessionState)) return;
+
+    if (!pointer.wasTouch) {
+      this.updateAimDirection(pointer);
+      return;
+    }
+
+    const role = roleForPointer(this.mobileOwnership, pointer.id);
+    if (role === 'movement') this.updateMobileMovement(pointer);
+    if (role === 'aim') this.updateAimDirection(pointer);
+  }
+
+  private handlePointerUp(pointer: Phaser.Input.Pointer): void {
+    if (pointer.wasTouch) {
+      this.activeMobilePointers.delete(pointer.id);
+      if (!isPlaying(this.sessionState) && this.activeMobilePointers.size === 0) {
+        this.mobileRestartArmed = true;
+      }
+    }
+
+    const role = roleForPointer(this.mobileOwnership, pointer.id);
+    this.mobileOwnership = releaseMobilePointer(this.mobileOwnership, pointer.id);
+
+    if (role === 'movement') {
+      this.mobileMovement = { x: 0, y: 0 };
+      this.mobileControls?.setJoystickPointer(null);
+    }
+  }
+
+  private updateMobileMovement(pointer: Phaser.Input.Pointer): void {
+    if (!this.mobileLayout) return;
+    const position = { x: pointer.x, y: pointer.y };
+    this.mobileMovement = joystickMovement(position, this.mobileLayout.joystick);
+    this.mobileControls?.setJoystickPointer(position);
   }
 
   private restartSession(): void {
@@ -244,6 +392,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resizePlayArea(gameSize: Phaser.Structs.Size): void {
+    const orientationChanged = didViewportOrientationChange(
+      this.viewportOrientation,
+      gameSize.width,
+      gameSize.height,
+    );
+    const nextOrientation = getViewportOrientation(gameSize.width, gameSize.height);
+    this.viewportOrientation = nextOrientation;
+
+    if (orientationChanged) this.cancelAllMobileInput();
     this.playArea = {
       width: gameSize.width,
       height: gameSize.height,
@@ -265,6 +422,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.resizeHud();
+    this.refreshInputMode();
   }
 
   private updateHud(): void {
@@ -287,6 +445,58 @@ export class GameScene extends Phaser.Scene {
   private resizeHud(): void {
     this.hud?.resize(this.playArea.width, this.playArea.height, this.readSafeArea());
   }
+
+  private refreshInputMode(): void {
+    this.mobileControlsEnabled = shouldShowMobileControls(
+      navigator.maxTouchPoints,
+      this.coarsePointerQuery?.matches ?? window.matchMedia('(pointer: coarse)').matches,
+    );
+    this.mobileControls?.setVisible(this.mobileControlsEnabled);
+
+    if (this.mobileControlsEnabled) {
+      this.mobileLayout = createMobileControlLayout(
+        this.playArea.width,
+        this.playArea.height,
+        this.readSafeArea(),
+      );
+      this.mobileControls?.setLayout(this.mobileLayout);
+    } else {
+      this.mobileLayout = undefined;
+      this.resetMobileInput();
+    }
+  }
+
+  private resetMobileInput(): void {
+    this.mobileOwnership = createMobilePointerOwnership();
+    this.mobileMovement = { x: 0, y: 0 };
+    this.playerInput = clearActiveInput(this.playerInput);
+    this.mobileControls?.setJoystickPointer(null);
+  }
+
+  private cancelAllMobileInput(): void {
+    this.activeMobilePointers.clear();
+    if (!isPlaying(this.sessionState)) this.mobileRestartArmed = true;
+    this.resetMobileInput();
+  }
+
+  private readonly handleNativeCancel = (): void => {
+    this.cancelAllMobileInput();
+  };
+
+  private readonly handleWindowBlur = (): void => {
+    this.cancelAllMobileInput();
+  };
+
+  private readonly handleVisibilityChange = (): void => {
+    if (document.visibilityState !== 'visible') {
+      this.cancelAllMobileInput();
+    }
+  };
+
+  private readonly handleInputModeChange = (): void => {
+    this.cancelAllMobileInput();
+    this.refreshInputMode();
+  };
 
   private playPlayerHitEffects(count: number): void {
     for (let index = 0; index < count; index += 1) {
