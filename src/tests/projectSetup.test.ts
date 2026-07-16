@@ -10,6 +10,7 @@ describe('browser entry point', () => {
     expect(html).toContain('<div id="game"></div>');
     expect(html).toContain('viewport-fit=cover');
     expect(html).toContain('env(safe-area-inset-top, 0px)');
+    expect(html).toContain('touch-action: none');
     expect(html).not.toContain('orientation-notice');
     expect(html).not.toMatch(/#game\s*{\s*display:\s*none;/);
     expect(html).toContain('<script type="module" src="/src/main.ts"></script>');
@@ -22,6 +23,7 @@ describe('browser entry point', () => {
     expect(entry).toContain('mode: Phaser.Scale.RESIZE');
     expect(entry).toContain("width: '100%'");
     expect(entry).toContain("height: '100%'");
+    expect(entry).toContain('activePointers: INPUT_CONFIG.activePointers');
     expect(entry).not.toMatch(/width:\s*960/);
     expect(entry).not.toMatch(/height:\s*540/);
   });
