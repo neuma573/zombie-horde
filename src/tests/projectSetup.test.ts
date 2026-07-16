@@ -9,6 +9,7 @@ describe('browser entry point', () => {
 
     expect(html).toContain('<div id="game"></div>');
     expect(html).toContain('viewport-fit=cover');
+    expect(html).toContain('env(safe-area-inset-top, 0px)');
     expect(html).not.toContain('orientation-notice');
     expect(html).not.toMatch(/#game\s*{\s*display:\s*none;/);
     expect(html).toContain('<script type="module" src="/src/main.ts"></script>');
