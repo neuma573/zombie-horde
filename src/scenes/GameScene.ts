@@ -8,6 +8,7 @@ import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
 import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
+import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import {
   constrainToBounds,
@@ -22,6 +23,7 @@ import {
   type SessionState,
 } from '../logic/session';
 import { DamageSystem } from '../systems/DamageSystem';
+import { HudSystem } from '../systems/HudSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -41,6 +43,7 @@ export class GameScene extends Phaser.Scene {
   private spawn!: SpawnSystem;
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
+  private hud?: HudSystem;
 
   constructor() {
     super('GameScene');
@@ -55,6 +58,9 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, this.scale.width / 2, this.scale.height / 2);
     this.zombies = [];
     this.resizePlayArea(this.scale.gameSize);
+    this.hud = new HudSystem(this);
+    this.resizeHud();
+    this.updateHud();
 
     this.movementKeys = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -71,11 +77,14 @@ export class GameScene extends Phaser.Scene {
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
+      this.hud?.destroy();
+      this.hud = undefined;
     });
   }
 
   update(_time: number, deltaMs: number): void {
     if (!isPlaying(this.sessionState)) {
+      this.updateHud();
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.restartSession();
       }
@@ -135,6 +144,7 @@ export class GameScene extends Phaser.Scene {
         this.events.emit('player-died');
       }
 
+      this.updateHud();
       return;
     }
 
@@ -143,6 +153,8 @@ export class GameScene extends Phaser.Scene {
     for (let index = 0; index < spawnCount; index += 1) {
       this.zombies.push(this.spawn.spawn(this, this.playArea));
     }
+
+    this.updateHud();
   }
 
   private fireWeapon(pointer: Phaser.Input.Pointer): void {
@@ -187,6 +199,8 @@ export class GameScene extends Phaser.Scene {
     if (deadIds.size > 0) {
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
     }
+
+    this.updateHud();
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer): void {
@@ -221,5 +235,41 @@ export class GameScene extends Phaser.Scene {
       });
       zombie.setPosition(zombiePosition.x, zombiePosition.y);
     }
+
+    this.resizeHud();
+  }
+
+  private updateHud(): void {
+    const weapon = this.weapon.getState();
+    const wave = this.wave.getState();
+
+    this.hud?.update(createHudViewModel({
+      health: this.player.health,
+      maxHealth: PLAYER_CONFIG.health,
+      magazineAmmo: weapon.magazineAmmo,
+      reserveAmmo: weapon.reserveAmmo,
+      isReloading: weapon.reloadRemainingMs !== null,
+      waveNumber: wave.waveNumber,
+      wavePhase: wave.phase,
+      aliveZombieCount: this.zombies.length,
+      sessionPhase: this.sessionState.phase,
+    }));
+  }
+
+  private resizeHud(): void {
+    this.hud?.resize(this.playArea.width, this.playArea.height, this.readSafeArea());
+  }
+
+  private readSafeArea(): SafeAreaInsets {
+    const parent = this.game.canvas.parentElement ?? this.game.canvas;
+    const style = window.getComputedStyle(parent);
+    const read = (name: string): number => Number.parseFloat(style.getPropertyValue(name)) || 0;
+
+    return {
+      top: read('--safe-area-top'),
+      right: read('--safe-area-right'),
+      bottom: read('--safe-area-bottom'),
+      left: read('--safe-area-left'),
+    };
   }
 }
