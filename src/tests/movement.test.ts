@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { moveToward, moveWithinBounds } from '../logic/movement';
+import { constrainToBounds, moveToward, moveWithinBounds } from '../logic/movement';
 
 const bounds = { width: 800, height: 600, padding: 20 };
 
@@ -33,6 +33,22 @@ describe('moveWithinBounds', () => {
     );
 
     expect(next).toEqual({ x: 20, y: 580 });
+  });
+});
+
+describe('constrainToBounds', () => {
+  it('moves an existing object into a smaller resized play area', () => {
+    expect(constrainToBounds(
+      { x: 760, y: 560 },
+      { width: 360, height: 640, padding: 18 },
+    )).toEqual({ x: 342, y: 560 });
+  });
+
+  it('centers an object on an axis that is smaller than its diameter', () => {
+    expect(constrainToBounds(
+      { x: 100, y: 100 },
+      { width: 20, height: 10, padding: 18 },
+    )).toEqual({ x: 10, y: 5 });
   });
 });
 

@@ -18,6 +18,21 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+export function constrainToBounds(
+  position: Position,
+  bounds: MovementBounds,
+): Position {
+  const width = Math.max(0, bounds.width);
+  const height = Math.max(0, bounds.height);
+  const paddingX = Math.min(Math.max(0, bounds.padding), width / 2);
+  const paddingY = Math.min(Math.max(0, bounds.padding), height / 2);
+
+  return {
+    x: clamp(position.x, paddingX, width - paddingX),
+    y: clamp(position.y, paddingY, height - paddingY),
+  };
+}
+
 export function moveWithinBounds(
   position: Position,
   input: MovementInput,
@@ -30,15 +45,13 @@ export function moveWithinBounds(
   const distance = speed * deltaSeconds;
   const directionX = inputLength > 0 ? input.x / inputLength : 0;
   const directionY = inputLength > 0 ? input.y / inputLength : 0;
-  const minX = bounds.padding;
-  const maxX = Math.max(minX, bounds.width - bounds.padding);
-  const minY = bounds.padding;
-  const maxY = Math.max(minY, bounds.height - bounds.padding);
-
-  return {
-    x: clamp(position.x + directionX * distance, minX, maxX),
-    y: clamp(position.y + directionY * distance, minY, maxY),
-  };
+  return constrainToBounds(
+    {
+      x: position.x + directionX * distance,
+      y: position.y + directionY * distance,
+    },
+    bounds,
+  );
 }
 
 export function moveToward(
