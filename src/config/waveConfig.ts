@@ -1,9 +1,3 @@
-import type { WaveConfig } from '../logic/wave';
+import { MVP_CONFIG } from './mvpConfig';
 
-export const WAVE_CONFIG: WaveConfig = {
-  initialDelayMs: 1_000,
-  betweenWaveDelayMs: 2_000,
-  spawnIntervalMs: 500,
-  baseZombieCount: 3,
-  zombiesPerWave: 2,
-};
+export const WAVE_CONFIG = MVP_CONFIG.wave;

@@ -18,4 +18,27 @@ describe('getEdgeSpawnPosition', () => {
       y: 270,
     });
   });
+
+  it('chooses another edge when the scheduled edge is too close to the player', () => {
+    const position = getEdgeSpawnPosition(
+      0,
+      { width: 360, height: 640 },
+      20,
+      { x: 180, y: 100 },
+      160,
+    );
+
+    expect(position).toEqual({ x: 340, y: 320 });
+    expect(Math.hypot(position.x - 180, position.y - 100)).toBeGreaterThanOrEqual(160);
+  });
+
+  it('uses the farthest edge when a small viewport cannot satisfy the minimum distance', () => {
+    expect(getEdgeSpawnPosition(
+      0,
+      { width: 100, height: 100 },
+      20,
+      { x: 50, y: 20 },
+      160,
+    )).toEqual({ x: 50, y: 80 });
+  });
 });
