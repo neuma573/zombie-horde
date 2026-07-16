@@ -1,6 +1,8 @@
 import { resolveAimDirection } from './aim';
 import type { Vector2 } from './hitscan';
 
+export type AimSource = 'none' | 'mouse' | 'mobile';
+
 export interface AimAssistConfig {
   acquisitionHalfAngleRadians: number;
   retentionHalfAngleRadians: number;
@@ -49,6 +51,13 @@ interface Candidate {
 }
 
 const EPSILON = 1e-8;
+
+export function shouldApplyMobileAimAssist(
+  mobileControlsEnabled: boolean,
+  aimSource: AimSource,
+): boolean {
+  return mobileControlsEnabled && aimSource === 'mobile';
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);

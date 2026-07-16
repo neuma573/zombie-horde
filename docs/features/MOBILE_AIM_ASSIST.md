@@ -47,7 +47,7 @@
 ### 수명 주기
 
 - 일반 resize는 모바일 입력을 유지하고 UI 배치만 갱신한다.
-- 방향 전환, blur, visibility hidden, 입력 모드 변경, Game Over 및 shutdown은 모바일 입력 상태를 정리한다.
+- 방향 전환, blur, visibility hidden, 입력 모드 변경, Game Over 및 shutdown은 모바일 입력 상태를 정리한다. lifecycle cancel은 조준 출처를 `none`으로 바꿔 새 aim touch 전까지 자동 조준을 재활성화하지 않는다.
 - Scene restart는 같은 Scene을 새 상태로 다시 생성하며 기존 이벤트와 UI 객체는 shutdown에서 해제한다.
 
 ## 4. 입력 및 조준 정책
@@ -80,6 +80,7 @@ touch/drag 수동 조준
 ```
 
 - 모바일 조작 환경에서는 초기 조준 출처를 모바일로 둔다. 하이브리드 장치에서 mouse가 사용되면 PC로 바뀌고, 다음 aim touch가 들어올 때 다시 모바일로 바뀐다.
+- blur, visibility hidden, pointer cancel 또는 방향 전환으로 입력이 취소되면 조준 출처를 `none`으로 바꾼다. 이후 update, 스틱 또는 FIRE만으로는 락을 재획득하지 않으며 새 aim touch가 들어와야 모바일로 돌아간다.
 - 스틱, FIRE 및 RELOAD touch는 수동 조준 방향이나 조준 출처를 변경하지 않는다.
 - 자동 조준은 FIRE 요청을 만들지 않으며 기존 `pendingFireCount`를 변경하지 않는다.
 
@@ -272,6 +273,7 @@ Wave spawn을 같은 frame에 바로 자동 획득할 필요는 없다. 새 Zomb
 ### 수명 주기와 시각 효과
 
 - Game Over, mouse 전환, blur, visibility hidden, 방향 전환에서 락 해제
+- lifecycle cancel 뒤 update만 진행하거나 스틱·FIRE만 입력해도 재획득하지 않고, 새 aim touch 뒤에만 재활성화
 - 일반 resize 후 화면 안 대상은 유지하고 화면 밖 대상은 해제
 - 대상 사망 직후 락온 표시가 남지 않음
 - 표시 활성 여부가 순수 조준 결과를 바꾸지 않음

@@ -9,7 +9,11 @@ import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
-import { resolveAimAssist } from '../logic/aimAssist';
+import {
+  resolveAimAssist,
+  shouldApplyMobileAimAssist,
+  type AimSource,
+} from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
@@ -60,7 +64,6 @@ import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
-type AimSource = 'mouse' | 'mobile';
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -69,7 +72,7 @@ export class GameScene extends Phaser.Scene {
   private restartKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
-  private aimSource: AimSource = 'mouse';
+  private aimSource: AimSource = 'none';
   private aimTargetId: string | null = null;
   private mobileMovement = { x: 0, y: 0 };
   private mobileOwnership: MobilePointerOwnership = createMobilePointerOwnership();
@@ -99,7 +102,7 @@ export class GameScene extends Phaser.Scene {
     this.sessionState = createSessionState();
     this.playerInput = createPlayerInputState();
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
-    this.aimSource = 'mouse';
+    this.aimSource = 'none';
     this.aimTargetId = null;
     this.mobileControlsEnabled = false;
     this.mobileMovement = { x: 0, y: 0 };
@@ -512,6 +515,7 @@ export class GameScene extends Phaser.Scene {
   private cancelAllMobileInput(): void {
     this.activeMobilePointers.clear();
     if (!isPlaying(this.sessionState)) this.mobileRestartArmed = true;
+    this.aimSource = 'none';
     this.clearAimAssist();
     this.resetMobileInput();
   }
@@ -520,8 +524,7 @@ export class GameScene extends Phaser.Scene {
     const cameraView = this.cameras.main.worldView;
     const result = resolveAimAssist({
       enabled: isPlaying(this.sessionState)
-        && this.mobileControlsEnabled
-        && this.aimSource === 'mobile',
+        && shouldApplyMobileAimAssist(this.mobileControlsEnabled, this.aimSource),
       playerPosition: { x: this.player.x, y: this.player.y },
       manualAimDirection: this.playerInput.manualAimDirection,
       currentTargetId: this.aimTargetId,

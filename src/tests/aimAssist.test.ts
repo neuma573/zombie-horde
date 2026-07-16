@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   resolveAimAssist,
+  shouldApplyMobileAimAssist,
   type AimAssistConfig,
   type AimAssistTarget,
 } from '../logic/aimAssist';
@@ -52,6 +53,13 @@ function resolve(
 }
 
 describe('mobile aim assist', () => {
+  it('requires a fresh mobile aim source after lifecycle cancellation', () => {
+    expect(shouldApplyMobileAimAssist(true, 'mobile')).toBe(true);
+    expect(shouldApplyMobileAimAssist(true, 'none')).toBe(false);
+    expect(shouldApplyMobileAimAssist(true, 'mouse')).toBe(false);
+    expect(shouldApplyMobileAimAssist(false, 'mobile')).toBe(false);
+  });
+
   it('returns manual aim when disabled or when no target is eligible', () => {
     const manualAimDirection = { x: 0, y: -1 };
 
