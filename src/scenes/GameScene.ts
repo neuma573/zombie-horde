@@ -6,6 +6,7 @@ import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
+import { CombatEffects } from '../effects/CombatEffects';
 import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
@@ -44,6 +45,7 @@ export class GameScene extends Phaser.Scene {
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
   private hud?: HudSystem;
+  private effects?: CombatEffects;
 
   constructor() {
     super('GameScene');
@@ -59,6 +61,7 @@ export class GameScene extends Phaser.Scene {
     this.zombies = [];
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
+    this.effects = new CombatEffects(this);
     this.resizeHud();
     this.updateHud();
 
@@ -79,6 +82,8 @@ export class GameScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
       this.hud?.destroy();
       this.hud = undefined;
+      this.effects?.destroy();
+      this.effects = undefined;
     });
   }
 
@@ -145,6 +150,7 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.updateHud();
+      this.playPlayerHitEffects(contactDamage.damageEvents.length);
       return;
     }
 
@@ -155,6 +161,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateHud();
+    this.playPlayerHitEffects(contactDamage.damageEvents.length);
   }
 
   private fireWeapon(pointer: Phaser.Input.Pointer): void {
@@ -184,15 +191,25 @@ export class GameScene extends Phaser.Scene {
       })),
       BASIC_WEAPON_CONFIG.maxTargets,
     );
+    const impactEvents: Array<{ position: Vector2; radius: number; died: boolean }> = [];
 
     const deadIds = new Set<string>();
 
     for (const hit of result.hits) {
       const zombie = this.zombies.find((candidate) => candidate.id === hit.targetId);
 
-      if (zombie && this.damage.apply(zombie, BASIC_WEAPON_CONFIG.damage).died) {
-        zombie.destroy();
-        deadIds.add(zombie.id);
+      if (zombie) {
+        const damage = this.damage.apply(zombie, BASIC_WEAPON_CONFIG.damage);
+        impactEvents.push({
+          position: { x: zombie.x, y: zombie.y },
+          radius: zombie.hitRadius,
+          died: damage.died,
+        });
+
+        if (damage.died) {
+          zombie.destroy();
+          deadIds.add(zombie.id);
+        }
       }
     }
 
@@ -201,6 +218,17 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateHud();
+
+    this.effects?.playShot({
+      origin: { x: this.player.x, y: this.player.y },
+      endPoint: result.endPoint,
+    });
+    for (const impact of impactEvents) {
+      this.effects?.playZombieHit(impact);
+      if (impact.died) {
+        this.effects?.playZombieDeath(impact);
+      }
+    }
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer): void {
@@ -258,6 +286,15 @@ export class GameScene extends Phaser.Scene {
 
   private resizeHud(): void {
     this.hud?.resize(this.playArea.width, this.playArea.height, this.readSafeArea());
+  }
+
+  private playPlayerHitEffects(count: number): void {
+    for (let index = 0; index < count; index += 1) {
+      this.effects?.playPlayerHit({
+        position: { x: this.player.x, y: this.player.y },
+        radius: this.player.hitRadius,
+      });
+    }
   }
 
   private readSafeArea(): SafeAreaInsets {
