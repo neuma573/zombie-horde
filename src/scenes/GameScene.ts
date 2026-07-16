@@ -9,7 +9,12 @@ import { Zombie } from '../entities/Zombie';
 import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
-import { moveToward, moveWithinBounds } from '../logic/movement';
+import {
+  constrainToBounds,
+  moveToward,
+  moveWithinBounds,
+  type MovementBounds,
+} from '../logic/movement';
 import {
   createSessionState,
   isPlaying,
@@ -31,6 +36,7 @@ export class GameScene extends Phaser.Scene {
   private lastAimDirection: Vector2 = { x: 1, y: 0 };
   private zombies: Zombie[] = [];
   private sessionState: SessionState = createSessionState();
+  private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
   private spawn!: SpawnSystem;
   private wave!: WaveSystem;
@@ -48,6 +54,7 @@ export class GameScene extends Phaser.Scene {
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
     this.player = new Player(this, this.scale.width / 2, this.scale.height / 2);
     this.zombies = [];
+    this.resizePlayArea(this.scale.gameSize);
 
     this.movementKeys = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -59,9 +66,11 @@ export class GameScene extends Phaser.Scene {
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
     });
   }
 
@@ -91,8 +100,8 @@ export class GameScene extends Phaser.Scene {
         PLAYER_SPEED,
         deltaMs,
         {
-          width: this.scale.width,
-          height: this.scale.height,
+          width: this.playArea.width,
+          height: this.playArea.height,
           padding: PLAYER_RADIUS,
         },
       );
@@ -132,7 +141,7 @@ export class GameScene extends Phaser.Scene {
     const spawnCount = this.wave.update(deltaMs, this.zombies.length);
 
     for (let index = 0; index < spawnCount; index += 1) {
-      this.zombies.push(this.spawn.spawn(this));
+      this.zombies.push(this.spawn.spawn(this, this.playArea));
     }
   }
 
@@ -190,5 +199,27 @@ export class GameScene extends Phaser.Scene {
 
   private restartSession(): void {
     this.scene.restart();
+  }
+
+  private resizePlayArea(gameSize: Phaser.Structs.Size): void {
+    this.playArea = {
+      width: gameSize.width,
+      height: gameSize.height,
+    };
+    this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
+
+    const playerPosition = constrainToBounds(this.player, {
+      ...this.playArea,
+      padding: PLAYER_RADIUS,
+    });
+    this.player.setPosition(playerPosition.x, playerPosition.y);
+
+    for (const zombie of this.zombies) {
+      const zombiePosition = constrainToBounds(zombie, {
+        ...this.playArea,
+        padding: zombie.hitRadius,
+      });
+      zombie.setPosition(zombiePosition.x, zombiePosition.y);
+    }
   }
 }

@@ -2,20 +2,16 @@ import Phaser from 'phaser';
 
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Zombie } from '../entities/Zombie';
+import { getEdgeSpawnPosition } from '../logic/spawn';
+import type { MovementBounds } from '../logic/movement';
 
 export class SpawnSystem {
   private nextZombieId = 1;
 
-  spawn(scene: Phaser.Scene): Zombie {
+  spawn(scene: Phaser.Scene, bounds: Omit<MovementBounds, 'padding'>): Zombie {
     const radius = ZOMBIE_CONFIG.radius;
-    const positions = [
-      { x: scene.scale.width / 2, y: radius },
-      { x: scene.scale.width - radius, y: scene.scale.height / 2 },
-      { x: scene.scale.width / 2, y: scene.scale.height - radius },
-      { x: radius, y: scene.scale.height / 2 },
-    ];
     const id = this.nextZombieId;
-    const position = positions[(id - 1) % positions.length];
+    const position = getEdgeSpawnPosition(id - 1, bounds, radius);
     this.nextZombieId += 1;
 
     return new Zombie(scene, `zombie-${id}`, position.x, position.y);
