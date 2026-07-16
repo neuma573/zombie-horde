@@ -10,6 +10,12 @@ import { resolveAimDirection } from '../logic/aim';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { moveToward, moveWithinBounds } from '../logic/movement';
+import {
+  createSessionState,
+  isPlaying,
+  transitionToGameOver,
+  type SessionState,
+} from '../logic/session';
 import { DamageSystem } from '../systems/DamageSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
@@ -21,18 +27,25 @@ export class GameScene extends Phaser.Scene {
   private player!: Player;
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
+  private restartKey?: Phaser.Input.Keyboard.Key;
   private lastAimDirection: Vector2 = { x: 1, y: 0 };
   private zombies: Zombie[] = [];
+  private sessionState: SessionState = createSessionState();
   private readonly damage = new DamageSystem();
-  private readonly spawn = new SpawnSystem();
-  private readonly wave = new WaveSystem(WAVE_CONFIG);
-  private readonly weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
+  private spawn!: SpawnSystem;
+  private wave!: WaveSystem;
+  private weapon!: WeaponSystem;
 
   constructor() {
     super('GameScene');
   }
 
   create(): void {
+    this.sessionState = createSessionState();
+    this.lastAimDirection = { x: 1, y: 0 };
+    this.spawn = new SpawnSystem();
+    this.wave = new WaveSystem(WAVE_CONFIG);
+    this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
     this.player = new Player(this, this.scale.width / 2, this.scale.height / 2);
     this.zombies = [];
 
@@ -43,6 +56,7 @@ export class GameScene extends Phaser.Scene {
       right: Phaser.Input.Keyboard.KeyCodes.D,
     }) as MovementKeys | undefined;
     this.reloadKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.updateAimDirection, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.fireWeapon, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -52,6 +66,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
+    if (!isPlaying(this.sessionState)) {
+      if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
+        this.restartSession();
+      }
+      return;
+    }
+
     const playerStart = { x: this.player.x, y: this.player.y };
 
     this.weapon.update(deltaMs);
@@ -98,7 +119,14 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (contactDamage.died) {
-      this.events.emit('player-died');
+      const transition = transitionToGameOver(this.sessionState);
+      this.sessionState = transition.state;
+
+      if (transition.changed) {
+        this.events.emit('player-died');
+      }
+
+      return;
     }
 
     const spawnCount = this.wave.update(deltaMs, this.zombies.length);
@@ -110,6 +138,11 @@ export class GameScene extends Phaser.Scene {
 
   private fireWeapon(pointer: Phaser.Input.Pointer): void {
     if (!isPrimaryFireInput(pointer)) {
+      return;
+    }
+
+    if (!isPlaying(this.sessionState)) {
+      this.restartSession();
       return;
     }
 
@@ -153,5 +186,9 @@ export class GameScene extends Phaser.Scene {
       this.lastAimDirection,
     );
     this.player.setRotation(Math.atan2(this.lastAimDirection.y, this.lastAimDirection.x));
+  }
+
+  private restartSession(): void {
+    this.scene.restart();
   }
 }
