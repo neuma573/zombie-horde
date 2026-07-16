@@ -157,7 +157,7 @@ export class GameScene extends Phaser.Scene {
     const spawnCount = this.wave.update(deltaMs, this.zombies.length);
 
     for (let index = 0; index < spawnCount; index += 1) {
-      this.zombies.push(this.spawn.spawn(this, this.playArea));
+      this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
     }
 
     this.updateHud();
