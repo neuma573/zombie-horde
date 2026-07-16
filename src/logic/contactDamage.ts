@@ -25,6 +25,12 @@ export interface ContactDamageResult {
   died: boolean;
   invulnerabilityRemainingMs: number;
   attackerCooldownsMs: number[];
+  damageEvents: ContactDamageEvent[];
+}
+
+export interface ContactDamageEvent {
+  timeMs: number;
+  damage: number;
 }
 
 export function circlesOverlap(
@@ -89,6 +95,7 @@ export function resolveContactDamage(
   let isAlive = target.isAlive && health > 0;
   let died = false;
   let elapsed = 0;
+  const damageEvents: ContactDamageEvent[] = [];
 
   while (isAlive) {
     const readyContactIndices = attackers
@@ -109,7 +116,12 @@ export function resolveContactDamage(
         continue;
       }
 
+      const previousHealth = health;
       health = Math.max(0, health - Math.max(0, attacker.damage));
+
+      if (health < previousHealth) {
+        damageEvents.push({ timeMs: elapsed, damage: previousHealth - health });
+      }
 
       if (attacker.damage > 0) {
         invulnerability = Math.max(0, target.invulnerabilityMs);
@@ -163,5 +175,6 @@ export function resolveContactDamage(
     died,
     invulnerabilityRemainingMs: invulnerability,
     attackerCooldownsMs: cooldowns,
+    damageEvents,
   };
 }

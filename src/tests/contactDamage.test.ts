@@ -79,7 +79,11 @@ describe('resolveContactDamage', () => {
       1_400,
     );
 
-    expect(second).toEqual(oneStep);
+    expect({ ...second, damageEvents: oneStep.damageEvents }).toEqual(oneStep);
+    expect([
+      ...first.damageEvents,
+      ...second.damageEvents.map((event) => ({ ...event, timeMs: event.timeMs + 1_000 })),
+    ]).toEqual(oneStep.damageEvents);
     expect(oneStep.health).toBe(60);
   });
 
@@ -129,7 +133,11 @@ describe('resolveContactDamage', () => {
     );
 
     expect(oneStep.health).toBe(90);
-    expect(second).toEqual(oneStep);
+    expect({ ...second, damageEvents: oneStep.damageEvents }).toEqual(oneStep);
+    expect([
+      ...first.damageEvents,
+      ...second.damageEvents.map((event) => ({ ...event, timeMs: event.timeMs + 500 })),
+    ]).toEqual(oneStep.damageEvents);
     expect(oneStep.attackerCooldownsMs).toEqual([575]);
   });
 
@@ -138,6 +146,7 @@ describe('resolveContactDamage', () => {
 
     expect(result.health).toBe(40);
     expect(result.attackerCooldownsMs).toEqual([800]);
+    expect(result.damageEvents).toHaveLength(6);
   });
 
   it('reports death once and ignores damage after death', () => {
@@ -150,5 +159,7 @@ describe('resolveContactDamage', () => {
 
     expect(death).toMatchObject({ health: 0, isAlive: false, died: true });
     expect(afterDeath).toMatchObject({ health: 0, isAlive: false, died: false });
+    expect(death.damageEvents).toEqual([{ timeMs: 0, damage: 10 }]);
+    expect(afterDeath.damageEvents).toEqual([]);
   });
 });
