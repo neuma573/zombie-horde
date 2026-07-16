@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   circlesOverlap,
+  movingCircleContactWindow,
   resolveContactDamage,
   type ContactAttacker,
   type ContactTarget,
 } from '../logic/contactDamage';
+import { moveToward } from '../logic/movement';
 
 const target = (overrides: Partial<ContactTarget> = {}): ContactTarget => ({
-  position: { x: 0, y: 0 },
-  radius: 10,
   health: 100,
   isAlive: true,
   invulnerabilityRemainingMs: 0,
@@ -18,24 +18,38 @@ const target = (overrides: Partial<ContactTarget> = {}): ContactTarget => ({
 });
 
 const attacker = (overrides: Partial<ContactAttacker> = {}): ContactAttacker => ({
-  position: { x: 15, y: 0 },
-  radius: 5,
   damage: 10,
   attackIntervalMs: 800,
   cooldownRemainingMs: 0,
+  contactWindow: { startMs: 0, endMs: Number.POSITIVE_INFINITY },
   ...overrides,
 });
 
 describe('circlesOverlap', () => {
   it('treats touching circle edges as contact', () => {
-    expect(circlesOverlap(target(), attacker())).toBe(true);
-    expect(circlesOverlap(target(), attacker({ position: { x: 16, y: 0 } }))).toBe(false);
+    const first = { position: { x: 0, y: 0 }, radius: 10 };
+
+    expect(circlesOverlap(first, { position: { x: 15, y: 0 }, radius: 5 })).toBe(true);
+    expect(circlesOverlap(first, { position: { x: 16, y: 0 }, radius: 5 })).toBe(false);
+  });
+});
+
+describe('movingCircleContactWindow', () => {
+  it('returns only the portion of the frame spent in contact', () => {
+    const window = movingCircleContactWindow(
+      { start: { x: 0, y: 0 }, end: { x: 0, y: 0 }, radius: 18 },
+      { start: { x: 100, y: 0 }, end: { x: 20, y: 0 }, radius: 20 },
+      1_000,
+    );
+
+    expect(window?.startMs).toBeCloseTo(775);
+    expect(window?.endMs).toBe(1_000);
   });
 });
 
 describe('resolveContactDamage', () => {
   it('does not damage the player without contact', () => {
-    const result = resolveContactDamage(target(), [attacker({ position: { x: 30, y: 0 } })], 1_000);
+    const result = resolveContactDamage(target(), [attacker({ contactWindow: null })], 1_000);
 
     expect(result.health).toBe(100);
     expect(result.died).toBe(false);
@@ -44,7 +58,7 @@ describe('resolveContactDamage', () => {
   it('uses independent attack cooldowns and player invulnerability for simultaneous contacts', () => {
     const result = resolveContactDamage(
       target(),
-      [attacker(), attacker({ position: { x: -15, y: 0 }, attackIntervalMs: 1_200 })],
+      [attacker(), attacker({ attackIntervalMs: 1_200 })],
       800,
     );
 
@@ -67,6 +81,56 @@ describe('resolveContactDamage', () => {
 
     expect(second).toEqual(oneStep);
     expect(oneStep.health).toBe(60);
+  });
+
+  it('produces the same damage when movement enters contact in one large or two smaller frames', () => {
+    const playerPosition = { x: 0, y: 0 };
+    const zombieStart = { x: 100, y: 0 };
+    const oneStepEnd = moveToward(zombieStart, playerPosition, 80, 1_000);
+    const oneStepWindow = movingCircleContactWindow(
+      { start: playerPosition, end: playerPosition, radius: 18 },
+      { start: zombieStart, end: oneStepEnd, radius: 20 },
+      1_000,
+    );
+    const oneStep = resolveContactDamage(
+      target(),
+      [attacker({ contactWindow: oneStepWindow })],
+      1_000,
+    );
+
+    const firstEnd = moveToward(zombieStart, playerPosition, 80, 500);
+    const firstWindow = movingCircleContactWindow(
+      { start: playerPosition, end: playerPosition, radius: 18 },
+      { start: zombieStart, end: firstEnd, radius: 20 },
+      500,
+    );
+    const first = resolveContactDamage(
+      target(),
+      [attacker({ contactWindow: firstWindow })],
+      500,
+    );
+    const secondEnd = moveToward(firstEnd, playerPosition, 80, 500);
+    const secondWindow = movingCircleContactWindow(
+      { start: playerPosition, end: playerPosition, radius: 18 },
+      { start: firstEnd, end: secondEnd, radius: 20 },
+      500,
+    );
+    const second = resolveContactDamage(
+      target({
+        health: first.health,
+        isAlive: first.isAlive,
+        invulnerabilityRemainingMs: first.invulnerabilityRemainingMs,
+      }),
+      [attacker({
+        cooldownRemainingMs: first.attackerCooldownsMs[0],
+        contactWindow: secondWindow,
+      })],
+      500,
+    );
+
+    expect(oneStep.health).toBe(90);
+    expect(second).toEqual(oneStep);
+    expect(oneStep.attackerCooldownsMs).toEqual([575]);
   });
 
   it('updates repeated attacks correctly for a large delta', () => {

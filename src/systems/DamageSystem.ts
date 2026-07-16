@@ -1,10 +1,12 @@
 import { applyDamage, type DamageResult } from '../logic/damage';
 import {
+  movingCircleContactWindow,
   resolveContactDamage,
   type ContactAttacker,
   type ContactDamageResult,
   type ContactTarget,
 } from '../logic/contactDamage';
+import type { Position } from '../logic/movement';
 
 export interface Damageable {
   health: number;
@@ -34,26 +36,33 @@ export class DamageSystem {
 
   resolveZombieContacts(
     player: ContactDamageable,
+    playerStart: Position,
     zombies: readonly ContactDamageDealer[],
+    zombieStarts: readonly Position[],
     deltaMs: number,
     playerInvulnerabilityMs: number,
     zombieDamage: number,
     zombieAttackIntervalMs: number,
   ): ContactDamageResult {
     const target: ContactTarget = {
-      position: { x: player.x, y: player.y },
-      radius: player.hitRadius,
       health: player.health,
       isAlive: player.isAlive,
       invulnerabilityRemainingMs: player.invulnerabilityRemainingMs,
       invulnerabilityMs: playerInvulnerabilityMs,
     };
-    const attackers: ContactAttacker[] = zombies.map((zombie) => ({
-      position: { x: zombie.x, y: zombie.y },
-      radius: zombie.hitRadius,
+    const attackers: ContactAttacker[] = zombies.map((zombie, index) => ({
       damage: zombieDamage,
       attackIntervalMs: zombieAttackIntervalMs,
       cooldownRemainingMs: zombie.attackCooldownRemainingMs,
+      contactWindow: movingCircleContactWindow(
+        { start: playerStart, end: { x: player.x, y: player.y }, radius: player.hitRadius },
+        {
+          start: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
+          end: { x: zombie.x, y: zombie.y },
+          radius: zombie.hitRadius,
+        },
+        deltaMs,
+      ),
     }));
     const result = resolveContactDamage(target, attackers, deltaMs);
 

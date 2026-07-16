@@ -52,6 +52,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
+    const playerStart = { x: this.player.x, y: this.player.y };
+
     this.weapon.update(deltaMs);
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
@@ -77,6 +79,8 @@ export class GameScene extends Phaser.Scene {
       this.player.setPosition(nextPosition.x, nextPosition.y);
     }
 
+    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+
     for (const zombie of this.zombies) {
       const nextPosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
       zombie.setPosition(nextPosition.x, nextPosition.y);
@@ -84,7 +88,9 @@ export class GameScene extends Phaser.Scene {
 
     const contactDamage = this.damage.resolveZombieContacts(
       this.player,
+      playerStart,
       this.zombies,
+      zombieStarts,
       deltaMs,
       PLAYER_CONFIG.invulnerabilityMs,
       ZOMBIE_CONFIG.contactDamage,
