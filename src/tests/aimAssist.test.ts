@@ -92,6 +92,27 @@ describe('mobile aim assist', () => {
     })).toMatchObject({ targetId: 'edge' });
   });
 
+  it('uses true circle intersection at viewport corners', () => {
+    const wideConeConfig = {
+      ...config,
+      acquisitionHalfAngleRadians: Math.PI / 2,
+      maxTargetDistance: 700,
+    };
+
+    expect(resolve([target('outside-corner', 615, 415)], {
+      config: wideConeConfig,
+    }).targetId).toBeNull();
+    expect(resolve([target('visible-corner', 612, 412)], {
+      config: wideConeConfig,
+    }).targetId).toBe('visible-corner');
+  });
+
+  it('treats a negative target radius as zero for visibility', () => {
+    expect(resolve([target('invalid-radius', 601, 100, { radius: -5 })], {
+      config: { ...config, maxTargetDistance: 600 },
+    }).targetId).toBeNull();
+  });
+
   it('rejects a target outside the world view even when it is in range and on-axis', () => {
     expect(resolve([target('off-screen', 650, 100)], {
       config: { ...config, maxTargetDistance: 600 },

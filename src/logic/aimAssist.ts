@@ -74,11 +74,12 @@ function circleIntersectsWorldView(
   const top = worldView.y - safeMargin;
   const bottom = worldView.y + Math.max(0, worldView.height) + safeMargin;
   const radius = Math.max(0, target.radius);
+  const closestX = clamp(target.position.x, left, right);
+  const closestY = clamp(target.position.y, top, bottom);
+  const offsetX = target.position.x - closestX;
+  const offsetY = target.position.y - closestY;
 
-  return target.position.x + radius >= left
-    && target.position.x - radius <= right
-    && target.position.y + radius >= top
-    && target.position.y - radius <= bottom;
+  return offsetX * offsetX + offsetY * offsetY <= radius * radius;
 }
 
 function createCandidate(
