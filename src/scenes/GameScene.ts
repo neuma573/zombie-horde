@@ -462,19 +462,22 @@ export class GameScene extends Phaser.Scene {
 
   private updateHud(): void {
     const weapon = this.weapon.getState();
+    const reload = this.weapon.getReloadProgress();
     const wave = this.wave.getState();
 
-    this.hud?.update(createHudViewModel({
+    const viewModel = createHudViewModel({
       health: this.player.health,
       maxHealth: PLAYER_CONFIG.health,
       magazineAmmo: weapon.magazineAmmo,
       reserveAmmo: weapon.reserveAmmo,
       isReloading: weapon.reloadRemainingMs !== null,
+      reloadProgress: reload.normalized,
       waveNumber: wave.waveNumber,
       wavePhase: wave.phase,
       aliveZombieCount: this.zombies.length,
       sessionPhase: this.sessionState.phase,
-    }));
+    });
+    this.hud?.update(viewModel);
   }
 
   private resizeHud(): void {

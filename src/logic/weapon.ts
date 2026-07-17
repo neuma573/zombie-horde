@@ -20,6 +20,13 @@ export interface FireResult {
   state: WeaponState;
 }
 
+export interface ReloadProgress {
+  isReloading: boolean;
+  elapsedMs: number;
+  durationMs: number;
+  normalized: number;
+}
+
 export function createWeaponState(config: WeaponConfig): WeaponState {
   return {
     magazineAmmo: config.magazineSize,
@@ -85,4 +92,33 @@ export function startReload(state: WeaponState, config: WeaponConfig): WeaponSta
   return canReload
     ? { ...state, reloadRemainingMs: config.reloadDurationMs }
     : state;
+}
+
+export function getReloadProgress(
+  state: WeaponState,
+  config: WeaponConfig,
+): ReloadProgress {
+  if (state.reloadRemainingMs === null) {
+    return { isReloading: false, elapsedMs: 0, durationMs: 0, normalized: 0 };
+  }
+
+  const durationMs = Number.isFinite(config.reloadDurationMs)
+    ? Math.max(0, config.reloadDurationMs)
+    : 0;
+
+  if (durationMs === 0) {
+    return { isReloading: true, elapsedMs: 0, durationMs: 0, normalized: 1 };
+  }
+
+  const remainingMs = Number.isFinite(state.reloadRemainingMs)
+    ? Math.min(durationMs, Math.max(0, state.reloadRemainingMs))
+    : durationMs;
+  const elapsedMs = durationMs - remainingMs;
+
+  return {
+    isReloading: true,
+    elapsedMs,
+    durationMs,
+    normalized: Math.min(1, Math.max(0, elapsedMs / durationMs)),
+  };
 }

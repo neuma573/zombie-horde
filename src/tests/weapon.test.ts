@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceWeapon,
   createWeaponState,
+  getReloadProgress,
   startReload,
   tryFire,
   type WeaponConfig,
@@ -78,5 +79,31 @@ describe('weapon logic', () => {
 
     expect(startReload(full, config)).toBe(full);
     expect(startReload(noReserve, config)).toBe(noReserve);
+  });
+
+  it('derives clamped reload progress from weapon state', () => {
+    const reloading = startReload({ ...createWeaponState(config), magazineAmmo: 1 }, config);
+    const halfway = advanceWeapon(reloading, config, 500);
+
+    expect(getReloadProgress(reloading, config)).toMatchObject({
+      isReloading: true,
+      elapsedMs: 0,
+      durationMs: 1_000,
+      normalized: 0,
+    });
+    expect(getReloadProgress(halfway, config).normalized).toBe(0.5);
+    expect(getReloadProgress(advanceWeapon(halfway, config, 500), config)).toEqual({
+      isReloading: false,
+      elapsedMs: 0,
+      durationMs: 0,
+      normalized: 0,
+    });
+  });
+
+  it('never returns a non-finite reload progress for an invalid duration', () => {
+    const invalidConfig = { ...config, reloadDurationMs: 0 };
+    const state = { ...createWeaponState(invalidConfig), magazineAmmo: 0, reloadRemainingMs: 0 };
+
+    expect(getReloadProgress(state, invalidConfig).normalized).toBe(1);
   });
 });

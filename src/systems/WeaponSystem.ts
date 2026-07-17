@@ -1,8 +1,10 @@
 import {
   advanceWeapon,
   createWeaponState,
+  getReloadProgress,
   startReload,
   tryFire,
+  type ReloadProgress,
   type WeaponConfig,
   type WeaponState,
 } from '../logic/weapon';
@@ -30,5 +32,9 @@ export class WeaponSystem {
 
   getState(): Readonly<WeaponState> {
     return this.state;
+  }
+
+  getReloadProgress(): ReloadProgress {
+    return getReloadProgress(this.state, this.config);
   }
 }
