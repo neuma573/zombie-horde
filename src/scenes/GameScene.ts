@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
+import { MVP_CONFIG } from '../config/mvpConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
@@ -9,12 +10,14 @@ import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
+import { WorldBackdrop } from '../effects/WorldBackdrop';
 import {
   resolveAimAssist,
   shouldApplyMobileAimAssist,
   type AimSource,
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
+import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { shouldAutoReload } from '../logic/weapon';
@@ -87,6 +90,7 @@ export class GameScene extends Phaser.Scene {
   private zombies: Zombie[] = [];
   private sessionState: SessionState = createSessionState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
+  private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
   private spawn!: SpawnSystem;
   private wave!: WaveSystem;
@@ -94,6 +98,7 @@ export class GameScene extends Phaser.Scene {
   private hud?: HudSystem;
   private effects?: CombatEffects;
   private aimAssistVisual?: AimAssistVisual;
+  private worldBackdrop?: WorldBackdrop;
 
   constructor() {
     super('GameScene');
@@ -113,7 +118,11 @@ export class GameScene extends Phaser.Scene {
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
-    this.player = new Player(this, this.scale.width / 2, this.scale.height / 2);
+    this.viewport = { width: this.scale.width, height: this.scale.height };
+    this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
+    this.worldBackdrop = new WorldBackdrop(this);
+    this.worldBackdrop.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
+    this.player = new Player(this, this.playArea.width / 2, this.playArea.height / 2);
     this.zombies = [];
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
@@ -161,6 +170,8 @@ export class GameScene extends Phaser.Scene {
       this.effects = undefined;
       this.aimAssistVisual?.destroy();
       this.aimAssistVisual = undefined;
+      this.worldBackdrop?.destroy();
+      this.worldBackdrop = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
     });
@@ -215,6 +226,7 @@ export class GameScene extends Phaser.Scene {
       },
     );
     this.player.setPosition(nextPosition.x, nextPosition.y);
+    this.updateCameraPosition();
 
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
@@ -446,11 +458,14 @@ export class GameScene extends Phaser.Scene {
     this.viewportOrientation = nextOrientation;
 
     if (orientationChanged) this.cancelAllMobileInput();
-    this.playArea = {
+    this.viewport = {
       width: gameSize.width,
       height: gameSize.height,
     };
+    this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
+    this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
+    this.worldBackdrop?.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
 
     const playerPosition = constrainToBounds(this.player, {
       ...this.playArea,
@@ -465,6 +480,8 @@ export class GameScene extends Phaser.Scene {
       });
       zombie.setPosition(zombiePosition.x, zombiePosition.y);
     }
+
+    this.updateCameraPosition();
 
     this.resizeHud();
     this.refreshInputMode();
@@ -491,7 +508,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resizeHud(): void {
-    this.hud?.resize(this.playArea.width, this.playArea.height, this.readSafeArea());
+    this.hud?.resize(this.viewport.width, this.viewport.height, this.readSafeArea());
   }
 
   private refreshInputMode(): void {
@@ -505,8 +522,8 @@ export class GameScene extends Phaser.Scene {
     if (this.mobileControlsEnabled) {
       if (!wasEnabled) this.aimSource = 'mobile';
       this.mobileLayout = createMobileControlLayout(
-        this.playArea.width,
-        this.playArea.height,
+        this.viewport.width,
+        this.viewport.height,
         this.readSafeArea(),
       );
       this.mobileControls?.setLayout(this.mobileLayout);
@@ -534,7 +551,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshAimAssist(): Vector2 {
-    const cameraView = this.cameras.main.worldView;
+    const cameraScroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
     const result = resolveAimAssist({
       enabled: isPlaying(this.sessionState)
         && shouldApplyMobileAimAssist(this.mobileControlsEnabled, this.aimSource),
@@ -549,10 +566,10 @@ export class GameScene extends Phaser.Scene {
         active: zombie.active,
       })),
       worldView: {
-        x: cameraView.x,
-        y: cameraView.y,
-        width: cameraView.width,
-        height: cameraView.height,
+        x: cameraScroll.x,
+        y: cameraScroll.y,
+        width: this.viewport.width,
+        height: this.viewport.height,
       },
       hitscanRange: BASIC_WEAPON_CONFIG.range,
       config: MOBILE_AIM_ASSIST_CONFIG,
@@ -627,6 +644,11 @@ export class GameScene extends Phaser.Scene {
         radius: this.player.hitRadius,
       });
     }
+  }
+
+  private updateCameraPosition(): void {
+    const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
+    this.cameras.main.setScroll(scroll.x, scroll.y);
   }
 
   private readSafeArea(): SafeAreaInsets {

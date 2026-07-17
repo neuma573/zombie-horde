@@ -2,6 +2,11 @@ import type { WaveConfig } from '../logic/wave';
 import type { WeaponConfig } from '../logic/weapon';
 
 export const MVP_CONFIG = {
+  map: {
+    width: 2_400,
+    height: 1_600,
+    gridSize: 80,
+  },
   player: {
     health: 100,
     radius: 18,
