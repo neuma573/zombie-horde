@@ -47,6 +47,7 @@ function resolve(
     currentTargetId: null,
     targets,
     worldView,
+    hitscanRange: 600,
     config,
     ...overrides,
   });
@@ -206,6 +207,33 @@ describe('mobile aim assist', () => {
 
     expect(assist.targetId).toBe(assistedTarget.id);
     expect(shot.hits[0]?.targetId).toBe(assistedTarget.id);
+  });
+
+  it('locks the first zombie that the assisted hitscan ray can actually hit', () => {
+    const scoredTarget = target('far-centered', 300, 100);
+    const nearerBlocker = target('near-blocker', 200, 110);
+    const result = resolve([scoredTarget, nearerBlocker]);
+    const shot = resolveHitscan(
+      playerPosition,
+      result.finalAimDirection,
+      600,
+      [scoredTarget, nearerBlocker].map((candidate) => ({
+        id: candidate.id,
+        position: candidate.position,
+        radius: candidate.radius,
+      })),
+      1,
+    );
+
+    expect(result.targetId).toBe('near-blocker');
+    expect(shot.hits[0]?.targetId).toBe(result.targetId);
+  });
+
+  it('does not lock a farther candidate through a non-candidate blocker', () => {
+    const scoredTarget = target('far-centered', 300, 100);
+    const outsideConeBlocker = target('outside-cone-blocker', 150, 111);
+
+    expect(resolve([scoredTarget, outsideConeBlocker]).targetId).toBeNull();
   });
 
   it('falls back to finite manual aim when player and target overlap', () => {

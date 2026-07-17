@@ -1,5 +1,5 @@
 import { resolveAimDirection } from './aim';
-import type { Vector2 } from './hitscan';
+import { resolveHitscan, type HitscanTarget, type Vector2 } from './hitscan';
 
 export type AimSource = 'none' | 'mouse' | 'mobile';
 
@@ -35,6 +35,7 @@ export interface AimAssistInput {
   currentTargetId: string | null;
   targets: readonly AimAssistTarget[];
   worldView: WorldView;
+  hitscanRange: number;
   config: AimAssistConfig;
 }
 
@@ -126,6 +127,30 @@ function scoreCandidate(
     + switchCost;
 }
 
+function isFirstHitscanTarget(
+  candidate: Candidate,
+  input: AimAssistInput,
+  manualAimDirection: Vector2,
+  hitscanTargets: readonly HitscanTarget[],
+): boolean {
+  const direction = resolveAimDirection(
+    {
+      x: candidate.target.position.x - input.playerPosition.x,
+      y: candidate.target.position.y - input.playerPosition.y,
+    },
+    manualAimDirection,
+  );
+  const firstHit = resolveHitscan(
+    input.playerPosition,
+    direction,
+    input.hitscanRange,
+    hitscanTargets,
+    1,
+  ).hits[0];
+
+  return firstHit?.targetId === candidate.target.id;
+}
+
 export function resolveAimAssist(input: AimAssistInput): AimAssistResult {
   const manualAimDirection = resolveAimDirection(input.manualAimDirection, { x: 1, y: 0 });
 
@@ -147,7 +172,15 @@ export function resolveAimAssist(input: AimAssistInput): AimAssistResult {
     return left.target.id < right.target.id ? -1 : Number(left.target.id > right.target.id);
   });
 
-  const selected = candidates[0]?.target;
+  const hitscanTargets = input.targets.flatMap<HitscanTarget>((target) => (
+    target.active && target.health > 0
+      ? [{ id: target.id, position: target.position, radius: target.radius }]
+      : []
+  ));
+
+  const selected = candidates.find((candidate) => (
+    isFirstHitscanTarget(candidate, input, manualAimDirection, hitscanTargets)
+  ))?.target;
 
   if (!selected) {
     return { targetId: null, finalAimDirection: manualAimDirection };

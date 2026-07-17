@@ -541,6 +541,7 @@ export class GameScene extends Phaser.Scene {
         width: cameraView.width,
         height: cameraView.height,
       },
+      hitscanRange: BASIC_WEAPON_CONFIG.range,
       config: MOBILE_AIM_ASSIST_CONFIG,
     });
 
