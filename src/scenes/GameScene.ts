@@ -17,6 +17,7 @@ import {
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
+import { shouldAutoReload } from '../logic/weapon';
 import {
   claimMobilePointer,
   canRestartWithMobileTouch,
@@ -200,6 +201,7 @@ export class GameScene extends Phaser.Scene {
     if (reload.requested) {
       this.weapon.reload();
     }
+    this.startMobileAutoReloadIfNeeded();
 
     const nextPosition = moveWithinBounds(
       this.player,
@@ -271,6 +273,8 @@ export class GameScene extends Phaser.Scene {
     const shotDirection = this.refreshAimAssist();
 
     if (!this.weapon.fire()) {
+      this.startMobileAutoReloadIfNeeded();
+      this.updateHud();
       return;
     }
 
@@ -316,8 +320,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    this.updateHud();
-
     this.effects?.playShot({
       origin: { x: this.player.x, y: this.player.y },
       endPoint: result.endPoint,
@@ -327,6 +329,14 @@ export class GameScene extends Phaser.Scene {
       if (impact.died) {
         this.effects?.playZombieDeath(impact);
       }
+    }
+    this.startMobileAutoReloadIfNeeded();
+    this.updateHud();
+  }
+
+  private startMobileAutoReloadIfNeeded(): void {
+    if (shouldAutoReload(this.weapon.getState(), this.mobileControlsEnabled)) {
+      this.weapon.reload();
     }
   }
 

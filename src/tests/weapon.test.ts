@@ -4,6 +4,7 @@ import {
   advanceWeapon,
   createWeaponState,
   getReloadProgress,
+  shouldAutoReload,
   startReload,
   tryFire,
   type WeaponConfig,
@@ -105,5 +106,26 @@ describe('weapon logic', () => {
     const state = { ...createWeaponState(invalidConfig), magazineAmmo: 0, reloadRemainingMs: 0 };
 
     expect(getReloadProgress(state, invalidConfig).normalized).toBe(1);
+  });
+
+  it('requests automatic reload only for an empty mobile weapon with reserve ammo', () => {
+    const empty = { ...createWeaponState(config), magazineAmmo: 0 };
+
+    expect(shouldAutoReload(empty, true)).toBe(true);
+    expect(shouldAutoReload(empty, false)).toBe(false);
+    expect(shouldAutoReload({ ...empty, magazineAmmo: 1 }, true)).toBe(false);
+    expect(shouldAutoReload({ ...empty, reserveAmmo: 0 }, true)).toBe(false);
+    expect(shouldAutoReload({ ...empty, reloadRemainingMs: 500 }, true)).toBe(false);
+  });
+
+  it('starts reload only after the last shot has consumed its ammo', () => {
+    const lastRound = { ...createWeaponState(config), magazineAmmo: 1 };
+
+    expect(shouldAutoReload(lastRound, true)).toBe(false);
+
+    const shot = tryFire(lastRound, config);
+    expect(shot.fired).toBe(true);
+    expect(shouldAutoReload(shot.state, true)).toBe(true);
+    expect(startReload(shot.state, config).reloadRemainingMs).toBe(config.reloadDurationMs);
   });
 });
