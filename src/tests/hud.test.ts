@@ -10,6 +10,7 @@ describe('createHudViewModel', () => {
       magazineAmmo: 4,
       reserveAmmo: 36,
       isReloading: true,
+      reloadProgress: 0.5,
       waveNumber: 3,
       wavePhase: 'waiting' as const,
       aliveZombieCount: 5,
@@ -25,6 +26,8 @@ describe('createHudViewModel', () => {
     expect(result.waveText).toContain('Zombies 5');
     expect(result.waveText).toContain('Next wave incoming');
     expect(result.showGameOver).toBe(false);
+    expect(result.reloadProgress).toBe(0.5);
+    expect(result.reloadPrompt).toBeNull();
     expect(state).toEqual(snapshot);
   });
 
@@ -35,6 +38,7 @@ describe('createHudViewModel', () => {
       magazineAmmo: 12,
       reserveAmmo: 48,
       isReloading: false,
+      reloadProgress: 0,
       waveNumber: 1,
       wavePhase: 'active',
       aliveZombieCount: 3,
@@ -42,7 +46,29 @@ describe('createHudViewModel', () => {
     });
 
     expect(result.showGameOver).toBe(true);
+    expect(result.reloadProgress).toBeNull();
+    expect(result.reloadPrompt).toBeNull();
     expect(result.gameOverText).toContain('Enter or tap to restart');
+  });
+
+  it('prompts for reload only when the empty weapon can reload', () => {
+    const base = {
+      health: 100,
+      maxHealth: 100,
+      magazineAmmo: 0,
+      reserveAmmo: 12,
+      isReloading: false,
+      reloadProgress: 0,
+      waveNumber: 1,
+      wavePhase: 'active' as const,
+      aliveZombieCount: 0,
+      sessionPhase: 'playing' as const,
+    };
+
+    expect(createHudViewModel(base).reloadPrompt).toBe('RELOAD');
+    expect(createHudViewModel({ ...base, magazineAmmo: 1 }).reloadPrompt).toBeNull();
+    expect(createHudViewModel({ ...base, reserveAmmo: 0 }).reloadPrompt).toBeNull();
+    expect(createHudViewModel({ ...base, isReloading: true }).reloadPrompt).toBeNull();
   });
 });
 
@@ -54,6 +80,8 @@ describe('createHudLayout', () => {
     expect(layout.wave).toEqual({ x: 12, y: 110, alignRight: false });
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
+    expect(layout.reload.width).toBeGreaterThanOrEqual(150);
+    expect(layout.reload.x).toBeGreaterThanOrEqual(12);
   });
 
   it('splits status blocks across a wide landscape safe area', () => {
@@ -62,5 +90,9 @@ describe('createHudLayout', () => {
     expect(layout.player).toEqual({ x: 36, y: 12 });
     expect(layout.wave).toEqual({ x: 924, y: 12, alignRight: true });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
+    expect(layout.reload.x).toBeCloseTo(329.04);
+    expect(layout.reload.y).toBe(318);
+    expect(layout.reload.width).toBeCloseTo(301.92);
+    expect(layout.reload.height).toBe(10);
   });
 });
