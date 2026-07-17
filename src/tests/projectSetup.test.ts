@@ -44,6 +44,7 @@ describe('browser entry point', () => {
     expect(workflow).toContain('id: pages');
     expect(workflow).toContain('VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}/');
     expect(workflow).toContain('uses: actions/upload-pages-artifact@v4');
+    expect(workflow).toContain('pages: read');
     expect(workflow).toContain('pages: write');
     expect(workflow).toContain('id-token: write');
     expect(workflow).toContain('uses: actions/deploy-pages@v4');
