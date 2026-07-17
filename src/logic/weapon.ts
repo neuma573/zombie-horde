@@ -94,6 +94,16 @@ export function startReload(state: WeaponState, config: WeaponConfig): WeaponSta
     : state;
 }
 
+export function shouldAutoReload(
+  state: WeaponState,
+  mobileControlsEnabled: boolean,
+): boolean {
+  return mobileControlsEnabled
+    && state.magazineAmmo === 0
+    && state.reserveAmmo > 0
+    && state.reloadRemainingMs === null;
+}
+
 export function getReloadProgress(
   state: WeaponState,
   config: WeaponConfig,
