@@ -1,12 +1,19 @@
 import Phaser from 'phaser';
 
+import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
+import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
+import {
+  resolveAimAssist,
+  shouldApplyMobileAimAssist,
+  type AimSource,
+} from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
@@ -64,6 +71,9 @@ export class GameScene extends Phaser.Scene {
   private reloadKey?: Phaser.Input.Keyboard.Key;
   private restartKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
+  private finalAimDirection: Vector2 = { x: 1, y: 0 };
+  private aimSource: AimSource = 'none';
+  private aimTargetId: string | null = null;
   private mobileMovement = { x: 0, y: 0 };
   private mobileOwnership: MobilePointerOwnership = createMobilePointerOwnership();
   private mobileLayout?: MobileControlLayout;
@@ -82,6 +92,7 @@ export class GameScene extends Phaser.Scene {
   private weapon!: WeaponSystem;
   private hud?: HudSystem;
   private effects?: CombatEffects;
+  private aimAssistVisual?: AimAssistVisual;
 
   constructor() {
     super('GameScene');
@@ -90,6 +101,10 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.sessionState = createSessionState();
     this.playerInput = createPlayerInputState();
+    this.finalAimDirection = { ...this.playerInput.manualAimDirection };
+    this.aimSource = 'none';
+    this.aimTargetId = null;
+    this.mobileControlsEnabled = false;
     this.mobileMovement = { x: 0, y: 0 };
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
@@ -102,6 +117,7 @@ export class GameScene extends Phaser.Scene {
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
+    this.aimAssistVisual = new AimAssistVisual(this);
     this.mobileControls = new MobileControls(this);
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
@@ -142,6 +158,8 @@ export class GameScene extends Phaser.Scene {
       this.hud = undefined;
       this.effects?.destroy();
       this.effects = undefined;
+      this.aimAssistVisual?.destroy();
+      this.aimAssistVisual = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
     });
@@ -149,6 +167,7 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, deltaMs: number): void {
     if (!isPlaying(this.sessionState)) {
+      this.clearAimAssist();
       this.resetMobileInput();
       this.updateHud();
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
@@ -222,11 +241,14 @@ export class GameScene extends Phaser.Scene {
       }
 
       this.mobileRestartArmed = this.activeMobilePointers.size === 0;
+      this.clearAimAssist();
       this.resetMobileInput();
       this.updateHud();
       this.playPlayerHitEffects(contactDamage.damageEvents.length);
       return;
     }
+
+    this.refreshAimAssist();
 
     const spawnCount = this.wave.update(deltaMs, this.zombies.length);
 
@@ -242,13 +264,19 @@ export class GameScene extends Phaser.Scene {
     const fire = consumeFireRequest(this.playerInput);
     this.playerInput = fire.state;
 
-    if (!fire.requested || !isPlaying(this.sessionState) || !this.weapon.fire()) {
+    if (!fire.requested || !isPlaying(this.sessionState)) {
+      return;
+    }
+
+    const shotDirection = this.refreshAimAssist();
+
+    if (!this.weapon.fire()) {
       return;
     }
 
     const result = resolveHitscan(
       { x: this.player.x, y: this.player.y },
-      this.playerInput.manualAimDirection,
+      shotDirection,
       BASIC_WEAPON_CONFIG.range,
       this.zombies.map((zombie) => ({
         id: zombie.id,
@@ -281,6 +309,11 @@ export class GameScene extends Phaser.Scene {
 
     if (deadIds.size > 0) {
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
+
+      if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
+        this.aimTargetId = null;
+        this.aimAssistVisual?.hide();
+      }
     }
 
     this.updateHud();
@@ -297,15 +330,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private updateAimDirection(pointer: Phaser.Input.Pointer): void {
+  private updateAimDirection(pointer: Phaser.Input.Pointer, source: AimSource): void {
+    if (this.aimSource !== source) {
+      this.aimSource = source;
+      this.clearAimAssist();
+    }
+
     this.playerInput = withAimCandidate(
       this.playerInput,
       { x: pointer.worldX - this.player.x, y: pointer.worldY - this.player.y },
     );
-    this.player.setRotation(Math.atan2(
-      this.playerInput.manualAimDirection.y,
-      this.playerInput.manualAimDirection.x,
-    ));
+    this.refreshAimAssist();
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
@@ -323,7 +358,7 @@ export class GameScene extends Phaser.Scene {
 
     if (!pointer.wasTouch) {
       if (!isPrimaryFireInput(pointer)) return;
-      this.updateAimDirection(pointer);
+      this.updateAimDirection(pointer, 'mouse');
       this.playerInput = requestFire(this.playerInput);
       this.resolveFireRequest();
       return;
@@ -341,7 +376,7 @@ export class GameScene extends Phaser.Scene {
     if (role === 'movement') {
       this.updateMobileMovement(pointer);
     } else if (role === 'aim') {
-      this.updateAimDirection(pointer);
+      this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
       this.playerInput = requestFire(this.playerInput);
       this.resolveFireRequest();
@@ -354,13 +389,13 @@ export class GameScene extends Phaser.Scene {
     if (!isPlaying(this.sessionState)) return;
 
     if (!pointer.wasTouch) {
-      this.updateAimDirection(pointer);
+      this.updateAimDirection(pointer, 'mouse');
       return;
     }
 
     const role = roleForPointer(this.mobileOwnership, pointer.id);
     if (role === 'movement') this.updateMobileMovement(pointer);
-    if (role === 'aim') this.updateAimDirection(pointer);
+    if (role === 'aim') this.updateAimDirection(pointer, 'mobile');
   }
 
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
@@ -447,6 +482,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshInputMode(): void {
+    const wasEnabled = this.mobileControlsEnabled;
     this.mobileControlsEnabled = shouldShowMobileControls(
       navigator.maxTouchPoints,
       this.coarsePointerQuery?.matches ?? window.matchMedia('(pointer: coarse)').matches,
@@ -454,6 +490,7 @@ export class GameScene extends Phaser.Scene {
     this.mobileControls?.setVisible(this.mobileControlsEnabled);
 
     if (this.mobileControlsEnabled) {
+      if (!wasEnabled) this.aimSource = 'mobile';
       this.mobileLayout = createMobileControlLayout(
         this.playArea.width,
         this.playArea.height,
@@ -461,7 +498,9 @@ export class GameScene extends Phaser.Scene {
       );
       this.mobileControls?.setLayout(this.mobileLayout);
     } else {
+      this.aimSource = 'mouse';
       this.mobileLayout = undefined;
+      this.clearAimAssist();
       this.resetMobileInput();
     }
   }
@@ -476,7 +515,77 @@ export class GameScene extends Phaser.Scene {
   private cancelAllMobileInput(): void {
     this.activeMobilePointers.clear();
     if (!isPlaying(this.sessionState)) this.mobileRestartArmed = true;
+    this.aimSource = 'none';
+    this.clearAimAssist();
     this.resetMobileInput();
+  }
+
+  private refreshAimAssist(): Vector2 {
+    const cameraView = this.cameras.main.worldView;
+    const result = resolveAimAssist({
+      enabled: isPlaying(this.sessionState)
+        && shouldApplyMobileAimAssist(this.mobileControlsEnabled, this.aimSource),
+      playerPosition: { x: this.player.x, y: this.player.y },
+      manualAimDirection: this.playerInput.manualAimDirection,
+      currentTargetId: this.aimTargetId,
+      targets: this.zombies.map((zombie) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius,
+        health: zombie.health,
+        active: zombie.active,
+      })),
+      worldView: {
+        x: cameraView.x,
+        y: cameraView.y,
+        width: cameraView.width,
+        height: cameraView.height,
+      },
+      hitscanRange: BASIC_WEAPON_CONFIG.range,
+      config: MOBILE_AIM_ASSIST_CONFIG,
+    });
+
+    this.aimTargetId = result.targetId;
+    this.finalAimDirection = result.finalAimDirection;
+    this.player.setRotation(Math.atan2(
+      this.finalAimDirection.y,
+      this.finalAimDirection.x,
+    ));
+    this.updateAimAssistVisual();
+    return { ...this.finalAimDirection };
+  }
+
+  private clearAimAssist(): void {
+    this.aimTargetId = null;
+    this.finalAimDirection = { ...this.playerInput.manualAimDirection };
+    this.aimAssistVisual?.hide();
+
+    if (this.player) {
+      this.player.setRotation(Math.atan2(
+        this.finalAimDirection.y,
+        this.finalAimDirection.x,
+      ));
+    }
+  }
+
+  private updateAimAssistVisual(): void {
+    if (this.aimTargetId === null || this.aimSource !== 'mobile') {
+      this.aimAssistVisual?.hide();
+      return;
+    }
+
+    const target = this.zombies.find((zombie) => zombie.id === this.aimTargetId);
+
+    if (!target || !target.active || target.health <= 0) {
+      this.aimAssistVisual?.hide();
+      return;
+    }
+
+    this.aimAssistVisual?.show({
+      x: target.x,
+      y: target.y,
+      radius: target.hitRadius,
+    });
   }
 
   private readonly handleNativeCancel = (): void => {
