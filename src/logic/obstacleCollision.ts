@@ -13,7 +13,6 @@ interface SweepHit {
 }
 
 const TIME_EPSILON = 1e-7;
-const MAX_SLIDE_ITERATIONS = 3;
 
 function earliest(current: SweepHit | null, candidate: SweepHit | null): SweepHit | null {
   if (!candidate) return current;
@@ -98,9 +97,12 @@ function sweepCircleAgainstRectangle(
     const normalLength = Math.hypot(normalX, normalY);
     if (normalLength === 0) continue;
 
+    const normal = { x: normalX / normalLength, y: normalY / normalLength };
+    if (delta.x * normal.x + delta.y * normal.y >= -TIME_EPSILON) continue;
+
     hit = earliest(hit, {
       time,
-      normal: { x: normalX / normalLength, y: normalY / normalLength },
+      normal,
     });
   }
 
@@ -121,7 +123,7 @@ export function moveCircleWithObstacles(
   };
   const safeRadius = Math.max(0, radius);
 
-  for (let iteration = 0; iteration < MAX_SLIDE_ITERATIONS; iteration += 1) {
+  while (Math.hypot(remaining.x, remaining.y) > TIME_EPSILON) {
     let closestHit: SweepHit | null = null;
 
     for (const obstacle of obstacles) {
@@ -154,8 +156,6 @@ export function moveCircleWithObstacles(
         y: remaining.y - closestHit.normal.y * intoSurface,
       };
     }
-
-    if (Math.hypot(remaining.x, remaining.y) <= TIME_EPSILON) break;
   }
 
   return constrainToBounds(position, bounds);

@@ -74,4 +74,24 @@ describe('circle obstacle collision', () => {
     expect(twoSteps.x).toBeCloseTo(oneStep.x, 4);
     expect(twoSteps.y).toBeCloseTo(oneStep.y, 4);
   });
+
+  it('consumes movement after more than three sequential corner contacts', () => {
+    const pointObstacle = (x: number, y: number) => ({ x, y, width: 0, height: 0 });
+    const obstacles = [
+      pointObstacle(121.7364818, 90.1519225),
+      pointObstacle(143.1159000, 94.0769820),
+      pointObstacle(163.4903340, 101.6527040),
+      pointObstacle(182.2390000, 112.6520000),
+    ];
+    const result = moveCircleWithObstacles(
+      { x: 100, y: 100 },
+      { x: 300, y: 100 },
+      10,
+      obstacles,
+      { width: 500, height: 500, padding: 10 },
+    );
+
+    expect(result.x).toBeGreaterThan(175);
+    expect(result.y).toBeGreaterThan(110);
+  });
 });
