@@ -128,7 +128,7 @@ export function resolveHitscan(
   const blockerDistance = blockers.reduce((nearest, blocker) => {
     const distance = firstRayRectangleIntersection(origin, normalizedDirection, blocker);
     return distance === undefined ? nearest : Math.min(nearest, distance);
-  }, Math.max(0, range));
+  }, Number.POSITIVE_INFINITY);
   const candidates = targets.flatMap<HitscanHit>((target) => {
     const distance = firstRayCircleIntersection(origin, normalizedDirection, target);
 
@@ -154,7 +154,7 @@ export function resolveHitscan(
   const hits = candidates.slice(0, targetLimit);
   const reachedTargetLimit = hits.length === targetLimit;
   const targetEndDistance = reachedTargetLimit ? hits[hits.length - 1].distance : range;
-  const endDistance = Math.min(targetEndDistance, blockerDistance);
+  const endDistance = Math.min(range, targetEndDistance, blockerDistance);
 
   return {
     hits,

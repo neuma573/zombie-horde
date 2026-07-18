@@ -60,6 +60,17 @@ describe('resolveHitscan', () => {
     expect(result.endPoint).toEqual({ x: 100, y: 0 });
   });
 
+  it('includes a target whose circle entry point is exactly at maximum range', () => {
+    const result = resolveHitscan(origin, direction, 100, [target('boundary', 105, 0, 5)], 1);
+
+    expect(result.hits).toEqual([{
+      targetId: 'boundary',
+      distance: 100,
+      point: { x: 100, y: 0 },
+    }]);
+    expect(result.endPoint).toEqual({ x: 100, y: 0 });
+  });
+
   it('normalizes the supplied direction', () => {
     const result = resolveHitscan(origin, { x: 10, y: 0 }, 100, [target('hit', 50, 0)], 1);
 
@@ -108,6 +119,34 @@ describe('resolveHitscan', () => {
 
     expect(result.hits).toEqual([]);
     expect(result.endPoint).toEqual({ x: 60, y: 0 });
+  });
+
+  it('lets a structure win when its entry distance ties a target at maximum range', () => {
+    const result = resolveHitscan(
+      origin,
+      direction,
+      100,
+      [target('boundary', 105, 0, 5)],
+      1,
+      [{ x: 100, y: -10, width: 10, height: 20 }],
+    );
+
+    expect(result.hits).toEqual([]);
+    expect(result.endPoint).toEqual({ x: 100, y: 0 });
+  });
+
+  it('ignores a structure beyond range when a target starts at the range boundary', () => {
+    const result = resolveHitscan(
+      origin,
+      direction,
+      100,
+      [target('boundary', 105, 0, 5)],
+      1,
+      [{ x: 120, y: -10, width: 10, height: 20 }],
+    );
+
+    expect(result.hits.map((hit) => hit.targetId)).toEqual(['boundary']);
+    expect(result.endPoint).toEqual({ x: 100, y: 0 });
   });
 
   it('hits a target in front of a structure and ends there for a non-penetrating shot', () => {
