@@ -32,14 +32,14 @@ describe('circle obstacle collision', () => {
   it('slides along the obstacle instead of discarding tangential movement', () => {
     const result = moveCircleWithObstacles(
       { x: 50, y: 150 },
-      { x: 150, y: 250 },
+      { x: 150, y: 190 },
       10,
       [obstacle],
       bounds,
     );
 
     expect(result.x).toBeCloseTo(90, 4);
-    expect(result.y).toBeCloseTo(250, 4);
+    expect(result.y).toBeCloseTo(190, 4);
   });
 
   it('does not use the square corner of an expanded AABB as a false collision', () => {
@@ -73,6 +73,31 @@ describe('circle obstacle collision', () => {
 
     expect(twoSteps.x).toBeCloseTo(oneStep.x, 4);
     expect(twoSteps.y).toBeCloseTo(oneStep.y, 4);
+  });
+
+  it('re-sweeps after sliding beyond a finite face', () => {
+    const start = { x: 20, y: 20 };
+    const end = { x: 140, y: 260 };
+    const oneStep = moveCircleWithObstacles(start, end, 10, [obstacle], bounds);
+    let partitioned = start;
+
+    for (let step = 1; step <= 10; step += 1) {
+      partitioned = moveCircleWithObstacles(
+        partitioned,
+        {
+          x: partitioned.x + (end.x - start.x) / 10,
+          y: partitioned.y + (end.y - start.y) / 10,
+        },
+        10,
+        [obstacle],
+        bounds,
+      );
+    }
+
+    expect(oneStep.x).toBeCloseTo(partitioned.x, 4);
+    expect(oneStep.y).toBeCloseTo(partitioned.y, 4);
+    expect(oneStep.x).toBeGreaterThan(90);
+    expect(oneStep.y).toBeCloseTo(260, 4);
   });
 
   it('consumes movement after more than three sequential corner contacts', () => {

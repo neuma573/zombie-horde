@@ -10,6 +10,12 @@ export interface RectangleObstacle {
 interface SweepHit {
   time: number;
   normal: Position;
+  obstacleIndex: number;
+  face?: {
+    axis: 'x' | 'y';
+    min: number;
+    max: number;
+  };
 }
 
 const TIME_EPSILON = 1e-7;
@@ -29,6 +35,7 @@ function sweepCircleAgainstRectangle(
   delta: Position,
   radius: number,
   obstacle: RectangleObstacle,
+  obstacleIndex: number,
 ): SweepHit | null {
   const left = obstacle.x;
   const right = obstacle.x + Math.max(0, obstacle.width);
@@ -40,13 +47,23 @@ function sweepCircleAgainstRectangle(
     const time = (left - radius - start.x) / delta.x;
     const y = start.y + delta.y * time;
     if (validTime(time) && y >= top && y <= bottom) {
-      hit = earliest(hit, { time, normal: { x: -1, y: 0 } });
+      hit = earliest(hit, {
+        time,
+        normal: { x: -1, y: 0 },
+        obstacleIndex,
+        face: { axis: 'y', min: top, max: bottom },
+      });
     }
   } else if (delta.x < 0) {
     const time = (right + radius - start.x) / delta.x;
     const y = start.y + delta.y * time;
     if (validTime(time) && y >= top && y <= bottom) {
-      hit = earliest(hit, { time, normal: { x: 1, y: 0 } });
+      hit = earliest(hit, {
+        time,
+        normal: { x: 1, y: 0 },
+        obstacleIndex,
+        face: { axis: 'y', min: top, max: bottom },
+      });
     }
   }
 
@@ -54,13 +71,23 @@ function sweepCircleAgainstRectangle(
     const time = (top - radius - start.y) / delta.y;
     const x = start.x + delta.x * time;
     if (validTime(time) && x >= left && x <= right) {
-      hit = earliest(hit, { time, normal: { x: 0, y: -1 } });
+      hit = earliest(hit, {
+        time,
+        normal: { x: 0, y: -1 },
+        obstacleIndex,
+        face: { axis: 'x', min: left, max: right },
+      });
     }
   } else if (delta.y < 0) {
     const time = (bottom + radius - start.y) / delta.y;
     const x = start.x + delta.x * time;
     if (validTime(time) && x >= left && x <= right) {
-      hit = earliest(hit, { time, normal: { x: 0, y: 1 } });
+      hit = earliest(hit, {
+        time,
+        normal: { x: 0, y: 1 },
+        obstacleIndex,
+        face: { axis: 'x', min: left, max: right },
+      });
     }
   }
 
@@ -103,6 +130,7 @@ function sweepCircleAgainstRectangle(
     hit = earliest(hit, {
       time,
       normal,
+      obstacleIndex,
     });
   }
 
@@ -122,14 +150,22 @@ export function moveCircleWithObstacles(
     y: desiredEnd.y - position.y,
   };
   const safeRadius = Math.max(0, radius);
+  const ignoredObstacles = new Set<number>();
 
   while (Math.hypot(remaining.x, remaining.y) > TIME_EPSILON) {
     let closestHit: SweepHit | null = null;
 
-    for (const obstacle of obstacles) {
+    for (let obstacleIndex = 0; obstacleIndex < obstacles.length; obstacleIndex += 1) {
+      if (ignoredObstacles.has(obstacleIndex)) continue;
       closestHit = earliest(
         closestHit,
-        sweepCircleAgainstRectangle(position, remaining, safeRadius, obstacle),
+        sweepCircleAgainstRectangle(
+          position,
+          remaining,
+          safeRadius,
+          obstacles[obstacleIndex],
+          obstacleIndex,
+        ),
       );
     }
 
@@ -138,16 +174,44 @@ export function moveCircleWithObstacles(
       break;
     }
 
-    const safeTime = Math.max(0, closestHit.time - TIME_EPSILON);
     position = {
-      x: position.x + remaining.x * safeTime,
-      y: position.y + remaining.y * safeTime,
+      x: position.x + remaining.x * closestHit.time,
+      y: position.y + remaining.y * closestHit.time,
     };
     const remainingScale = 1 - closestHit.time;
     remaining = {
       x: remaining.x * remainingScale,
       y: remaining.y * remainingScale,
     };
+    ignoredObstacles.clear();
+
+    if (closestHit.face) {
+      const tangent = closestHit.face.axis === 'x' ? remaining.x : remaining.y;
+      const coordinate = closestHit.face.axis === 'x' ? position.x : position.y;
+      const faceEnd = tangent > 0 ? closestHit.face.max : closestHit.face.min;
+      const slideFraction = tangent === 0 ? Number.POSITIVE_INFINITY : (
+        (faceEnd - coordinate) / tangent
+      );
+
+      if (slideFraction >= 0 && slideFraction < 1) {
+        position = {
+          x: position.x + (closestHit.face.axis === 'x'
+            ? remaining.x * slideFraction + Math.sign(tangent) * TIME_EPSILON
+            : 0),
+          y: position.y + (closestHit.face.axis === 'y'
+            ? remaining.y * slideFraction + Math.sign(tangent) * TIME_EPSILON
+            : 0),
+        };
+        const afterSlideScale = 1 - slideFraction;
+        remaining = {
+          x: remaining.x * afterSlideScale,
+          y: remaining.y * afterSlideScale,
+        };
+        ignoredObstacles.add(closestHit.obstacleIndex);
+        continue;
+      }
+    }
+
     const intoSurface = remaining.x * closestHit.normal.x + remaining.y * closestHit.normal.y;
 
     if (intoSurface < 0) {
