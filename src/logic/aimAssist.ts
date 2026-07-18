@@ -1,5 +1,10 @@
 import { resolveAimDirection } from './aim';
-import { resolveHitscan, type HitscanTarget, type Vector2 } from './hitscan';
+import {
+  resolveHitscan,
+  type HitscanBlocker,
+  type HitscanTarget,
+  type Vector2,
+} from './hitscan';
 
 export type AimSource = 'none' | 'mouse' | 'mobile';
 
@@ -36,6 +41,7 @@ export interface AimAssistInput {
   targets: readonly AimAssistTarget[];
   worldView: WorldView;
   hitscanRange: number;
+  blockers?: readonly HitscanBlocker[];
   config: AimAssistConfig;
 }
 
@@ -146,6 +152,7 @@ function isFirstHitscanTarget(
     input.hitscanRange,
     hitscanTargets,
     1,
+    input.blockers,
   ).hits[0];
 
   return firstHit?.targetId === candidate.target.id;

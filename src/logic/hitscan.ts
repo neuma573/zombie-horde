@@ -15,6 +15,13 @@ export interface HitscanHit {
   point: Vector2;
 }
 
+export interface HitscanBlocker {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface HitscanResult {
   hits: HitscanHit[];
   endPoint: Vector2;
@@ -58,12 +65,54 @@ function firstRayCircleIntersection(
   return distance >= 0 ? distance : undefined;
 }
 
+export function firstRayRectangleIntersection(
+  origin: Vector2,
+  direction: Vector2,
+  blocker: HitscanBlocker,
+): number | undefined {
+  const directionLength = Math.hypot(direction.x, direction.y);
+  if (directionLength < DIRECTION_EPSILON) return undefined;
+
+  const normalized = {
+    x: direction.x / directionLength,
+    y: direction.y / directionLength,
+  };
+  const oppositeX = blocker.x + blocker.width;
+  const oppositeY = blocker.y + blocker.height;
+  const left = Math.min(blocker.x, oppositeX);
+  const right = Math.max(blocker.x, oppositeX);
+  const top = Math.min(blocker.y, oppositeY);
+  const bottom = Math.max(blocker.y, oppositeY);
+  let near = 0;
+  let far = Number.POSITIVE_INFINITY;
+
+  for (const axis of [
+    { origin: origin.x, direction: normalized.x, min: left, max: right },
+    { origin: origin.y, direction: normalized.y, min: top, max: bottom },
+  ]) {
+    if (Math.abs(axis.direction) < DIRECTION_EPSILON) {
+      if (axis.origin < axis.min || axis.origin > axis.max) return undefined;
+      continue;
+    }
+
+    const first = (axis.min - axis.origin) / axis.direction;
+    const second = (axis.max - axis.origin) / axis.direction;
+    near = Math.max(near, Math.min(first, second));
+    far = Math.min(far, Math.max(first, second));
+
+    if (near > far) return undefined;
+  }
+
+  return far >= 0 ? near : undefined;
+}
+
 export function resolveHitscan(
   origin: Vector2,
   direction: Vector2,
   range: number,
   targets: readonly HitscanTarget[],
   maxTargets: number,
+  blockers: readonly HitscanBlocker[] = [],
 ): HitscanResult {
   const directionLength = Math.hypot(direction.x, direction.y);
   const targetLimit = Math.floor(maxTargets);
@@ -76,10 +125,14 @@ export function resolveHitscan(
     x: direction.x / directionLength,
     y: direction.y / directionLength,
   };
+  const blockerDistance = blockers.reduce((nearest, blocker) => {
+    const distance = firstRayRectangleIntersection(origin, normalizedDirection, blocker);
+    return distance === undefined ? nearest : Math.min(nearest, distance);
+  }, Math.max(0, range));
   const candidates = targets.flatMap<HitscanHit>((target) => {
     const distance = firstRayCircleIntersection(origin, normalizedDirection, target);
 
-    if (distance === undefined || distance > range) {
+    if (distance === undefined || distance > range || distance >= blockerDistance) {
       return [];
     }
 
@@ -100,7 +153,8 @@ export function resolveHitscan(
 
   const hits = candidates.slice(0, targetLimit);
   const reachedTargetLimit = hits.length === targetLimit;
-  const endDistance = reachedTargetLimit ? hits[hits.length - 1].distance : range;
+  const targetEndDistance = reachedTargetLimit ? hits[hits.length - 1].distance : range;
+  const endDistance = Math.min(targetEndDistance, blockerDistance);
 
   return {
     hits,

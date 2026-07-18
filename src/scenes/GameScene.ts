@@ -8,6 +8,7 @@ import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
+import { Obstacle } from '../entities/Obstacle';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
@@ -22,6 +23,10 @@ import { isPrimaryFireInput } from '../logic/fireInput';
 import { isPositionVisible } from '../logic/fogOfWar';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
+import {
+  moveCircleWithObstacles,
+  type RectangleObstacle,
+} from '../logic/obstacleCollision';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { shouldAutoReload } from '../logic/weapon';
 import {
@@ -92,6 +97,8 @@ export class GameScene extends Phaser.Scene {
   private readonly activeMobilePointers = new Set<number>();
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
+  private obstacles: Obstacle[] = [];
+  private obstacleBounds: RectangleObstacle[] = [];
   private sessionState: SessionState = createSessionState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
@@ -129,6 +136,8 @@ export class GameScene extends Phaser.Scene {
     this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.worldBackdrop = new WorldBackdrop(this);
     this.worldBackdrop.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
+    this.obstacles = MVP_CONFIG.map.obstacles.map((bounds) => new Obstacle(this, bounds));
+    this.obstacleBounds = this.obstacles.map((obstacle) => obstacle.collisionBounds);
     this.player = new Player(this, this.playArea.width / 2, this.playArea.height / 2);
     this.zombies = [];
     this.resizePlayArea(this.scale.gameSize);
@@ -188,6 +197,9 @@ export class GameScene extends Phaser.Scene {
       this.aimAssistVisual = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
+      for (const obstacle of this.obstacles) obstacle.destroy();
+      this.obstacles = [];
+      this.obstacleBounds = [];
       this.fogOfWar?.destroy();
       this.fogOfWar = undefined;
       this.mobileControls?.destroy();
@@ -236,11 +248,22 @@ export class GameScene extends Phaser.Scene {
     }
     this.startMobileAutoReloadIfNeeded();
 
-    const nextPosition = moveWithinBounds(
+    const desiredPlayerPosition = moveWithinBounds(
       this.player,
       this.playerInput.movement,
       PLAYER_SPEED,
       deltaMs,
+      {
+        width: this.playArea.width,
+        height: this.playArea.height,
+        padding: PLAYER_RADIUS,
+      },
+    );
+    const nextPosition = moveCircleWithObstacles(
+      this.player,
+      desiredPlayerPosition,
+      PLAYER_RADIUS,
+      this.obstacleBounds,
       {
         width: this.playArea.width,
         height: this.playArea.height,
@@ -253,7 +276,18 @@ export class GameScene extends Phaser.Scene {
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
     for (const zombie of this.zombies) {
-      const nextPosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
+      const desiredZombiePosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
+      const nextPosition = moveCircleWithObstacles(
+        zombie,
+        desiredZombiePosition,
+        zombie.hitRadius,
+        this.obstacleBounds,
+        {
+          width: this.playArea.width,
+          height: this.playArea.height,
+          padding: zombie.hitRadius,
+        },
+      );
       zombie.setPosition(nextPosition.x, nextPosition.y);
     }
 
@@ -322,6 +356,7 @@ export class GameScene extends Phaser.Scene {
         radius: zombie.hitRadius,
       })),
       BASIC_WEAPON_CONFIG.maxTargets,
+      this.obstacleBounds,
     );
     const impactEvents: Array<{ position: Vector2; radius: number; died: boolean }> = [];
 
@@ -604,6 +639,7 @@ export class GameScene extends Phaser.Scene {
         height: this.viewport.height,
       },
       hitscanRange: BASIC_WEAPON_CONFIG.range,
+      blockers: this.obstacleBounds,
       config: MOBILE_AIM_ASSIST_CONFIG,
     });
 

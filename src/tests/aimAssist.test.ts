@@ -236,6 +236,15 @@ describe('mobile aim assist', () => {
     expect(resolve([scoredTarget, outsideConeBlocker]).targetId).toBeNull();
   });
 
+  it('does not lock a target behind a structure', () => {
+    expect(resolve([target('behind-wall', 300, 100)], {
+      blockers: [{ x: 180, y: 70, width: 30, height: 60 }],
+    })).toEqual({
+      targetId: null,
+      finalAimDirection: { x: 1, y: 0 },
+    });
+  });
+
   it('falls back to finite manual aim when player and target overlap', () => {
     const manualAimDirection = { x: 0, y: 1 };
     const result = resolve([target('overlap', 100, 100)], {
