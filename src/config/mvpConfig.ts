@@ -9,10 +9,6 @@ export const MVP_CONFIG = {
     navigationCellSize: 40,
     obstacles: [
       { x: 720, y: 520, width: 320, height: 90 },
-      { x: 1_420, y: 500, width: 300, height: 100 },
-      { x: 1_020, y: 1_060, width: 360, height: 90 },
-      { x: 500, y: 840, width: 100, height: 340 },
-      { x: 1_800, y: 760, width: 100, height: 360 },
     ],
   },
   player: {
