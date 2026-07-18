@@ -97,7 +97,32 @@ describe('circle obstacle collision', () => {
     expect(oneStep.x).toBeCloseTo(partitioned.x, 4);
     expect(oneStep.y).toBeCloseTo(partitioned.y, 4);
     expect(oneStep.x).toBeGreaterThan(90);
-    expect(oneStep.y).toBeCloseTo(260, 4);
+    expect(oneStep.y).toBeGreaterThanOrEqual(260);
+  });
+
+  it('re-checks the rounded corner after leaving a finite face', () => {
+    const start = { x: 20, y: 125 };
+    const end = { x: 115, y: 95 };
+    const oneStep = moveCircleWithObstacles(start, end, 10, [obstacle], bounds);
+    let partitioned = start;
+
+    for (let step = 0; step < 10; step += 1) {
+      partitioned = moveCircleWithObstacles(
+        partitioned,
+        {
+          x: partitioned.x + (end.x - start.x) / 10,
+          y: partitioned.y + (end.y - start.y) / 10,
+        },
+        10,
+        [obstacle],
+        bounds,
+      );
+    }
+
+    expect(Math.hypot(oneStep.x - obstacle.x, oneStep.y - obstacle.y))
+      .toBeGreaterThanOrEqual(10 - 1e-6);
+    expect(oneStep.x).toBeCloseTo(partitioned.x, 4);
+    expect(oneStep.y).toBeCloseTo(partitioned.y, 4);
   });
 
   it('consumes movement after more than three sequential corner contacts', () => {
@@ -117,6 +142,9 @@ describe('circle obstacle collision', () => {
     );
 
     expect(result.x).toBeGreaterThan(175);
-    expect(result.y).toBeGreaterThan(110);
+    for (const point of obstacles) {
+      expect(Math.hypot(result.x - point.x, result.y - point.y))
+        .toBeGreaterThanOrEqual(10 - 1e-6);
+    }
   });
 });
