@@ -361,15 +361,16 @@ function moveTowardByDistance(
   };
 }
 
-export function moveAlongNavigationFlow(
+export function navigationPathAlongFlow(
   grid: NavigationGrid,
   flow: NavigationFlowField,
   start: Position,
   target: Position,
   maxDistance: number,
-): Position {
+): Position[] {
   let position = { ...start };
   let remaining = Math.max(0, maxDistance);
+  const path: Position[] = [];
 
   while (remaining > POSITION_EPSILON) {
     const currentIndex = cellIndexAt(grid, position);
@@ -385,6 +386,7 @@ export function moveAlongNavigationFlow(
       );
       if (recovery.consumed <= POSITION_EPSILON) break;
       position = recovery.position;
+      path.push({ ...position });
       remaining -= recovery.consumed;
       continue;
     }
@@ -413,11 +415,23 @@ export function moveAlongNavigationFlow(
 
     if (movement.consumed <= POSITION_EPSILON) break;
     position = movement.position;
+    path.push({ ...position });
     remaining -= movement.consumed;
 
     if (currentDistance === 0 && Math.hypot(position.x - target.x, position.y - target.y)
       <= POSITION_EPSILON) break;
   }
 
-  return position;
+  return path;
+}
+
+export function moveAlongNavigationFlow(
+  grid: NavigationGrid,
+  flow: NavigationFlowField,
+  start: Position,
+  target: Position,
+  maxDistance: number,
+): Position {
+  const path = navigationPathAlongFlow(grid, flow, start, target, maxDistance);
+  return path[path.length - 1] ?? { ...start };
 }

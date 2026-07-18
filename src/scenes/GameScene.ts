@@ -28,7 +28,7 @@ import {
   createNavigationFlowField,
   createNavigationGrid,
   hasClearPath,
-  moveAlongNavigationFlow,
+  navigationPathAlongFlow,
   type NavigationFlowField,
   type NavigationGrid,
 } from '../logic/navigation';
@@ -293,34 +293,40 @@ export class GameScene extends Phaser.Scene {
 
     for (const zombie of this.zombies) {
       const travelDistance = ZOMBIE_CONFIG.speed * Math.max(0, deltaMs) / 1_000;
-      const desiredZombiePosition = hasClearPath(
+      const movementBounds = {
+        width: this.playArea.width,
+        height: this.playArea.height,
+        padding: zombie.hitRadius,
+      };
+      const hasDirectPath = hasClearPath(
         zombie,
         this.player,
         zombie.hitRadius,
         this.obstacleBounds,
         zombie.hitRadius + this.player.hitRadius,
-      )
-        ? moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs)
+      );
+      const waypoints = hasDirectPath
+        ? [moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs)]
         : this.navigationGrid && this.navigationFlow
-          ? moveAlongNavigationFlow(
+          ? navigationPathAlongFlow(
             this.navigationGrid,
             this.navigationFlow,
             zombie,
             this.player,
             travelDistance,
           )
-          : { x: zombie.x, y: zombie.y };
-      const nextPosition = moveCircleWithObstacles(
-        zombie,
-        desiredZombiePosition,
-        zombie.hitRadius,
-        this.obstacleBounds,
-        {
-          width: this.playArea.width,
-          height: this.playArea.height,
-          padding: zombie.hitRadius,
-        },
-      );
+          : [];
+      let nextPosition = { x: zombie.x, y: zombie.y };
+
+      for (const waypoint of waypoints) {
+        nextPosition = moveCircleWithObstacles(
+          nextPosition,
+          waypoint,
+          zombie.hitRadius,
+          this.obstacleBounds,
+          movementBounds,
+        );
+      }
       zombie.setPosition(nextPosition.x, nextPosition.y);
     }
 

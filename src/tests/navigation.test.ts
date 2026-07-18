@@ -9,6 +9,7 @@ import {
   createNavigationGrid,
   hasClearPath,
   moveAlongNavigationFlow,
+  navigationPathAlongFlow,
 } from '../logic/navigation';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
 import { moveToward } from '../logic/movement';
@@ -171,6 +172,35 @@ describe('shared zombie navigation flow', () => {
 
     expect(partitioned.x).toBeCloseTo(oneStep.x);
     expect(partitioned.y).toBeCloseTo(oneStep.y);
+  });
+
+  it('preserves waypoint segments when collision is applied after a large delta', () => {
+    const flow = createNavigationFlowField(grid, player);
+    const start = { x: 60, y: 60 };
+    const movementBounds = { width: 280, height: 240, padding: 20 };
+    const applyPath = (position: typeof start, distance: number) => (
+      navigationPathAlongFlow(grid, flow, position, player, distance)
+        .reduce((current, waypoint) => moveCircleWithObstacles(
+          current,
+          waypoint,
+          20,
+          [wall],
+          movementBounds,
+        ), position)
+    );
+    const path = navigationPathAlongFlow(grid, flow, start, player, 600);
+    const oneStep = applyPath(start, 600);
+    let partitioned = start;
+
+    for (let step = 0; step < 10; step += 1) {
+      partitioned = applyPath(partitioned, 60);
+    }
+
+    expect(path.length).toBeGreaterThan(2);
+    expect(oneStep.x).toBeCloseTo(partitioned.x);
+    expect(oneStep.y).toBeCloseTo(partitioned.y);
+    expect(oneStep.x).toBeCloseTo(player.x);
+    expect(oneStep.y).toBeCloseTo(player.y);
   });
 
   it('returns no movement for a disconnected zombie cell', () => {
