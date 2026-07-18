@@ -1,10 +1,11 @@
 export const INPUT_CONFIG = {
-  activePointers: 4,
+  activePointers: 5,
   joystickRadius: 56,
   joystickKnobRadius: 22,
   joystickDeadzone: 0.18,
   fireButtonRadius: 42,
   reloadButtonRadius: 28,
+  fogButtonRadius: 28,
   edgeMargin: 18,
   controlGap: 14,
   minimumScale: 0.72,

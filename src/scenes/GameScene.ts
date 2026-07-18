@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
+import { FOG_OF_WAR_CONFIG } from '../config/fogConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
@@ -10,6 +11,7 @@ import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
+import { FogOfWarEffect } from '../effects/FogOfWarEffect';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
 import {
   resolveAimAssist,
@@ -17,6 +19,7 @@ import {
   type AimSource,
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
+import { isPositionVisible } from '../logic/fogOfWar';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
@@ -74,6 +77,7 @@ export class GameScene extends Phaser.Scene {
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
   private restartKey?: Phaser.Input.Keyboard.Key;
+  private fogToggleKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
   private aimSource: AimSource = 'none';
@@ -99,6 +103,8 @@ export class GameScene extends Phaser.Scene {
   private effects?: CombatEffects;
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
+  private fogOfWar?: FogOfWarEffect;
+  private fogEnabled: boolean = FOG_OF_WAR_CONFIG.initiallyEnabled;
 
   constructor() {
     super('GameScene');
@@ -115,6 +121,7 @@ export class GameScene extends Phaser.Scene {
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
     this.mobileRestartArmed = true;
+    this.fogEnabled = FOG_OF_WAR_CONFIG.initiallyEnabled;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
@@ -128,7 +135,15 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
+    this.fogOfWar = new FogOfWarEffect(
+      this,
+      FOG_OF_WAR_CONFIG,
+      FOG_OF_WAR_CONFIG.darknessAlpha,
+    );
+    this.fogOfWar.resize(this.viewport.width, this.viewport.height);
+    this.fogOfWar.setEnabled(this.fogEnabled);
     this.mobileControls = new MobileControls(this);
+    this.mobileControls.setFogEnabled(this.fogEnabled);
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
     this.resizeHud();
@@ -142,6 +157,7 @@ export class GameScene extends Phaser.Scene {
     }) as MovementKeys | undefined;
     this.reloadKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.fogToggleKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
@@ -172,6 +188,8 @@ export class GameScene extends Phaser.Scene {
       this.aimAssistVisual = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
+      this.fogOfWar?.destroy();
+      this.fogOfWar = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
     });
@@ -191,6 +209,10 @@ export class GameScene extends Phaser.Scene {
     const playerStart = { x: this.player.x, y: this.player.y };
 
     this.weapon.update(deltaMs);
+
+    if (this.fogToggleKey && Phaser.Input.Keyboard.JustDown(this.fogToggleKey)) {
+      this.toggleFogOfWar();
+    }
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
       this.playerInput = requestReload(this.playerInput);
@@ -404,6 +426,8 @@ export class GameScene extends Phaser.Scene {
       this.resolveFireRequest();
     } else if (role === 'reload') {
       this.playerInput = requestReload(this.playerInput);
+    } else if (role === 'fog') {
+      this.toggleFogOfWar();
     }
   }
 
@@ -465,6 +489,7 @@ export class GameScene extends Phaser.Scene {
     this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
+    this.fogOfWar?.resize(this.viewport.width, this.viewport.height);
     this.worldBackdrop?.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
 
     const playerPosition = constrainToBounds(this.player, {
@@ -558,7 +583,14 @@ export class GameScene extends Phaser.Scene {
       playerPosition: { x: this.player.x, y: this.player.y },
       manualAimDirection: this.playerInput.manualAimDirection,
       currentTargetId: this.aimTargetId,
-      targets: this.zombies.map((zombie) => ({
+      targets: this.zombies.filter((zombie) => (
+        !this.fogEnabled || isPositionVisible(
+          this.player,
+          this.playerInput.manualAimDirection,
+          zombie,
+          FOG_OF_WAR_CONFIG,
+        )
+      )).map((zombie) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
         radius: zombie.hitRadius,
@@ -582,6 +614,7 @@ export class GameScene extends Phaser.Scene {
       this.finalAimDirection.x,
     ));
     this.updateAimAssistVisual();
+    this.updateFogOfWar();
     return { ...this.finalAimDirection };
   }
 
@@ -649,6 +682,23 @@ export class GameScene extends Phaser.Scene {
   private updateCameraPosition(): void {
     const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
     this.cameras.main.setScroll(scroll.x, scroll.y);
+  }
+
+  private toggleFogOfWar(): void {
+    this.fogEnabled = !this.fogEnabled;
+    this.fogOfWar?.setEnabled(this.fogEnabled);
+    this.mobileControls?.setFogEnabled(this.fogEnabled);
+    this.clearAimAssist();
+    this.refreshAimAssist();
+  }
+
+  private updateFogOfWar(): void {
+    if (!this.fogEnabled) return;
+    const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
+    this.fogOfWar?.update(
+      { x: this.player.x - scroll.x, y: this.player.y - scroll.y },
+      this.playerInput.manualAimDirection,
+    );
   }
 
   private readSafeArea(): SafeAreaInsets {

@@ -2,7 +2,7 @@ import { INPUT_CONFIG } from '../config/inputConfig';
 import type { SafeAreaInsets } from './hud';
 import type { MovementInput, Position } from './movement';
 
-export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload';
+export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload' | 'fog';
 export type ViewportOrientation = 'portrait' | 'landscape';
 
 export interface CircleControl {
@@ -15,6 +15,7 @@ export interface MobileControlLayout {
   joystick: CircleControl;
   fire: CircleControl;
   reload: CircleControl;
+  fog: CircleControl;
   aimTop: number;
   knobRadius: number;
 }
@@ -24,10 +25,11 @@ export interface MobilePointerOwnership {
   aim: number | null;
   fire: number | null;
   reload: number | null;
+  fog: number | null;
 }
 
 export function createMobilePointerOwnership(): MobilePointerOwnership {
-  return { movement: null, aim: null, fire: null, reload: null };
+  return { movement: null, aim: null, fire: null, reload: null, fog: null };
 }
 
 export function shouldShowMobileControls(
@@ -76,6 +78,7 @@ export function createMobileControlLayout(
   const joystickRadius = INPUT_CONFIG.joystickRadius * scale;
   const fireRadius = INPUT_CONFIG.fireButtonRadius * scale;
   const reloadRadius = INPUT_CONFIG.reloadButtonRadius * scale;
+  const fogRadius = INPUT_CONFIG.fogButtonRadius * scale;
   const margin = INPUT_CONFIG.edgeMargin * scale;
   const gap = INPUT_CONFIG.controlGap * scale;
   const left = Math.max(0, safeArea.left);
@@ -100,6 +103,15 @@ export function createMobileControlLayout(
     ),
     radius: reloadRadius,
   };
+  const fog = {
+    x: clamp(
+      reload.x - reloadRadius - fogRadius - gap,
+      fogRadius,
+      Math.max(fogRadius, width - fogRadius),
+    ),
+    y: reload.y,
+    radius: fogRadius,
+  };
   const hudHeight = width < INPUT_CONFIG.wideLayoutMinWidth
     ? INPUT_CONFIG.portraitHudExclusionHeight
     : INPUT_CONFIG.landscapeHudExclusionHeight;
@@ -108,6 +120,7 @@ export function createMobileControlLayout(
     joystick,
     fire,
     reload,
+    fog,
     aimTop: Math.min(height, Math.max(0, safeArea.top) + hudHeight * scale),
     knobRadius: INPUT_CONFIG.joystickKnobRadius * scale,
   };
@@ -173,6 +186,7 @@ export function classifyMobilePointer(
 ): MobilePointerRole | null {
   if (contains(layout.fire, point)) return 'fire';
   if (contains(layout.reload, point)) return 'reload';
+  if (contains(layout.fog, point)) return 'fog';
   if (contains(layout.joystick, point)) return 'movement';
   return point.y >= layout.aimTop ? 'aim' : null;
 }
