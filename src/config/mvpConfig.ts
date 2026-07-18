@@ -6,6 +6,7 @@ export const MVP_CONFIG = {
     width: 2_400,
     height: 1_600,
     gridSize: 80,
+    navigationCellSize: 40,
     obstacles: [
       { x: 720, y: 520, width: 320, height: 90 },
       { x: 1_420, y: 500, width: 300, height: 100 },

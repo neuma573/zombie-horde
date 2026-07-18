@@ -24,6 +24,15 @@ import { isPositionVisible } from '../logic/fogOfWar';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import {
+  cellIndexAt,
+  createNavigationFlowField,
+  createNavigationGrid,
+  hasClearPath,
+  moveAlongNavigationFlow,
+  type NavigationFlowField,
+  type NavigationGrid,
+} from '../logic/navigation';
+import {
   moveCircleWithObstacles,
   type RectangleObstacle,
 } from '../logic/obstacleCollision';
@@ -99,6 +108,9 @@ export class GameScene extends Phaser.Scene {
   private zombies: Zombie[] = [];
   private obstacles: Obstacle[] = [];
   private obstacleBounds: RectangleObstacle[] = [];
+  private navigationGrid?: NavigationGrid;
+  private navigationFlow?: NavigationFlowField;
+  private navigationPlayerCell = -1;
   private sessionState: SessionState = createSessionState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
@@ -200,6 +212,9 @@ export class GameScene extends Phaser.Scene {
       for (const obstacle of this.obstacles) obstacle.destroy();
       this.obstacles = [];
       this.obstacleBounds = [];
+      this.navigationGrid = undefined;
+      this.navigationFlow = undefined;
+      this.navigationPlayerCell = -1;
       this.fogOfWar?.destroy();
       this.fogOfWar = undefined;
       this.mobileControls?.destroy();
@@ -272,11 +287,29 @@ export class GameScene extends Phaser.Scene {
     );
     this.player.setPosition(nextPosition.x, nextPosition.y);
     this.updateCameraPosition();
+    this.refreshNavigationFlow();
 
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
     for (const zombie of this.zombies) {
-      const desiredZombiePosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
+      const travelDistance = ZOMBIE_CONFIG.speed * Math.max(0, deltaMs) / 1_000;
+      const desiredZombiePosition = hasClearPath(
+        zombie,
+        this.player,
+        zombie.hitRadius,
+        this.obstacleBounds,
+        zombie.hitRadius + this.player.hitRadius,
+      )
+        ? moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs)
+        : this.navigationGrid && this.navigationFlow
+          ? moveAlongNavigationFlow(
+            this.navigationGrid,
+            this.navigationFlow,
+            zombie,
+            this.player,
+            travelDistance,
+          )
+          : { x: zombie.x, y: zombie.y };
       const nextPosition = moveCircleWithObstacles(
         zombie,
         desiredZombiePosition,
@@ -526,6 +559,14 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.fogOfWar?.resize(this.viewport.width, this.viewport.height);
     this.worldBackdrop?.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
+    this.navigationGrid = createNavigationGrid(
+      this.playArea.width,
+      this.playArea.height,
+      MVP_CONFIG.map.navigationCellSize,
+      ZOMBIE_CONFIG.radius,
+      this.obstacleBounds,
+    );
+    this.navigationPlayerCell = -1;
 
     const playerPosition = constrainToBounds(this.player, {
       ...this.playArea,
@@ -542,6 +583,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateCameraPosition();
+    this.refreshNavigationFlow();
 
     this.resizeHud();
     this.refreshInputMode();
@@ -718,6 +760,15 @@ export class GameScene extends Phaser.Scene {
   private updateCameraPosition(): void {
     const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
     this.cameras.main.setScroll(scroll.x, scroll.y);
+  }
+
+  private refreshNavigationFlow(): void {
+    if (!this.navigationGrid) return;
+    const playerCell = cellIndexAt(this.navigationGrid, this.player);
+    if (playerCell === this.navigationPlayerCell && this.navigationFlow) return;
+
+    this.navigationPlayerCell = playerCell;
+    this.navigationFlow = createNavigationFlowField(this.navigationGrid, this.player);
   }
 
   private toggleFogOfWar(): void {
