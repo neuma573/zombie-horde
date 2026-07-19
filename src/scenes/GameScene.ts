@@ -3,11 +3,13 @@ import Phaser from 'phaser';
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
 import { FOG_OF_WAR_CONFIG } from '../config/fogConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
+import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
+import { Obstacle } from '../entities/Obstacle';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
@@ -20,6 +22,7 @@ import {
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { isPositionVisible } from '../logic/fogOfWar';
+import { moveCircleWithObstacles } from '../logic/obstacleCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
@@ -129,7 +132,14 @@ export class GameScene extends Phaser.Scene {
     this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.worldBackdrop = new WorldBackdrop(this);
     this.worldBackdrop.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
-    this.player = new Player(this, this.playArea.width / 2, this.playArea.height / 2);
+    for (const obstacle of OBSTACLE_CONFIG) {
+      new Obstacle(this, obstacle);
+    }
+    this.player = new Player(
+      this,
+      MVP_CONFIG.player.spawn.x,
+      MVP_CONFIG.player.spawn.y,
+    );
     this.zombies = [];
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
@@ -236,11 +246,22 @@ export class GameScene extends Phaser.Scene {
     }
     this.startMobileAutoReloadIfNeeded();
 
-    const nextPosition = moveWithinBounds(
+    const desiredPosition = moveWithinBounds(
       this.player,
       this.playerInput.movement,
       PLAYER_SPEED,
       deltaMs,
+      {
+        width: this.playArea.width,
+        height: this.playArea.height,
+        padding: PLAYER_RADIUS,
+      },
+    );
+    const nextPosition = moveCircleWithObstacles(
+      this.player,
+      desiredPosition,
+      PLAYER_RADIUS,
+      OBSTACLE_CONFIG,
       {
         width: this.playArea.width,
         height: this.playArea.height,
@@ -253,7 +274,23 @@ export class GameScene extends Phaser.Scene {
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
     for (const zombie of this.zombies) {
-      const nextPosition = moveToward(zombie, this.player, ZOMBIE_CONFIG.speed, deltaMs);
+      const desiredZombiePosition = moveToward(
+        zombie,
+        this.player,
+        ZOMBIE_CONFIG.speed,
+        deltaMs,
+      );
+      const nextPosition = moveCircleWithObstacles(
+        zombie,
+        desiredZombiePosition,
+        zombie.hitRadius,
+        OBSTACLE_CONFIG,
+        {
+          width: this.playArea.width,
+          height: this.playArea.height,
+          padding: zombie.hitRadius,
+        },
+      );
       zombie.setPosition(nextPosition.x, nextPosition.y);
     }
 

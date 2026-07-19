@@ -12,6 +12,10 @@ export const MVP_CONFIG = {
     radius: 18,
     speed: 240,
     invulnerabilityMs: 400,
+    spawn: {
+      x: 1_200,
+      y: 800,
+    },
   },
   weapon: {
     damage: 25,
