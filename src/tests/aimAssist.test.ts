@@ -236,6 +236,29 @@ describe('mobile aim assist', () => {
     expect(resolve([scoredTarget, outsideConeBlocker]).targetId).toBeNull();
   });
 
+  it('does not lock a target behind a hitscan-blocking obstacle', () => {
+    const behindObstacle = target('behind-obstacle', 300, 100);
+
+    expect(resolve([behindObstacle], {
+      hitscanBlockers: [
+        { x: 180, y: 80, width: 40, height: 40, blocksHitscan: true },
+      ],
+    })).toEqual({
+      targetId: null,
+      finalAimDirection: { x: 1, y: 0 },
+    });
+  });
+
+  it('can lock through an obstacle configured as non-blocking', () => {
+    const behindObstacle = target('behind-obstacle', 300, 100);
+
+    expect(resolve([behindObstacle], {
+      hitscanBlockers: [
+        { x: 180, y: 80, width: 40, height: 40, blocksHitscan: false },
+      ],
+    }).targetId).toBe(behindObstacle.id);
+  });
+
   it('falls back to finite manual aim when player and target overlap', () => {
     const manualAimDirection = { x: 0, y: 1 };
     const result = resolve([target('overlap', 100, 100)], {

@@ -642,6 +642,7 @@ export class GameScene extends Phaser.Scene {
         height: this.viewport.height,
       },
       hitscanRange: BASIC_WEAPON_CONFIG.range,
+      hitscanBlockers: OBSTACLE_CONFIG,
       config: MOBILE_AIM_ASSIST_CONFIG,
     });
 
@@ -735,7 +736,7 @@ export class GameScene extends Phaser.Scene {
     const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
     this.fogOfWar?.update(
       { x: this.player.x - scroll.x, y: this.player.y - scroll.y },
-      this.playerInput.manualAimDirection,
+      this.finalAimDirection,
     );
   }
 
