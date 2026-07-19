@@ -15,7 +15,11 @@ interface SweepHit {
     min: number;
     max: number;
   };
-  corner?: Position;
+  corner?: {
+    position: Position;
+    minNormalAngle: number;
+    maxNormalAngle: number;
+  };
 }
 
 const TIME_EPSILON = 1e-7;
@@ -97,10 +101,34 @@ function sweepCircleAgainstRectangle(
   if (lengthSquared === 0 || radius === 0) return hit;
 
   const corners = [
-    { x: left, y: top, quadrant: (point: Position) => point.x <= left && point.y <= top },
-    { x: right, y: top, quadrant: (point: Position) => point.x >= right && point.y <= top },
-    { x: left, y: bottom, quadrant: (point: Position) => point.x <= left && point.y >= bottom },
-    { x: right, y: bottom, quadrant: (point: Position) => point.x >= right && point.y >= bottom },
+    {
+      x: left,
+      y: top,
+      minNormalAngle: Math.PI,
+      maxNormalAngle: Math.PI * 1.5,
+      quadrant: (point: Position) => point.x <= left && point.y <= top,
+    },
+    {
+      x: right,
+      y: top,
+      minNormalAngle: Math.PI * 1.5,
+      maxNormalAngle: Math.PI * 2,
+      quadrant: (point: Position) => point.x >= right && point.y <= top,
+    },
+    {
+      x: left,
+      y: bottom,
+      minNormalAngle: Math.PI * 0.5,
+      maxNormalAngle: Math.PI,
+      quadrant: (point: Position) => point.x <= left && point.y >= bottom,
+    },
+    {
+      x: right,
+      y: bottom,
+      minNormalAngle: 0,
+      maxNormalAngle: Math.PI * 0.5,
+      quadrant: (point: Position) => point.x >= right && point.y >= bottom,
+    },
   ];
 
   for (const corner of corners) {
@@ -117,7 +145,11 @@ function sweepCircleAgainstRectangle(
         hit = earliest(hit, {
           time: 0,
           normal: { x: offsetX / normalLength, y: offsetY / normalLength },
-          corner,
+          corner: {
+            position: corner,
+            minNormalAngle: corner.minNormalAngle,
+            maxNormalAngle: corner.maxNormalAngle,
+          },
         });
       }
       continue;
@@ -146,7 +178,11 @@ function sweepCircleAgainstRectangle(
     hit = earliest(hit, {
       time,
       normal,
-      corner,
+      corner: {
+        position: corner,
+        minNormalAngle: corner.minNormalAngle,
+        maxNormalAngle: corner.maxNormalAngle,
+      },
     });
   }
 
@@ -156,7 +192,7 @@ function sweepCircleAgainstRectangle(
 function slideAroundCorner(
   position: Position,
   remaining: Position,
-  corner: Position,
+  corner: NonNullable<SweepHit['corner']>,
   radius: number,
 ): { position: Position; remaining: Position } {
   const speed = Math.hypot(remaining.x, remaining.y);
@@ -165,7 +201,10 @@ function slideAroundCorner(
   }
 
   const velocityAngle = Math.atan2(remaining.y, remaining.x);
-  const normalAngle = Math.atan2(position.y - corner.y, position.x - corner.x);
+  const normalAngle = Math.atan2(
+    position.y - corner.position.y,
+    position.x - corner.position.x,
+  );
   let relativeAngle = velocityAngle - normalAngle;
   relativeAngle = Math.atan2(Math.sin(relativeAngle), Math.cos(relativeAngle));
   const tangentHalfAngle = Math.tan(relativeAngle / 2);
@@ -175,13 +214,35 @@ function slideAroundCorner(
   }
 
   const exitTime = radius / speed * Math.log(Math.abs(tangentHalfAngle));
-  const consumedTime = Math.min(1, Math.max(0, exitTime));
+  const tangentSpeed = -remaining.x * Math.sin(normalAngle)
+    + remaining.y * Math.cos(normalAngle);
+  const boundaryAngle = tangentSpeed > 0
+    ? corner.maxNormalAngle
+    : corner.minNormalAngle;
+  let boundaryRelativeAngle = velocityAngle - boundaryAngle;
+  boundaryRelativeAngle = Math.atan2(
+    Math.sin(boundaryRelativeAngle),
+    Math.cos(boundaryRelativeAngle),
+  );
+  const boundaryHalfAngle = Math.tan(boundaryRelativeAngle / 2);
+  const boundaryTime = radius / speed * (
+    Math.log(Math.abs(tangentHalfAngle)) - Math.log(Math.abs(boundaryHalfAngle))
+  );
+  const reachesBoundary = Number.isFinite(boundaryTime)
+    && boundaryTime >= 0
+    && boundaryTime <= exitTime;
+  const consumedTime = Math.min(
+    1,
+    Math.max(0, reachesBoundary ? boundaryTime : exitTime),
+  );
   const nextHalfAngle = tangentHalfAngle * Math.exp(-speed * consumedTime / radius);
   const nextRelativeAngle = 2 * Math.atan(nextHalfAngle);
   const nextNormalAngle = velocityAngle - nextRelativeAngle;
+  const stoppedAtBoundary = reachesBoundary && boundaryTime <= 1;
+  const finalNormalAngle = stoppedAtBoundary ? boundaryAngle : nextNormalAngle;
   const nextPosition = {
-    x: corner.x + Math.cos(nextNormalAngle) * radius,
-    y: corner.y + Math.sin(nextNormalAngle) * radius,
+    x: corner.position.x + Math.cos(finalNormalAngle) * radius,
+    y: corner.position.y + Math.sin(finalNormalAngle) * radius,
   };
   const remainingScale = 1 - consumedTime;
 

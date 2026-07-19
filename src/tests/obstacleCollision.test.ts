@@ -125,6 +125,34 @@ describe('circle obstacle collision', () => {
     expect(oneStep.y).toBeCloseTo(partitioned.y, 4);
   });
 
+  it('re-sweeps against an adjacent face before a corner slide enters the obstacle', () => {
+    const start = { x: 250, y: 250 };
+    const end = { x: 120, y: 140 };
+    const oneStep = moveCircleWithObstacles(start, end, 10, [obstacle], bounds);
+    let partitioned = start;
+
+    for (let step = 0; step < 10; step += 1) {
+      partitioned = moveCircleWithObstacles(
+        partitioned,
+        {
+          x: partitioned.x + (end.x - start.x) / 10,
+          y: partitioned.y + (end.y - start.y) / 10,
+        },
+        10,
+        [obstacle],
+        bounds,
+      );
+    }
+
+    const closestX = Math.max(obstacle.x, Math.min(oneStep.x, obstacle.x + obstacle.width));
+    const closestY = Math.max(obstacle.y, Math.min(oneStep.y, obstacle.y + obstacle.height));
+
+    expect(Math.hypot(oneStep.x - closestX, oneStep.y - closestY))
+      .toBeGreaterThanOrEqual(10 - 1e-6);
+    expect(oneStep.x).toBeCloseTo(partitioned.x, 4);
+    expect(oneStep.y).toBeCloseTo(partitioned.y, 4);
+  });
+
   it('consumes movement after more than three sequential corner contacts', () => {
     const pointObstacle = (x: number, y: number) => ({ x, y, width: 0, height: 0 });
     const obstacles = [
