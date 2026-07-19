@@ -95,4 +95,60 @@ describe('resolveHitscan', () => {
 
     expect(result).toEqual({ hits: [], endPoint: origin });
   });
+
+  it('blocks targets behind the nearest blocking obstacle', () => {
+    const result = resolveHitscan(
+      origin,
+      direction,
+      200,
+      [target('before', 40, 0), target('behind', 140, 0)],
+      2,
+      [{ x: 80, y: -20, width: 20, height: 40, blocksHitscan: true }],
+    );
+
+    expect(result.hits.map((hit) => hit.targetId)).toEqual(['before']);
+    expect(result.endPoint).toEqual({ x: 80, y: 0 });
+  });
+
+  it('allows shots through an obstacle configured as non-blocking', () => {
+    const result = resolveHitscan(
+      origin,
+      direction,
+      200,
+      [target('behind', 140, 0)],
+      1,
+      [{ x: 80, y: -20, width: 20, height: 40, blocksHitscan: false }],
+    );
+
+    expect(result.hits.map((hit) => hit.targetId)).toEqual(['behind']);
+  });
+
+  it('uses the closest blocking obstacle regardless of config order', () => {
+    const result = resolveHitscan(
+      origin,
+      direction,
+      200,
+      [],
+      1,
+      [
+        { x: 120, y: -20, width: 20, height: 40, blocksHitscan: true },
+        { x: 60, y: -20, width: 20, height: 40, blocksHitscan: true },
+      ],
+    );
+
+    expect(result.endPoint).toEqual({ x: 60, y: 0 });
+  });
+
+  it('preserves a target at maximum range when blockers are farther away', () => {
+    const result = resolveHitscan(
+      origin,
+      direction,
+      100,
+      [target('boundary', 110, 0, 10)],
+      1,
+      [{ x: 120, y: -20, width: 20, height: 40, blocksHitscan: true }],
+    );
+
+    expect(result.hits.map((hit) => hit.targetId)).toEqual(['boundary']);
+  });
 });

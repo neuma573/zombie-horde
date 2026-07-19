@@ -359,6 +359,7 @@ export class GameScene extends Phaser.Scene {
         radius: zombie.hitRadius,
       })),
       BASIC_WEAPON_CONFIG.maxTargets,
+      OBSTACLE_CONFIG,
     );
     const impactEvents: Array<{ position: Vector2; radius: number; died: boolean }> = [];
 
