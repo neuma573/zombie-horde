@@ -7,7 +7,7 @@
 이번 작업은 하나의 기능과 그 판정 결과를 표현하는 시각 피드백만 포함한다.
 
 - 포함: 모바일 자동 조준 후보 필터, 결정론적 대상 선택, 락 유지·해제, `finalAimDirection`, 모바일 락온 도형
-- 제외: 모바일 자동 재장전, 재장전 진행 UI, PC 자동 조준, 자동 사격, FOG OF WAR, 장애물 및 line-of-sight
+- 제외: 모바일 자동 재장전, 재장전 진행 UI, PC 자동 조준, 자동 사격, 장애물 및 line-of-sight
 
 ## 2. 작업 목적
 
@@ -42,7 +42,7 @@
 - 화면 내 판정의 의미는 screen viewport가 아니라 camera가 현재 보여주는 월드 사각형이다. Phaser 통합부가 `camera.worldView`에 해당하는 순수 사각형 데이터를 전달한다.
 - 현재 발사 순서는 입력 소비, `WeaponSystem.fire`, hitscan, 피해, 사망 객체 제거, HUD, tracer·피격·사망 Effect 순이다.
 - 자동 조준은 발사 여부·탄약·피해·Effect 순서를 변경하지 않고 hitscan에 전달할 방향만 결정한다.
-- 장애물, FOG, line-of-sight 시스템은 존재하지 않는다.
+- 장애물과 line-of-sight 시스템은 존재하지 않는다.
 
 ### 수명 주기
 
@@ -144,7 +144,7 @@ touch/drag 수동 조준
 5. Zombie 원이 camera world view와 교차한다.
 6. Player에서 Zombie 중심을 향한 방향과 `manualAimDirection`의 각도 차이가 획득 반각 12도 이하이다.
 
-현재 구현에는 제거 예정 상태가 없으므로 별도 플래그를 만들지 않는다. 현재 배열에서 사라졌거나 destroy된 대상은 후보 DTO에 포함하지 않는다. 장애물과 FOG 판정도 추가하지 않는다.
+현재 구현에는 제거 예정 상태가 없으므로 별도 플래그를 만들지 않는다. 현재 배열에서 사라졌거나 destroy된 대상은 후보 DTO에 포함하지 않는다. 장애물 판정도 추가하지 않는다.
 
 화면 경계에서는 Zombie 중심이 아니라 hit circle과 world view의 교차를 사용한다. 화면에 일부라도 실제로 보이는 기존 도형을 후보로 인정하며, `viewportMargin`은 초기 0이다.
 
@@ -323,7 +323,7 @@ Phaser 없이 가능한 후보 필터, 점수, 최종 방향은 `src/tests/aimAs
 - 모바일 락 대상에 판정과 분리된 Phaser 도형 reticle을 표시한다.
 - Game Over, blur, visibility hidden, 방향 전환, restart 및 shutdown 뒤 락과 표시가 남지 않는다.
 - 일반 resize는 유효한 락을 불필요하게 초기화하지 않는다.
-- FOG, 장애물, line-of-sight, 자동 재장전 및 재장전 UI를 구현하지 않는다.
+- 장애물, line-of-sight, 자동 재장전 및 재장전 UI를 구현하지 않는다.
 - 기존 테스트를 삭제하거나 완화하지 않는다.
 - 구현 작업에서 `npm test`와 `npm run build`가 통과한다.
 
@@ -334,7 +334,7 @@ Phaser 없이 가능한 후보 필터, 점수, 최종 방향은 `src/tests/aimAs
 - PC 자동 조준
 - 자동 사격
 - 화면 전체 최단 거리 대상 선택
-- FOG OF WAR와 적 가시성 시스템
+- 적 가시성 시스템
 - 장애물, pathfinding 및 line-of-sight
 - 타깃 잠금 설정 UI와 보정 강도 UI
 - 회전 보간
@@ -345,7 +345,7 @@ Phaser 없이 가능한 후보 필터, 점수, 최종 방향은 `src/tests/aimAs
 ## 17. 문서 자체 검토
 
 - 실제 `GameScene`, `PlayerInputSnapshot`, `Zombie`, `WeaponSystem`, `resolveHitscan`, `CombatEffects`, camera resize 경로만 현재 구현으로 기술했다.
-- 현재 없는 Zombie 제거 예정 상태, 장애물, FOG 또는 line-of-sight 인터페이스를 만들지 않는다.
+- 현재 없는 Zombie 제거 예정 상태, 장애물 또는 line-of-sight 인터페이스를 만들지 않는다.
 - PC mouse 입력은 수동 방향을 최종 방향으로 그대로 사용한다.
 - 모바일 입력 어댑터와 포인터 로직은 Zombie 목록을 참조하지 않는다.
 - 획득·유지 원뿔, 거리, 화면 교차, 점수와 ID tie-break가 결정론적으로 정의됐다.

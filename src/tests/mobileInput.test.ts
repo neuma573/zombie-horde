@@ -49,7 +49,7 @@ describe('mobile input', () => {
     const landscape = createMobileControlLayout(844, 390, { top: 0, right: 44, bottom: 21, left: 44 });
 
     for (const [layout, width, height] of [[portrait, 360, 640], [landscape, 844, 390]] as const) {
-      for (const control of [layout.joystick, layout.fire, layout.reload, layout.fog]) {
+      for (const control of [layout.joystick, layout.fire, layout.reload]) {
         expect(control.x - control.radius).toBeGreaterThanOrEqual(0);
         expect(control.x + control.radius).toBeLessThanOrEqual(width);
         expect(control.y - control.radius).toBeGreaterThanOrEqual(0);
@@ -71,7 +71,6 @@ describe('mobile input', () => {
     expect(classifyMobilePointer(layout.joystick, layout)).toBe('movement');
     expect(classifyMobilePointer(layout.fire, layout)).toBe('fire');
     expect(classifyMobilePointer(layout.reload, layout)).toBe('reload');
-    expect(classifyMobilePointer(layout.fog, layout)).toBe('fog');
     expect(classifyMobilePointer({ x: 180, y: 10 }, layout)).toBeNull();
     expect(classifyMobilePointer({ x: 180, y: 300 }, layout)).toBe('aim');
   });
