@@ -33,7 +33,7 @@
 예시:
 
 ```text
-feat/toggleable-fog-of-war
+feat/infinite-waves
 fix/github-pages-permissions
 docs/project-documentation
 ci/github-pages-deploy
@@ -63,7 +63,7 @@ ci/github-pages-deploy
 예시:
 
 ```text
-feat: add toggleable fog of war
+feat: add infinite waves
 fix: preserve aim after mobile input cancel
 docs: add project README
 test: cover reload progress edge cases
