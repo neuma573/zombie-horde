@@ -12,9 +12,11 @@ import { Obstacle } from '../entities/Obstacle';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
+import { ViewDirectionVisual } from '../effects/ViewDirectionVisual';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
 import {
   resolveAimAssist,
+  shouldReleaseAimLock,
   shouldApplyMobileAimAssist,
   type AimSource,
 } from '../logic/aimAssist';
@@ -78,9 +80,11 @@ export class GameScene extends Phaser.Scene {
   private reloadKey?: Phaser.Input.Keyboard.Key;
   private restartKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
+  private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
   private aimSource: AimSource = 'none';
   private aimTargetId: string | null = null;
+  private lockAcquiredManualDirection: Vector2 | null = null;
   private mobileMovement = { x: 0, y: 0 };
   private mobileOwnership: MobilePointerOwnership = createMobilePointerOwnership();
   private mobileLayout?: MobileControlLayout;
@@ -101,6 +105,7 @@ export class GameScene extends Phaser.Scene {
   private hud?: HudSystem;
   private effects?: CombatEffects;
   private aimAssistVisual?: AimAssistVisual;
+  private viewDirectionVisual?: ViewDirectionVisual;
   private worldBackdrop?: WorldBackdrop;
 
   constructor() {
@@ -110,9 +115,11 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.sessionState = createSessionState();
     this.playerInput = createPlayerInputState();
+    this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
     this.aimSource = 'none';
     this.aimTargetId = null;
+    this.lockAcquiredManualDirection = null;
     this.mobileControlsEnabled = false;
     this.mobileMovement = { x: 0, y: 0 };
     this.mobileOwnership = createMobilePointerOwnership();
@@ -138,6 +145,8 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
+    this.viewDirectionVisual = new ViewDirectionVisual(this);
+    this.updateViewDirectionVisual();
     this.mobileControls = new MobileControls(this);
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
@@ -180,6 +189,8 @@ export class GameScene extends Phaser.Scene {
       this.effects = undefined;
       this.aimAssistVisual?.destroy();
       this.aimAssistVisual = undefined;
+      this.viewDirectionVisual?.destroy();
+      this.viewDirectionVisual = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
       this.mobileControls?.destroy();
@@ -396,10 +407,20 @@ export class GameScene extends Phaser.Scene {
       this.clearAimAssist();
     }
 
-    this.playerInput = withAimCandidate(
+    const nextInput = withAimCandidate(
       this.playerInput,
       { x: pointer.worldX - this.player.x, y: pointer.worldY - this.player.y },
     );
+    const releasesLock = source === 'mobile'
+      && this.aimTargetId !== null
+      && shouldReleaseAimLock(
+        this.lockAcquiredManualDirection,
+        nextInput.manualAimDirection,
+        MOBILE_AIM_ASSIST_CONFIG.manualReleaseAngleRadians,
+      );
+
+    this.playerInput = nextInput;
+    if (releasesLock) this.clearAimAssist();
     this.refreshAimAssist();
   }
 
@@ -590,11 +611,13 @@ export class GameScene extends Phaser.Scene {
 
   private refreshAimAssist(): Vector2 {
     const cameraScroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
+    const previousTargetId = this.aimTargetId;
     const result = resolveAimAssist({
       enabled: isPlaying(this.sessionState)
         && shouldApplyMobileAimAssist(this.mobileControlsEnabled, this.aimSource),
       playerPosition: { x: this.player.x, y: this.player.y },
       manualAimDirection: this.playerInput.manualAimDirection,
+      viewDirection: this.viewDirection,
       currentTargetId: this.aimTargetId,
       targets: this.zombies.map((zombie) => ({
         id: zombie.id,
@@ -615,17 +638,26 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.aimTargetId = result.targetId;
+    if (result.targetId === null) {
+      this.lockAcquiredManualDirection = null;
+    } else if (result.targetId !== previousTargetId) {
+      this.lockAcquiredManualDirection = { ...this.playerInput.manualAimDirection };
+    }
+    this.viewDirection = { ...result.finalAimDirection };
     this.finalAimDirection = result.finalAimDirection;
     this.player.setRotation(Math.atan2(
       this.finalAimDirection.y,
       this.finalAimDirection.x,
     ));
+    this.updateViewDirectionVisual();
     this.updateAimAssistVisual();
     return { ...this.finalAimDirection };
   }
 
   private clearAimAssist(): void {
     this.aimTargetId = null;
+    this.lockAcquiredManualDirection = null;
+    this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
     this.aimAssistVisual?.hide();
 
@@ -634,7 +666,15 @@ export class GameScene extends Phaser.Scene {
         this.finalAimDirection.y,
         this.finalAimDirection.x,
       ));
+      this.updateViewDirectionVisual();
     }
+  }
+
+  private updateViewDirectionVisual(): void {
+    this.viewDirectionVisual?.update(
+      { x: this.player.x, y: this.player.y },
+      this.viewDirection,
+    );
   }
 
   private updateAimAssistVisual(): void {

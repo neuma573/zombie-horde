@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   resolveAimAssist,
+  shouldReleaseAimLock,
   shouldApplyMobileAimAssist,
   type AimAssistConfig,
   type AimAssistTarget,
@@ -10,7 +11,7 @@ import { resolveHitscan } from '../logic/hitscan';
 
 const config: AimAssistConfig = {
   acquisitionHalfAngleRadians: 12 * Math.PI / 180,
-  retentionHalfAngleRadians: 16 * Math.PI / 180,
+  manualReleaseAngleRadians: 16 * Math.PI / 180,
   maxTargetDistance: 480,
   viewportMargin: 0,
   angleWeight: 1,
@@ -44,6 +45,7 @@ function resolve(
     enabled: true,
     playerPosition,
     manualAimDirection: { x: 1, y: 0 },
+    viewDirection: { x: 1, y: 0 },
     currentTargetId: null,
     targets,
     worldView,
@@ -59,6 +61,23 @@ describe('mobile aim assist', () => {
     expect(shouldApplyMobileAimAssist(true, 'none')).toBe(false);
     expect(shouldApplyMobileAimAssist(true, 'mouse')).toBe(false);
     expect(shouldApplyMobileAimAssist(false, 'mobile')).toBe(false);
+  });
+
+  it('releases a lock only after manual input crosses the configured angle', () => {
+    const smallChange = 10 * Math.PI / 180;
+    const largeChange = 20 * Math.PI / 180;
+
+    expect(shouldReleaseAimLock(
+      { x: 1, y: 0 },
+      { x: Math.cos(smallChange), y: Math.sin(smallChange) },
+      16 * Math.PI / 180,
+    )).toBe(false);
+    expect(shouldReleaseAimLock(
+      { x: 1, y: 0 },
+      { x: Math.cos(largeChange), y: Math.sin(largeChange) },
+      16 * Math.PI / 180,
+    )).toBe(true);
+    expect(shouldReleaseAimLock(null, { x: 0, y: 1 }, 0)).toBe(false);
   });
 
   it('returns manual aim when disabled or when no target is eligible', () => {
@@ -140,16 +159,28 @@ describe('mobile aim assist', () => {
     expect(resolve([a, b]).targetId).toBe('a');
   });
 
-  it('retains a current target for small changes within the wider retention cone', () => {
-    const angle = 14 * Math.PI / 180;
+  it('retains a valid current target independently of the acquisition cone', () => {
+    const angle = 30 * Math.PI / 180;
     const retained = target(
       'retained',
       100 + Math.cos(angle) * 200,
       100 + Math.sin(angle) * 200,
     );
 
-    expect(resolve([retained], { currentTargetId: retained.id }).targetId).toBe(retained.id);
+    expect(resolve([retained], {
+      currentTargetId: retained.id,
+      viewDirection: { x: 1, y: 0 },
+    }).targetId).toBe(retained.id);
     expect(resolve([retained], { currentTargetId: null }).targetId).toBeNull();
+  });
+
+  it('uses the dynamic view direction to acquire a new target', () => {
+    const upwardTarget = target('upward', 100, 300);
+
+    expect(resolve([upwardTarget], {
+      manualAimDirection: { x: 1, y: 0 },
+      viewDirection: { x: 0, y: 1 },
+    }).targetId).toBe(upwardTarget.id);
   });
 
   it('applies a switch penalty while the current target remains valid', () => {
@@ -166,10 +197,10 @@ describe('mobile aim assist', () => {
   });
 
   it('releases an invalid current target and selects a normal acquisition candidate', () => {
-    const outsideRetention = target('old', 100, 300);
+    const outsideRange = target('old', 700, 100);
     const replacement = target('new', 250, 100);
 
-    expect(resolve([outsideRetention, replacement], { currentTargetId: 'old' }).targetId)
+    expect(resolve([outsideRange, replacement], { currentTargetId: 'old' }).targetId)
       .toBe('new');
     expect(resolve([replacement], { currentTargetId: 'removed' }).targetId).toBe('new');
     expect(resolve([
