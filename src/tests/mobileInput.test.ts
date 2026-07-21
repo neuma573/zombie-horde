@@ -8,6 +8,7 @@ import {
   createMobilePointerOwnership,
   didViewportOrientationChange,
   joystickMovement,
+  lateClaimMobilePointerRole,
   releaseMobilePointer,
   roleForPointer,
   shouldShowMobileControls,
@@ -58,6 +59,8 @@ describe('mobile input', () => {
     }
 
     expect(portrait.joystick.y).toBeGreaterThan(portrait.aimTop);
+    expect(portrait.aimTop).toBe(30);
+    expect(landscape.aimTop).toBe(0);
     expect(portrait.joystick.y + portrait.joystick.radius).toBeLessThanOrEqual(620);
     expect(landscape.joystick.x - landscape.joystick.radius).toBeGreaterThanOrEqual(44);
     expect(landscape.fire.x).toBeLessThan(844 - 44);
@@ -65,14 +68,18 @@ describe('mobile input', () => {
     expect(landscape.fire.y + landscape.fire.radius).toBeLessThanOrEqual(390 - 21);
   });
 
-  it('classifies controls before aim and excludes the HUD strip', () => {
+  it('classifies controls before aim and excludes only the top safe area', () => {
     const layout = createMobileControlLayout(360, 640, noInsets);
 
     expect(classifyMobilePointer(layout.joystick, layout)).toBe('movement');
     expect(classifyMobilePointer(layout.fire, layout)).toBe('fire');
     expect(classifyMobilePointer(layout.reload, layout)).toBe('reload');
-    expect(classifyMobilePointer({ x: 180, y: 10 }, layout)).toBeNull();
+    expect(classifyMobilePointer({ x: 180, y: 10 }, layout)).toBe('aim');
     expect(classifyMobilePointer({ x: 180, y: 300 }, layout)).toBe('aim');
+
+    const insetLayout = createMobileControlLayout(360, 640, { ...noInsets, top: 30 });
+    expect(classifyMobilePointer({ x: 180, y: 29 }, insetLayout)).toBeNull();
+    expect(classifyMobilePointer({ x: 180, y: 30 }, insetLayout)).toBe('aim');
   });
 
   it('keeps exclusive pointer ownership until release', () => {
@@ -89,5 +96,13 @@ describe('mobile input', () => {
     ownership = releaseMobilePointer(ownership, 10);
     expect(roleForPointer(ownership, 10)).toBeNull();
     expect(claimMobilePointer(ownership, 11, 'movement').movement).toBe(11);
+  });
+
+  it('allows only aim ownership for a pointer claimed after pointerdown', () => {
+    expect(lateClaimMobilePointerRole('aim')).toBe('aim');
+    expect(lateClaimMobilePointerRole('movement')).toBeNull();
+    expect(lateClaimMobilePointerRole('fire')).toBeNull();
+    expect(lateClaimMobilePointerRole('reload')).toBeNull();
+    expect(lateClaimMobilePointerRole(null)).toBeNull();
   });
 });

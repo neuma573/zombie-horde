@@ -10,7 +10,7 @@ export type AimSource = 'none' | 'mouse' | 'mobile';
 
 export interface AimAssistConfig {
   acquisitionHalfAngleRadians: number;
-  retentionHalfAngleRadians: number;
+  manualReleaseAngleRadians: number;
   maxTargetDistance: number;
   viewportMargin: number;
   angleWeight: number;
@@ -37,6 +37,7 @@ export interface AimAssistInput {
   enabled: boolean;
   playerPosition: Vector2;
   manualAimDirection: Vector2;
+  viewDirection: Vector2;
   currentTargetId: string | null;
   targets: readonly AimAssistTarget[];
   worldView: WorldView;
@@ -66,6 +67,20 @@ export function shouldApplyMobileAimAssist(
   return mobileControlsEnabled && aimSource === 'mobile';
 }
 
+export function shouldReleaseAimLock(
+  acquiredManualDirection: Vector2 | null,
+  manualAimDirection: Vector2,
+  releaseAngleRadians: number,
+): boolean {
+  if (!acquiredManualDirection) return false;
+
+  const acquired = resolveAimDirection(acquiredManualDirection, { x: 1, y: 0 });
+  const current = resolveAimDirection(manualAimDirection, acquired);
+  const dot = clamp(acquired.x * current.x + acquired.y * current.y, -1, 1);
+
+  return Math.acos(dot) >= Math.max(0, releaseAngleRadians);
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
@@ -92,7 +107,7 @@ function circleIntersectsWorldView(
 function createCandidate(
   target: AimAssistTarget,
   input: AimAssistInput,
-  manualAimDirection: Vector2,
+  viewDirection: Vector2,
 ): Candidate | null {
   if (!target.active || target.health <= 0) return null;
   if (!circleIntersectsWorldView(target, input.worldView, input.config.viewportMargin)) return null;
@@ -105,17 +120,16 @@ function createCandidate(
 
   const direction = { x: offsetX / distance, y: offsetY / distance };
   const dot = clamp(
-    manualAimDirection.x * direction.x + manualAimDirection.y * direction.y,
+    viewDirection.x * direction.x + viewDirection.y * direction.y,
     -1,
     1,
   );
   const angleError = Math.acos(dot);
   const isCurrent = target.id === input.currentTargetId;
-  const halfAngle = isCurrent
-    ? Math.max(0, input.config.retentionHalfAngleRadians)
-    : Math.max(0, input.config.acquisitionHalfAngleRadians);
 
-  return angleError <= halfAngle ? { target, angleError, distance, isCurrent } : null;
+  return isCurrent || angleError <= Math.max(0, input.config.acquisitionHalfAngleRadians)
+    ? { target, angleError, distance, isCurrent }
+    : null;
 }
 
 function scoreCandidate(
@@ -160,13 +174,14 @@ function isFirstHitscanTarget(
 
 export function resolveAimAssist(input: AimAssistInput): AimAssistResult {
   const manualAimDirection = resolveAimDirection(input.manualAimDirection, { x: 1, y: 0 });
+  const viewDirection = resolveAimDirection(input.viewDirection, manualAimDirection);
 
   if (!input.enabled || input.config.maxTargetDistance <= 0) {
     return { targetId: null, finalAimDirection: manualAimDirection };
   }
 
   const candidates = input.targets.flatMap<Candidate>((target) => {
-    const candidate = createCandidate(target, input, manualAimDirection);
+    const candidate = createCandidate(target, input, viewDirection);
     return candidate ? [candidate] : [];
   });
   const retainedCurrentTarget = candidates.some((candidate) => candidate.isCurrent);
@@ -190,7 +205,7 @@ export function resolveAimAssist(input: AimAssistInput): AimAssistResult {
   ))?.target;
 
   if (!selected) {
-    return { targetId: null, finalAimDirection: manualAimDirection };
+    return { targetId: null, finalAimDirection: viewDirection };
   }
 
   return {

@@ -9,7 +9,4 @@ export const INPUT_CONFIG = {
   controlGap: 14,
   minimumScale: 0.72,
   referenceShortEdge: 360,
-  portraitHudExclusionHeight: 142,
-  landscapeHudExclusionHeight: 82,
-  wideLayoutMinWidth: 560,
 } as const;
