@@ -5,6 +5,11 @@ import {
   type HudViewModel,
   type SafeAreaInsets,
 } from '../logic/hud';
+import {
+  SEVEN_SEGMENTS,
+  segmentsForDigit,
+  type SevenSegment,
+} from '../logic/sevenSegment';
 
 const STATUS_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   color: '#ffffff',
@@ -18,15 +23,28 @@ const STATUS_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
 export class HudSystem {
   private readonly playerText: Phaser.GameObjects.Text;
   private readonly waveText: Phaser.GameObjects.Text;
+  private readonly timeGraphics: Phaser.GameObjects.Graphics;
+  private readonly timeMetaText: Phaser.GameObjects.Text;
   private readonly gameOverText: Phaser.GameObjects.Text;
   private readonly reloadGraphics: Phaser.GameObjects.Graphics;
   private readonly reloadText: Phaser.GameObjects.Text;
+  private readonly clockBlinkEvent: Phaser.Time.TimerEvent;
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
+  private watchLayout?: ReturnType<typeof createHudLayout>['time'];
+  private clockText = '';
+  private clockColonVisible = true;
 
   constructor(scene: Phaser.Scene) {
     this.playerText = scene.add.text(0, 0, '', STATUS_STYLE).setDepth(100).setScrollFactor(0);
     this.waveText = scene.add.text(0, 0, '', STATUS_STYLE).setDepth(100).setScrollFactor(0);
+    this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
+    this.timeMetaText = scene.add.text(0, 0, 'LOCAL        24H', {
+      color: '#20251c',
+      fontFamily: 'monospace',
+      fontSize: '8px',
+      fontStyle: 'bold',
+    }).setDepth(101).setOrigin(0.5, 0).setScrollFactor(0);
     this.gameOverText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
       align: 'center',
@@ -41,6 +59,14 @@ export class HudSystem {
       stroke: '#000000',
       strokeThickness: 2,
     }).setDepth(111).setOrigin(0.5, 1).setScrollFactor(0).setVisible(false);
+    this.clockBlinkEvent = scene.time.addEvent({
+      delay: 500,
+      loop: true,
+      callback: () => {
+        this.clockColonVisible = !this.clockColonVisible;
+        this.renderClockText();
+      },
+    });
   }
 
   update(viewModel: HudViewModel): void {
@@ -49,6 +75,10 @@ export class HudSystem {
     }
     if (this.current?.waveText !== viewModel.waveText) {
       this.waveText.setText(viewModel.waveText);
+    }
+    if (this.current?.timeText !== viewModel.timeText) {
+      this.clockText = viewModel.timeText;
+      this.renderClockText();
     }
     if (this.current?.gameOverText !== viewModel.gameOverText) {
       this.gameOverText.setText(viewModel.gameOverText);
@@ -70,6 +100,7 @@ export class HudSystem {
       .setOrigin(layout.wave.alignRight ? 1 : 0, 0)
       .setAlign(layout.wave.alignRight ? 'right' : 'left')
       .setPosition(layout.wave.x, layout.wave.y);
+    this.drawWatch(layout.time);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);
@@ -80,11 +111,100 @@ export class HudSystem {
   }
 
   destroy(): void {
+    this.clockBlinkEvent.remove(false);
     this.playerText.destroy();
     this.waveText.destroy();
+    this.timeGraphics.destroy();
+    this.timeMetaText.destroy();
     this.gameOverText.destroy();
     this.reloadGraphics.destroy();
     this.reloadText.destroy();
+  }
+
+  private renderClockText(): void {
+    if (this.watchLayout) this.drawWatch(this.watchLayout);
+  }
+
+  private drawWatch(layout: ReturnType<typeof createHudLayout>['time']): void {
+    this.watchLayout = layout;
+    const { x, y, width, height } = layout;
+    const left = x - width / 2;
+    const inset = 6;
+
+    this.timeGraphics
+      .clear()
+      .fillStyle(0x111513, 0.96)
+      .fillRoundedRect(left, y, width, height, 7)
+      .lineStyle(2, 0x3f4842, 1)
+      .strokeRoundedRect(left + 1, y + 1, Math.max(0, width - 2), height - 2, 6)
+      .fillStyle(0xa7ae82, 1)
+      .fillRoundedRect(
+        left + inset,
+        y + inset,
+        Math.max(0, width - inset * 2),
+        height - inset * 2,
+        2,
+      );
+    this.timeMetaText.setPosition(x, y + 8);
+    this.drawSegmentTime(x, y + 17);
+  }
+
+  private drawSegmentTime(centerX: number, top: number): void {
+    const digits = this.clockText.replace(':', '').padStart(4, '0').slice(-4);
+    const digitWidth = 13;
+    const digitGap = 3;
+    const colonWidth = 6;
+    const totalWidth = digitWidth * 4 + digitGap * 3 + colonWidth;
+    let x = centerX - totalWidth / 2;
+
+    for (let index = 0; index < digits.length; index += 1) {
+      this.drawSegmentDigit(x, top, digits[index]);
+      x += digitWidth;
+
+      if (index === 1) {
+        x += colonWidth / 2;
+        this.timeGraphics.fillStyle(0x151a13, this.clockColonVisible ? 0.9 : 0.1);
+        this.timeGraphics.fillCircle(x, top + 7, 1.3);
+        this.timeGraphics.fillCircle(x, top + 15, 1.3);
+        x += colonWidth / 2;
+      }
+
+      if (index < digits.length - 1) x += digitGap;
+    }
+  }
+
+  private drawSegmentDigit(x: number, y: number, digit: string): void {
+    const active = new Set(segmentsForDigit(digit));
+
+    for (const segment of SEVEN_SEGMENTS) {
+      this.timeGraphics.fillStyle(0x151a13, active.has(segment) ? 0.92 : 0.1);
+      this.drawSegment(x, y, segment);
+    }
+  }
+
+  private drawSegment(x: number, y: number, segment: SevenSegment): void {
+    const horizontal = {
+      a: { x: x + 2, y, width: 9, height: 3 },
+      g: { x: x + 2, y: y + 10, width: 9, height: 3 },
+      d: { x: x + 2, y: y + 20, width: 9, height: 3 },
+    } as const;
+    const vertical = {
+      f: { x, y: y + 2, width: 3, height: 8 },
+      b: { x: x + 10, y: y + 2, width: 3, height: 8 },
+      e: { x, y: y + 12, width: 3, height: 8 },
+      c: { x: x + 10, y: y + 12, width: 3, height: 8 },
+    } as const;
+    const bounds = segment === 'a' || segment === 'g' || segment === 'd'
+      ? horizontal[segment]
+      : vertical[segment];
+
+    this.timeGraphics.fillRoundedRect(
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height,
+      1,
+    );
   }
 
   private drawReloadFeedback(progress: number | null, prompt: string | null): void {

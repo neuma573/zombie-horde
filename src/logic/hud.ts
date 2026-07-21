@@ -12,11 +12,13 @@ export interface HudState {
   wavePhase: WavePhase;
   aliveZombieCount: number;
   sessionPhase: SessionPhase;
+  gameTimeText: string;
 }
 
 export interface HudViewModel {
   playerText: string;
   waveText: string;
+  timeText: string;
   gameOverText: string;
   showGameOver: boolean;
   reloadProgress: number | null;
@@ -33,6 +35,7 @@ export interface SafeAreaInsets {
 export interface HudLayout {
   player: { x: number; y: number };
   wave: { x: number; y: number; alignRight: boolean };
+  time: { x: number; y: number; width: number; height: number };
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
 }
@@ -45,6 +48,8 @@ const RELOAD_WIDTH_RATIO = 0.34;
 const RELOAD_MIN_WIDTH = 150;
 const RELOAD_MAX_WIDTH = 320;
 const RELOAD_HEIGHT = 10;
+const WATCH_WIDTH = 116;
+const WATCH_HEIGHT = 48;
 
 export function createHudViewModel(state: HudState): HudViewModel {
   const waveStatus = state.wavePhase === 'waiting'
@@ -64,6 +69,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
       `Zombies ${state.aliveZombieCount}`,
       waveStatus,
     ].join('\n'),
+    timeText: state.gameTimeText,
     gameOverText: 'GAME OVER\nEnter or tap to restart',
     showGameOver: state.sessionPhase === 'gameOver',
     reloadProgress: state.isReloading && state.sessionPhase === 'playing'
@@ -103,6 +109,12 @@ export function createHudLayout(
       x: stacked ? safeLeft : safeRight,
       y: waveY,
       alignRight: !stacked,
+    },
+    time: {
+      x: safeLeft + usableWidth / 2,
+      y: safeTop,
+      width: Math.min(WATCH_WIDTH, usableWidth),
+      height: WATCH_HEIGHT,
     },
     gameOver: {
       x: safeLeft + usableWidth / 2,

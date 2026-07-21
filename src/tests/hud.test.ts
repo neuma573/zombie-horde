@@ -15,6 +15,7 @@ describe('createHudViewModel', () => {
       wavePhase: 'waiting' as const,
       aliveZombieCount: 5,
       sessionPhase: 'playing' as const,
+      gameTimeText: '08:30',
     };
     const snapshot = structuredClone(state);
     const result = createHudViewModel(state);
@@ -25,6 +26,7 @@ describe('createHudViewModel', () => {
     expect(result.waveText).toContain('Wave 3');
     expect(result.waveText).toContain('Zombies 5');
     expect(result.waveText).toContain('Next wave incoming');
+    expect(result.timeText).toBe('08:30');
     expect(result.showGameOver).toBe(false);
     expect(result.reloadProgress).toBe(0.5);
     expect(result.reloadPrompt).toBeNull();
@@ -43,6 +45,7 @@ describe('createHudViewModel', () => {
       wavePhase: 'active',
       aliveZombieCount: 3,
       sessionPhase: 'gameOver',
+      gameTimeText: '11:40',
     });
 
     expect(result.showGameOver).toBe(true);
@@ -63,6 +66,7 @@ describe('createHudViewModel', () => {
       wavePhase: 'active' as const,
       aliveZombieCount: 0,
       sessionPhase: 'playing' as const,
+      gameTimeText: '08:00',
     };
 
     expect(createHudViewModel(base).reloadPrompt).toBe('RELOAD');
@@ -78,6 +82,7 @@ describe('createHudLayout', () => {
 
     expect(layout.player).toEqual({ x: 12, y: 42 });
     expect(layout.wave).toEqual({ x: 12, y: 110, alignRight: false });
+    expect(layout.time).toEqual({ x: 180, y: 42, width: 116, height: 48 });
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
     expect(layout.reload.width).toBeGreaterThanOrEqual(150);
@@ -89,6 +94,7 @@ describe('createHudLayout', () => {
 
     expect(layout.player).toEqual({ x: 36, y: 12 });
     expect(layout.wave).toEqual({ x: 924, y: 12, alignRight: true });
+    expect(layout.time).toEqual({ x: 480, y: 12, width: 116, height: 48 });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
     expect(layout.reload.x).toBeCloseTo(329.04);
     expect(layout.reload.y).toBe(318);
