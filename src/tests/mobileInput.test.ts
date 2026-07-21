@@ -8,6 +8,7 @@ import {
   createMobilePointerOwnership,
   didViewportOrientationChange,
   joystickMovement,
+  lateClaimMobilePointerRole,
   releaseMobilePointer,
   roleForPointer,
   shouldShowMobileControls,
@@ -95,5 +96,13 @@ describe('mobile input', () => {
     ownership = releaseMobilePointer(ownership, 10);
     expect(roleForPointer(ownership, 10)).toBeNull();
     expect(claimMobilePointer(ownership, 11, 'movement').movement).toBe(11);
+  });
+
+  it('allows only aim ownership for a pointer claimed after pointerdown', () => {
+    expect(lateClaimMobilePointerRole('aim')).toBe('aim');
+    expect(lateClaimMobilePointerRole('movement')).toBeNull();
+    expect(lateClaimMobilePointerRole('fire')).toBeNull();
+    expect(lateClaimMobilePointerRole('reload')).toBeNull();
+    expect(lateClaimMobilePointerRole(null)).toBeNull();
   });
 });

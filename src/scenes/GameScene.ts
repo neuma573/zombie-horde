@@ -35,6 +35,7 @@ import {
   didViewportOrientationChange,
   getViewportOrientation,
   joystickMovement,
+  lateClaimMobilePointerRole,
   releaseMobilePointer,
   roleForPointer,
   shouldShowMobileControls,
@@ -485,9 +486,11 @@ export class GameScene extends Phaser.Scene {
       && this.mobileControlsEnabled
       && this.mobileLayout
     ) {
-      const candidateRole = classifyMobilePointer(
-        { x: pointer.x, y: pointer.y },
-        this.mobileLayout,
+      const candidateRole = lateClaimMobilePointerRole(
+        classifyMobilePointer(
+          { x: pointer.x, y: pointer.y },
+          this.mobileLayout,
+        ),
       );
       this.mobileOwnership = claimMobilePointer(
         this.mobileOwnership,

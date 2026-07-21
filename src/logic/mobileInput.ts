@@ -173,6 +173,12 @@ export function classifyMobilePointer(
   return point.y >= layout.aimTop ? 'aim' : null;
 }
 
+export function lateClaimMobilePointerRole(
+  role: MobilePointerRole | null,
+): 'aim' | null {
+  return role === 'aim' ? role : null;
+}
+
 export function claimMobilePointer(
   ownership: MobilePointerOwnership,
   pointerId: number,
