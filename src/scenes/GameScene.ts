@@ -103,6 +103,7 @@ export class GameScene extends Phaser.Scene {
   private readonly activeMobilePointers = new Set<number>();
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
+  private killCount = 0;
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
@@ -150,6 +151,7 @@ export class GameScene extends Phaser.Scene {
       MVP_CONFIG.player.spawn.y,
     );
     this.zombies = [];
+    this.killCount = 0;
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
@@ -387,6 +389,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (deadIds.size > 0) {
+      this.killCount += deadIds.size;
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
 
       if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
@@ -605,8 +608,7 @@ export class GameScene extends Phaser.Scene {
       isReloading: weapon.reloadRemainingMs !== null,
       reloadProgress: reload.normalized,
       waveNumber: wave.waveNumber,
-      wavePhase: wave.phase,
-      aliveZombieCount: this.zombies.length,
+      killCount: this.killCount,
       sessionPhase: this.sessionState.phase,
       gameTimeText: formatGameTime(this.gameTime),
     });

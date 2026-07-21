@@ -12,20 +12,16 @@ describe('createHudViewModel', () => {
       isReloading: true,
       reloadProgress: 0.5,
       waveNumber: 3,
-      wavePhase: 'waiting' as const,
-      aliveZombieCount: 5,
+      killCount: 5,
       sessionPhase: 'playing' as const,
       gameTimeText: '08:30',
     };
     const snapshot = structuredClone(state);
     const result = createHudViewModel(state);
 
-    expect(result.playerText).toContain('HP 70/100');
-    expect(result.playerText).toContain('Ammo 4/36');
-    expect(result.playerText).toContain('Reload In progress');
-    expect(result.waveText).toContain('Wave 3');
-    expect(result.waveText).toContain('Zombies 5');
-    expect(result.waveText).toContain('Next wave incoming');
+    expect(result.statusText).toBe('HP 70/100\nWAVE 3\nKILLS 5');
+    expect(result.ammoText).toBe('4 / 36');
+    expect(result.ammoText).not.toContain('AMMO');
     expect(result.timeText).toBe('08:30');
     expect(result.showGameOver).toBe(false);
     expect(result.reloadProgress).toBe(0.5);
@@ -42,8 +38,7 @@ describe('createHudViewModel', () => {
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 1,
-      wavePhase: 'active',
-      aliveZombieCount: 3,
+      killCount: 0,
       sessionPhase: 'gameOver',
       gameTimeText: '11:40',
     });
@@ -63,8 +58,7 @@ describe('createHudViewModel', () => {
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 1,
-      wavePhase: 'active' as const,
-      aliveZombieCount: 0,
+      killCount: 0,
       sessionPhase: 'playing' as const,
       gameTimeText: '08:00',
     };
@@ -80,8 +74,8 @@ describe('createHudLayout', () => {
   it('stacks status blocks inside portrait safe areas', () => {
     const layout = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
 
-    expect(layout.player).toEqual({ x: 12, y: 42 });
-    expect(layout.wave).toEqual({ x: 12, y: 110, alignRight: false });
+    expect(layout.status).toEqual({ x: 114, y: 42 });
+    expect(layout.ammo).toEqual({ x: 246, y: 56 });
     expect(layout.time).toEqual({ x: 180, y: 42, width: 116, height: 48 });
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
@@ -92,8 +86,8 @@ describe('createHudLayout', () => {
   it('splits status blocks across a wide landscape safe area', () => {
     const layout = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
-    expect(layout.player).toEqual({ x: 36, y: 12 });
-    expect(layout.wave).toEqual({ x: 924, y: 12, alignRight: true });
+    expect(layout.status).toEqual({ x: 414, y: 12 });
+    expect(layout.ammo).toEqual({ x: 546, y: 26 });
     expect(layout.time).toEqual({ x: 480, y: 12, width: 116, height: 48 });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
     expect(layout.reload.x).toBeCloseTo(329.04);

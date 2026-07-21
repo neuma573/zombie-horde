@@ -21,8 +21,8 @@ const STATUS_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
 };
 
 export class HudSystem {
-  private readonly playerText: Phaser.GameObjects.Text;
-  private readonly waveText: Phaser.GameObjects.Text;
+  private readonly statusText: Phaser.GameObjects.Text;
+  private readonly ammoText: Phaser.GameObjects.Text;
   private readonly timeGraphics: Phaser.GameObjects.Graphics;
   private readonly timeMetaText: Phaser.GameObjects.Text;
   private readonly gameOverText: Phaser.GameObjects.Text;
@@ -36,8 +36,15 @@ export class HudSystem {
   private clockColonVisible = true;
 
   constructor(scene: Phaser.Scene) {
-    this.playerText = scene.add.text(0, 0, '', STATUS_STYLE).setDepth(100).setScrollFactor(0);
-    this.waveText = scene.add.text(0, 0, '', STATUS_STYLE).setDepth(100).setScrollFactor(0);
+    this.statusText = scene.add.text(0, 0, '', {
+      ...STATUS_STYLE,
+      fontSize: '14px',
+      lineSpacing: 1,
+    }).setDepth(100).setOrigin(1, 0).setScrollFactor(0);
+    this.ammoText = scene.add.text(0, 0, '', {
+      ...STATUS_STYLE,
+      fontStyle: 'bold',
+    }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
     this.timeMetaText = scene.add.text(0, 0, 'LOCAL        24H', {
       color: '#20251c',
@@ -70,11 +77,11 @@ export class HudSystem {
   }
 
   update(viewModel: HudViewModel): void {
-    if (this.current?.playerText !== viewModel.playerText) {
-      this.playerText.setText(viewModel.playerText);
+    if (this.current?.statusText !== viewModel.statusText) {
+      this.statusText.setText(viewModel.statusText);
     }
-    if (this.current?.waveText !== viewModel.waveText) {
-      this.waveText.setText(viewModel.waveText);
+    if (this.current?.ammoText !== viewModel.ammoText) {
+      this.ammoText.setText(viewModel.ammoText);
     }
     if (this.current?.timeText !== viewModel.timeText) {
       this.clockText = viewModel.timeText;
@@ -95,11 +102,8 @@ export class HudSystem {
   resize(width: number, height: number, safeArea: SafeAreaInsets): void {
     const layout = createHudLayout(width, height, safeArea);
 
-    this.playerText.setOrigin(0, 0).setPosition(layout.player.x, layout.player.y);
-    this.waveText
-      .setOrigin(layout.wave.alignRight ? 1 : 0, 0)
-      .setAlign(layout.wave.alignRight ? 'right' : 'left')
-      .setPosition(layout.wave.x, layout.wave.y);
+    this.statusText.setPosition(layout.status.x, layout.status.y);
+    this.ammoText.setPosition(layout.ammo.x, layout.ammo.y);
     this.drawWatch(layout.time);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
@@ -112,8 +116,8 @@ export class HudSystem {
 
   destroy(): void {
     this.clockBlinkEvent.remove(false);
-    this.playerText.destroy();
-    this.waveText.destroy();
+    this.statusText.destroy();
+    this.ammoText.destroy();
     this.timeGraphics.destroy();
     this.timeMetaText.destroy();
     this.gameOverText.destroy();
