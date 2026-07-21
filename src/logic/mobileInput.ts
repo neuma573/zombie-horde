@@ -100,15 +100,11 @@ export function createMobileControlLayout(
     ),
     radius: reloadRadius,
   };
-  const hudHeight = width < INPUT_CONFIG.wideLayoutMinWidth
-    ? INPUT_CONFIG.portraitHudExclusionHeight
-    : INPUT_CONFIG.landscapeHudExclusionHeight;
-
   return {
     joystick,
     fire,
     reload,
-    aimTop: Math.min(height, Math.max(0, safeArea.top) + hudHeight * scale),
+    aimTop: Math.min(height, Math.max(0, safeArea.top)),
     knobRadius: INPUT_CONFIG.joystickKnobRadius * scale,
   };
 }

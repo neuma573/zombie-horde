@@ -200,16 +200,12 @@ export function resolveAimAssist(input: AimAssistInput): AimAssistResult {
       : []
   ));
 
-  const retained = candidates.find((candidate) => (
-    candidate.isCurrent
-    && isFirstHitscanTarget(candidate, input, manualAimDirection, hitscanTargets)
-  ))?.target;
-  const selected = retained ?? candidates.find((candidate) => (
+  const selected = candidates.find((candidate) => (
     isFirstHitscanTarget(candidate, input, manualAimDirection, hitscanTargets)
   ))?.target;
 
   if (!selected) {
-    return { targetId: null, finalAimDirection: manualAimDirection };
+    return { targetId: null, finalAimDirection: viewDirection };
   }
 
   return {

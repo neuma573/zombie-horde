@@ -420,7 +420,11 @@ export class GameScene extends Phaser.Scene {
       );
 
     this.playerInput = nextInput;
-    if (releasesLock) this.clearAimAssist();
+    if (releasesLock) {
+      this.clearAimAssist();
+    } else if (this.aimTargetId === null) {
+      this.viewDirection = { ...this.playerInput.manualAimDirection };
+    }
     this.refreshAimAssist();
   }
 
@@ -474,7 +478,24 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const role = roleForPointer(this.mobileOwnership, pointer.id);
+    let role = roleForPointer(this.mobileOwnership, pointer.id);
+    if (
+      role === null
+      && this.activeMobilePointers.has(pointer.id)
+      && this.mobileControlsEnabled
+      && this.mobileLayout
+    ) {
+      const candidateRole = classifyMobilePointer(
+        { x: pointer.x, y: pointer.y },
+        this.mobileLayout,
+      );
+      this.mobileOwnership = claimMobilePointer(
+        this.mobileOwnership,
+        pointer.id,
+        candidateRole,
+      );
+      role = roleForPointer(this.mobileOwnership, pointer.id);
+    }
     if (role === 'movement') this.updateMobileMovement(pointer);
     if (role === 'aim') this.updateAimDirection(pointer, 'mobile');
   }

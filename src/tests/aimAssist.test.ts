@@ -80,16 +80,18 @@ describe('mobile aim assist', () => {
     expect(shouldReleaseAimLock(null, { x: 0, y: 1 }, 0)).toBe(false);
   });
 
-  it('returns manual aim when disabled or when no target is eligible', () => {
+  it('returns manual aim when disabled and preserves view aim without a target', () => {
     const manualAimDirection = { x: 0, y: -1 };
+    const viewDirection = { x: 0, y: 1 };
 
     expect(resolve([target('candidate', 100, 20)], {
       enabled: false,
       manualAimDirection,
+      viewDirection,
     })).toEqual({ targetId: null, finalAimDirection: manualAimDirection });
-    expect(resolve([])).toEqual({
+    expect(resolve([], { manualAimDirection, viewDirection })).toEqual({
       targetId: null,
-      finalAimDirection: { x: 1, y: 0 },
+      finalAimDirection: viewDirection,
     });
   });
 
@@ -196,6 +198,19 @@ describe('mobile aim assist', () => {
       .toBe(current.id);
   });
 
+  it('switches when a challenger scores better despite the retention penalty', () => {
+    const angle = 10 * Math.PI / 180;
+    const current = target(
+      'current',
+      100 + Math.cos(angle) * 180,
+      100 + Math.sin(angle) * 180,
+    );
+    const challenger = target('challenger', 300, 100);
+
+    expect(resolve([current, challenger], { currentTargetId: current.id }).targetId)
+      .toBe(challenger.id);
+  });
+
   it('releases an invalid current target and selects a normal acquisition candidate', () => {
     const outsideRange = target('old', 700, 100);
     const replacement = target('new', 250, 100);
@@ -290,14 +305,16 @@ describe('mobile aim assist', () => {
     }).targetId).toBe(behindObstacle.id);
   });
 
-  it('falls back to finite manual aim when player and target overlap', () => {
+  it('preserves finite view aim when player and target overlap', () => {
     const manualAimDirection = { x: 0, y: 1 };
+    const viewDirection = { x: -1, y: 0 };
     const result = resolve([target('overlap', 100, 100)], {
       manualAimDirection,
+      viewDirection,
       config: { ...config, maxTargetDistance: 500 },
     });
 
-    expect(result).toEqual({ targetId: null, finalAimDirection: manualAimDirection });
+    expect(result).toEqual({ targetId: null, finalAimDirection: viewDirection });
     expect(Number.isFinite(result.finalAimDirection.x)).toBe(true);
     expect(Number.isFinite(result.finalAimDirection.y)).toBe(true);
   });
