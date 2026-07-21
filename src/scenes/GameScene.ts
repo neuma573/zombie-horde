@@ -12,7 +12,6 @@ import { Obstacle } from '../entities/Obstacle';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
-import { ViewDirectionVisual } from '../effects/ViewDirectionVisual';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
 import {
   resolveAimAssist,
@@ -106,7 +105,6 @@ export class GameScene extends Phaser.Scene {
   private hud?: HudSystem;
   private effects?: CombatEffects;
   private aimAssistVisual?: AimAssistVisual;
-  private viewDirectionVisual?: ViewDirectionVisual;
   private worldBackdrop?: WorldBackdrop;
 
   constructor() {
@@ -146,8 +144,6 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
-    this.viewDirectionVisual = new ViewDirectionVisual(this);
-    this.updateViewDirectionVisual();
     this.mobileControls = new MobileControls(this);
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
@@ -190,8 +186,6 @@ export class GameScene extends Phaser.Scene {
       this.effects = undefined;
       this.aimAssistVisual?.destroy();
       this.aimAssistVisual = undefined;
-      this.viewDirectionVisual?.destroy();
-      this.viewDirectionVisual = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
       this.mobileControls?.destroy();
@@ -235,6 +229,7 @@ export class GameScene extends Phaser.Scene {
       this.weapon.reload();
     }
     this.startMobileAutoReloadIfNeeded();
+    this.updatePlayerWeaponVisual();
 
     const desiredPosition = moveWithinBounds(
       this.player,
@@ -282,6 +277,7 @@ export class GameScene extends Phaser.Scene {
         },
       );
       zombie.setPosition(nextPosition.x, nextPosition.y);
+      zombie.faceToward(this.player);
     }
 
     const contactDamage = this.damage.resolveZombieContacts(
@@ -292,8 +288,12 @@ export class GameScene extends Phaser.Scene {
       deltaMs,
       PLAYER_CONFIG.invulnerabilityMs,
       ZOMBIE_CONFIG.contactDamage,
+      ZOMBIE_CONFIG.attackWindupMs,
       ZOMBIE_CONFIG.attackIntervalMs,
     );
+    for (const zombie of this.zombies) {
+      zombie.updateAttackVisual();
+    }
 
     if (contactDamage.died) {
       const transition = transitionToGameOver(this.sessionState);
@@ -383,7 +383,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.effects?.playShot({
-      origin: { x: this.player.x, y: this.player.y },
+      origin: this.player.getMuzzlePosition(),
       endPoint: result.endPoint,
     });
     for (const impact of impactEvents) {
@@ -400,6 +400,11 @@ export class GameScene extends Phaser.Scene {
     if (shouldAutoReload(this.weapon.getState(), this.mobileControlsEnabled)) {
       this.weapon.reload();
     }
+  }
+
+  private updatePlayerWeaponVisual(): void {
+    const reload = this.weapon.getReloadProgress();
+    this.player.setReloadVisual(reload.isReloading, reload.normalized);
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer, source: AimSource): void {
@@ -673,7 +678,6 @@ export class GameScene extends Phaser.Scene {
       this.finalAimDirection.y,
       this.finalAimDirection.x,
     ));
-    this.updateViewDirectionVisual();
     this.updateAimAssistVisual();
     return { ...this.finalAimDirection };
   }
@@ -690,15 +694,7 @@ export class GameScene extends Phaser.Scene {
         this.finalAimDirection.y,
         this.finalAimDirection.x,
       ));
-      this.updateViewDirectionVisual();
     }
-  }
-
-  private updateViewDirectionVisual(): void {
-    this.viewDirectionVisual?.update(
-      { x: this.player.x, y: this.player.y },
-      this.viewDirection,
-    );
   }
 
   private updateAimAssistVisual(): void {

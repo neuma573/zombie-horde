@@ -31,6 +31,7 @@ export const MVP_CONFIG = {
     speed: 80,
     radius: 20,
     contactDamage: 10,
+    attackWindupMs: 260,
     attackIntervalMs: 800,
   },
   wave: {

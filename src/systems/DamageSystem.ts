@@ -25,6 +25,7 @@ export interface ContactDamageDealer {
   y: number;
   hitRadius: number;
   attackCooldownRemainingMs: number;
+  attackWindupRemainingMs?: number | null;
 }
 
 export class DamageSystem {
@@ -42,6 +43,7 @@ export class DamageSystem {
     deltaMs: number,
     playerInvulnerabilityMs: number,
     zombieDamage: number,
+    zombieAttackWindupMs: number,
     zombieAttackIntervalMs: number,
   ): ContactDamageResult {
     const target: ContactTarget = {
@@ -54,6 +56,8 @@ export class DamageSystem {
       damage: zombieDamage,
       attackIntervalMs: zombieAttackIntervalMs,
       cooldownRemainingMs: zombie.attackCooldownRemainingMs,
+      windupMs: zombieAttackWindupMs,
+      windupRemainingMs: zombie.attackWindupRemainingMs ?? null,
       contactWindow: movingCircleContactWindow(
         { start: playerStart, end: { x: player.x, y: player.y }, radius: player.hitRadius },
         {
@@ -71,6 +75,7 @@ export class DamageSystem {
     player.invulnerabilityRemainingMs = result.invulnerabilityRemainingMs;
     zombies.forEach((zombie, index) => {
       zombie.attackCooldownRemainingMs = result.attackerCooldownsMs[index];
+      zombie.attackWindupRemainingMs = result.attackerWindupsRemainingMs[index];
     });
 
     return result;

@@ -149,6 +149,53 @@ describe('resolveContactDamage', () => {
     expect(result.damageEvents).toHaveLength(6);
   });
 
+  it('applies damage at windup completion and preserves it across frame partitions', () => {
+    const oneStep = resolveContactDamage(
+      target(),
+      [attacker({ windupMs: 240 })],
+      240,
+    );
+    const first = resolveContactDamage(
+      target(),
+      [attacker({ windupMs: 240 })],
+      100,
+    );
+    const second = resolveContactDamage(
+      target({
+        health: first.health,
+        isAlive: first.isAlive,
+        invulnerabilityRemainingMs: first.invulnerabilityRemainingMs,
+      }),
+      [attacker({
+        windupMs: 240,
+        windupRemainingMs: first.attackerWindupsRemainingMs[0],
+      })],
+      140,
+    );
+
+    expect(first.health).toBe(100);
+    expect(first.attackerWindupsRemainingMs).toEqual([140]);
+    expect(oneStep.health).toBe(90);
+    expect(oneStep.damageEvents).toEqual([{ timeMs: 240, damage: 10 }]);
+    expect(second.health).toBe(oneStep.health);
+    expect(second.damageEvents).toEqual([{ timeMs: 140, damage: 10 }]);
+  });
+
+  it('completes a missed attack without damage when contact ends before impact', () => {
+    const result = resolveContactDamage(
+      target(),
+      [attacker({
+        windupMs: 240,
+        contactWindow: { startMs: 0, endMs: 100 },
+      })],
+      240,
+    );
+
+    expect(result.health).toBe(100);
+    expect(result.attackerWindupsRemainingMs).toEqual([null]);
+    expect(result.attackerCooldownsMs).toEqual([560]);
+  });
+
   it('reports death once and ignores damage after death', () => {
     const death = resolveContactDamage(target({ health: 10 }), [attacker()], 1_000);
     const afterDeath = resolveContactDamage(

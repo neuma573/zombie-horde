@@ -16,6 +16,8 @@ export interface ContactAttacker {
   damage: number;
   attackIntervalMs: number;
   cooldownRemainingMs: number;
+  windupMs?: number;
+  windupRemainingMs?: number | null;
   contactWindow: ContactWindow | null;
 }
 
@@ -25,6 +27,7 @@ export interface ContactDamageResult {
   died: boolean;
   invulnerabilityRemainingMs: number;
   attackerCooldownsMs: number[];
+  attackerWindupsRemainingMs: Array<number | null>;
   damageEvents: ContactDamageEvent[];
 }
 
@@ -90,6 +93,11 @@ export function resolveContactDamage(
 ): ContactDamageResult {
   const duration = Math.max(0, deltaMs);
   const cooldowns = attackers.map((attacker) => Math.max(0, attacker.cooldownRemainingMs));
+  const windups = attackers.map((attacker) => (
+    attacker.windupRemainingMs === undefined || attacker.windupRemainingMs === null
+      ? null
+      : Math.max(0, attacker.windupRemainingMs)
+  ));
   let invulnerability = Math.max(0, target.invulnerabilityRemainingMs);
   let health = Math.max(0, target.health);
   let isAlive = target.isAlive && health > 0;
@@ -98,19 +106,40 @@ export function resolveContactDamage(
   const damageEvents: ContactDamageEvent[] = [];
 
   while (isAlive) {
-    const readyContactIndices = attackers
+    const readyToWindUpIndices = attackers
       .map((attacker, index) => ({ attacker, index }))
       .filter(({ attacker, index }) => (
         cooldowns[index] === 0
+        && windups[index] === null
         && attacker.contactWindow !== null
         && elapsed >= attacker.contactWindow.startMs
-        && elapsed <= attacker.contactWindow.endMs
+        && elapsed < attacker.contactWindow.endMs
       ))
       .map(({ index }) => index);
 
-    for (const index of readyContactIndices) {
+    for (const index of readyToWindUpIndices) {
+      windups[index] = Math.max(0, attackers[index].windupMs ?? 0);
+    }
+
+    const readyToImpactIndices = attackers
+      .map((_attacker, index) => index)
+      .filter((index) => windups[index] === 0);
+
+    for (const index of readyToImpactIndices) {
       const attacker = attackers[index];
-      cooldowns[index] = Math.max(1, attacker.attackIntervalMs);
+      windups[index] = null;
+      cooldowns[index] = Math.max(
+        1,
+        attacker.attackIntervalMs - Math.max(0, attacker.windupMs ?? 0),
+      );
+      const window = attacker.contactWindow;
+      const hitsAtImpact = window !== null
+        && elapsed >= window.startMs
+        && elapsed <= window.endMs;
+
+      if (!hitsAtImpact) {
+        continue;
+      }
 
       if (invulnerability > 0) {
         continue;
@@ -142,20 +171,23 @@ export function resolveContactDamage(
     const nextAttackTimes = attackers.flatMap((attacker, index) => {
       const window = attacker.contactWindow;
 
-      if (window === null || elapsed > window.endMs) {
-        return [];
-      }
-
-      if (elapsed < window.startMs) {
+      if (cooldowns[index] === 0 && windups[index] === null && window && elapsed < window.startMs) {
         return [window.startMs - elapsed];
       }
 
-      return elapsed + cooldowns[index] <= window.endMs ? [cooldowns[index]] : [];
+      const times: number[] = [];
+      if (cooldowns[index] > 0) times.push(cooldowns[index]);
+      if (windups[index] !== null && windups[index] > 0) times.push(windups[index]);
+      return times;
     }).filter((time) => time > 0);
     const advance = Math.min(remaining, ...nextAttackTimes);
 
     for (let index = 0; index < cooldowns.length; index += 1) {
       cooldowns[index] = Math.max(0, cooldowns[index] - advance);
+      const windup = windups[index];
+      if (windup !== null) {
+        windups[index] = Math.max(0, windup - advance);
+      }
     }
     invulnerability = Math.max(0, invulnerability - advance);
     elapsed += advance;
@@ -165,6 +197,10 @@ export function resolveContactDamage(
     const remaining = duration - elapsed;
     for (let index = 0; index < cooldowns.length; index += 1) {
       cooldowns[index] = Math.max(0, cooldowns[index] - remaining);
+      const windup = windups[index];
+      if (windup !== null) {
+        windups[index] = Math.max(0, windup - remaining);
+      }
     }
     invulnerability = Math.max(0, invulnerability - remaining);
   }
@@ -175,6 +211,7 @@ export function resolveContactDamage(
     died,
     invulnerabilityRemainingMs: invulnerability,
     attackerCooldownsMs: cooldowns,
+    attackerWindupsRemainingMs: windups,
     damageEvents,
   };
 }
