@@ -25,12 +25,9 @@ export class CombatEffects {
     tracer.strokePath();
     this.fadeAndDestroy(tracer, 90);
 
-    const offsetX = event.endPoint.x - event.origin.x;
-    const offsetY = event.endPoint.y - event.origin.y;
-    const length = Math.hypot(offsetX, offsetY);
     const muzzle = this.scene.add.circle(
-      event.origin.x + (length > 0 ? offsetX / length * 22 : 0),
-      event.origin.y + (length > 0 ? offsetY / length * 22 : 0),
+      event.origin.x,
+      event.origin.y,
       6,
       0xfff1a8,
       0.95,

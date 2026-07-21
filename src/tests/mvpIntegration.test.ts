@@ -111,9 +111,10 @@ describe('MVP integration', () => {
         damage: MVP_CONFIG.zombie.contactDamage,
         attackIntervalMs: MVP_CONFIG.zombie.attackIntervalMs,
         cooldownRemainingMs: 0,
-        contactWindow: { startMs: 0, endMs: 0 },
+        windupMs: MVP_CONFIG.zombie.attackWindupMs,
+        contactWindow: { startMs: 0, endMs: MVP_CONFIG.zombie.attackWindupMs },
       }],
-      0,
+      MVP_CONFIG.zombie.attackWindupMs,
     );
     const gameOver = lethalDamage.died
       ? transitionToGameOver(createSessionState()).state
