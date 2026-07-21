@@ -22,4 +22,6 @@ export const TIME_BASED_LIGHTING_CONFIG = {
   darknessResponseRate: 5,
   flashlightFadeInResponseRate: 3,
   flashlightFadeOutResponseRate: 5,
+  muzzleFlashRadius: 105,
+  muzzleFlashDecayRate: 28,
 } satisfies TimeBasedLightingConfig;

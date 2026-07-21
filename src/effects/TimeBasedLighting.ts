@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import {
+  decayTransientLight,
   dampValue,
   renderableDarknessAlpha,
   resolveFlashlightEnabled,
@@ -15,11 +16,13 @@ export class TimeBasedLighting {
   private readonly darkness: Phaser.GameObjects.Rectangle;
   private readonly ambientMaskSource: Phaser.GameObjects.Image;
   private readonly flashlightMaskSource: Phaser.GameObjects.Image;
+  private readonly muzzleFlashMaskSource: Phaser.GameObjects.Image;
   private readonly lightMaskSource: Phaser.GameObjects.Container;
   private readonly ambientMask: Phaser.Display.Masks.BitmapMask | null;
   private flashlightEnabled = false;
   private flashlightIntensity = 0;
   private visualDarknessAlpha: number | null = null;
+  private muzzleFlashIntensity = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -46,6 +49,15 @@ export class TimeBasedLighting {
       key: FLASHLIGHT_TEXTURE_KEY,
       add: false,
     }).setOrigin(0, 0.5).setScrollFactor(0);
+    this.muzzleFlashMaskSource = scene.make.image({
+      x: 0,
+      y: 0,
+      key: AMBIENT_TEXTURE_KEY,
+      add: false,
+    }).setScrollFactor(0).setDisplaySize(
+      config.muzzleFlashRadius * 2,
+      config.muzzleFlashRadius * 2,
+    ).setVisible(false);
     this.lightMaskSource = scene.make.container({
       x: 0,
       y: 0,
@@ -54,6 +66,7 @@ export class TimeBasedLighting {
     this.lightMaskSource.add([
       this.ambientMaskSource,
       this.flashlightMaskSource,
+      this.muzzleFlashMaskSource,
     ]);
 
     if (scene.game.renderer.type === Phaser.WEBGL) {
@@ -109,10 +122,28 @@ export class TimeBasedLighting {
     this.flashlightMaskSource
       .setAlpha(this.flashlightIntensity)
       .setVisible(this.flashlightIntensity > 0.001);
+    this.muzzleFlashIntensity = decayTransientLight(
+      this.muzzleFlashIntensity,
+      deltaMs,
+      this.config.muzzleFlashDecayRate,
+    );
+    this.muzzleFlashMaskSource
+      .setAlpha(this.muzzleFlashIntensity)
+      .setVisible(this.muzzleFlashIntensity > 0.001);
 
     if (Math.hypot(aimDirection.x, aimDirection.y) > 1e-6) {
       this.flashlightMaskSource.setRotation(Math.atan2(aimDirection.y, aimDirection.x));
     }
+  }
+
+  triggerMuzzleFlash(screenX: number, screenY: number): void {
+    if (this.ambientMask === null) return;
+
+    this.muzzleFlashIntensity = 1;
+    this.muzzleFlashMaskSource
+      .setPosition(screenX, screenY)
+      .setAlpha(1)
+      .setVisible(true);
   }
 
   destroy(): void {
