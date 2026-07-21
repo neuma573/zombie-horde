@@ -20,6 +20,8 @@ export interface TimeBasedLightingConfig {
   darknessResponseRate: number;
   flashlightFadeInResponseRate: number;
   flashlightFadeOutResponseRate: number;
+  muzzleFlashRadius: number;
+  muzzleFlashDecayRate: number;
 }
 
 export function dampValue(
@@ -42,6 +44,14 @@ export function renderableDarknessAlpha(
 ): number {
   if (!supportsLightMask) return 0;
   return clampAlpha(targetDarknessAlpha);
+}
+
+export function decayTransientLight(
+  intensity: number,
+  deltaMs: number,
+  decayRate: number,
+): number {
+  return clampAlpha(dampValue(clampAlpha(intensity), 0, deltaMs, decayRate));
 }
 
 export function resolveFlashlightEnabled(

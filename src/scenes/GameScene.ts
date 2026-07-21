@@ -407,14 +407,19 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    const effectOrigin = constrainMuzzleToShotSegment(
+      shotOrigin,
+      this.player.getMuzzlePosition(),
+      result.endPoint,
+    );
     this.effects?.playShot({
-      origin: constrainMuzzleToShotSegment(
-        shotOrigin,
-        this.player.getMuzzlePosition(),
-        result.endPoint,
-      ),
+      origin: effectOrigin,
       endPoint: result.endPoint,
     });
+    this.timeBasedLighting?.triggerMuzzleFlash(
+      effectOrigin.x - this.cameras.main.scrollX,
+      effectOrigin.y - this.cameras.main.scrollY,
+    );
     for (const impact of impactEvents) {
       this.effects?.playZombieHit(impact);
       if (impact.died) {

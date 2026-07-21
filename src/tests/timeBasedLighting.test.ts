@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import {
+  decayTransientLight,
   dampValue,
   darknessAlphaForTime,
   renderableDarknessAlpha,
@@ -78,5 +79,16 @@ describe('time-based lighting', () => {
   it('disables darkness when the renderer cannot provide light masks', () => {
     expect(renderableDarknessAlpha(0.78, false)).toBe(0);
     expect(renderableDarknessAlpha(0.78, true)).toBe(0.78);
+  });
+
+  it('decays transient muzzle light using deltaMs', () => {
+    const first = decayTransientLight(1, 25, 28);
+    const second = decayTransientLight(first, 25, 28);
+    const whole = decayTransientLight(1, 50, 28);
+
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(1);
+    expect(second).toBeLessThan(first);
+    expect(second).toBeCloseTo(whole);
   });
 });
