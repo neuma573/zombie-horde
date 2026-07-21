@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import {
   dampValue,
+  renderableDarknessAlpha,
   resolveFlashlightEnabled,
   type TimeBasedLightingConfig,
 } from '../logic/timeBasedLighting';
@@ -61,6 +62,7 @@ export class TimeBasedLighting {
       this.darkness.setMask(this.ambientMask);
     } else {
       this.ambientMask = null;
+      this.darkness.setVisible(false);
     }
   }
 
@@ -75,7 +77,10 @@ export class TimeBasedLighting {
     aimDirection: { x: number; y: number },
     deltaMs = 0,
   ): void {
-    const targetDarknessAlpha = Math.min(1, Math.max(0, darknessAlpha));
+    const targetDarknessAlpha = renderableDarknessAlpha(
+      darknessAlpha,
+      this.ambientMask !== null,
+    );
     this.visualDarknessAlpha = this.visualDarknessAlpha === null
       ? targetDarknessAlpha
       : dampValue(

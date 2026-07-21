@@ -36,6 +36,14 @@ export function dampValue(
   return current + (target - current) * factor;
 }
 
+export function renderableDarknessAlpha(
+  targetDarknessAlpha: number,
+  supportsLightMask: boolean,
+): number {
+  if (!supportsLightMask) return 0;
+  return clampAlpha(targetDarknessAlpha);
+}
+
 export function resolveFlashlightEnabled(
   currentlyEnabled: boolean,
   darknessAlpha: number,

@@ -4,6 +4,7 @@ import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import {
   dampValue,
   darknessAlphaForTime,
+  renderableDarknessAlpha,
   resolveFlashlightEnabled,
 } from '../logic/timeBasedLighting';
 
@@ -72,5 +73,10 @@ describe('time-based lighting', () => {
     expect(dampValue(0.4, 1, 0, 3)).toBe(0.4);
     expect(dampValue(0.4, 1, -10, 3)).toBe(0.4);
     expect(dampValue(0.4, 1, Number.POSITIVE_INFINITY, 3)).toBe(0.4);
+  });
+
+  it('disables darkness when the renderer cannot provide light masks', () => {
+    expect(renderableDarknessAlpha(0.78, false)).toBe(0);
+    expect(renderableDarknessAlpha(0.78, true)).toBe(0.78);
   });
 });
