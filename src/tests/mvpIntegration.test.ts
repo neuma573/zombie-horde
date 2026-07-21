@@ -169,9 +169,9 @@ describe('MVP integration', () => {
 
     expect(player.x).toBeLessThanOrEqual(portrait.width - MVP_CONFIG.player.radius);
     expect(shot.hits[0]?.targetId).toBe('zombie');
-    expect(portraitHud.player.x).toBeGreaterThanOrEqual(0);
-    expect(portraitHud.wave.y).toBeLessThan(portrait.height);
-    expect(landscapeHud.wave.x).toBeLessThan(960);
+    expect(portraitHud.status.x).toBeGreaterThanOrEqual(0);
+    expect(portraitHud.ammo.y).toBeLessThan(portrait.height);
+    expect(landscapeHud.ammo.x).toBeLessThan(960);
     expect(landscapeHud.gameOver.y).toBeLessThan(540);
   });
 });

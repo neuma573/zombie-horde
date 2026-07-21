@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
+import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
@@ -23,6 +24,12 @@ import { isPrimaryFireInput } from '../logic/fireInput';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
+import {
+  advanceGameTime,
+  createGameTimeState,
+  formatGameTime,
+  type GameTimeState,
+} from '../logic/gameTime';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import { shouldAutoReload } from '../logic/weapon';
@@ -96,7 +103,9 @@ export class GameScene extends Phaser.Scene {
   private readonly activeMobilePointers = new Set<number>();
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
+  private killCount = 0;
   private sessionState: SessionState = createSessionState();
+  private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
@@ -114,6 +123,7 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     this.sessionState = createSessionState();
+    this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
     this.playerInput = createPlayerInputState();
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
@@ -141,6 +151,7 @@ export class GameScene extends Phaser.Scene {
       MVP_CONFIG.player.spawn.y,
     );
     this.zombies = [];
+    this.killCount = 0;
     this.resizePlayArea(this.scale.gameSize);
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
@@ -206,6 +217,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const playerStart = { x: this.player.x, y: this.player.y };
+
+    this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
 
     this.weapon.update(deltaMs);
 
@@ -376,6 +389,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (deadIds.size > 0) {
+      this.killCount += deadIds.size;
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
 
       if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
@@ -594,9 +608,9 @@ export class GameScene extends Phaser.Scene {
       isReloading: weapon.reloadRemainingMs !== null,
       reloadProgress: reload.normalized,
       waveNumber: wave.waveNumber,
-      wavePhase: wave.phase,
-      aliveZombieCount: this.zombies.length,
+      killCount: this.killCount,
       sessionPhase: this.sessionState.phase,
+      gameTimeText: formatGameTime(this.gameTime),
     });
     this.hud?.update(viewModel);
   }
