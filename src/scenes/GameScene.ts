@@ -24,6 +24,7 @@ import { moveCircleWithObstacles } from '../logic/obstacleCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
+import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import { shouldAutoReload } from '../logic/weapon';
 import {
   claimMobilePointer,
@@ -339,8 +340,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const shotOrigin = { x: this.player.x, y: this.player.y };
     const result = resolveHitscan(
-      { x: this.player.x, y: this.player.y },
+      shotOrigin,
       shotDirection,
       BASIC_WEAPON_CONFIG.range,
       this.zombies.map((zombie) => ({
@@ -383,7 +385,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.effects?.playShot({
-      origin: this.player.getMuzzlePosition(),
+      origin: constrainMuzzleToShotSegment(
+        shotOrigin,
+        this.player.getMuzzlePosition(),
+        result.endPoint,
+      ),
       endPoint: result.endPoint,
     });
     for (const impact of impactEvents) {
