@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
+import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
@@ -14,6 +15,7 @@ import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
+import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import {
   resolveAimAssist,
   shouldReleaseAimLock,
@@ -30,6 +32,7 @@ import {
   formatGameTime,
   type GameTimeState,
 } from '../logic/gameTime';
+import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import { shouldAutoReload } from '../logic/weapon';
@@ -116,6 +119,7 @@ export class GameScene extends Phaser.Scene {
   private effects?: CombatEffects;
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
+  private timeBasedLighting?: TimeBasedLighting;
 
   constructor() {
     super('GameScene');
@@ -150,9 +154,11 @@ export class GameScene extends Phaser.Scene {
       MVP_CONFIG.player.spawn.x,
       MVP_CONFIG.player.spawn.y,
     );
+    this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
     this.killCount = 0;
     this.resizePlayArea(this.scale.gameSize);
+    this.updateTimeBasedLighting();
     this.hud = new HudSystem(this);
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
@@ -200,6 +206,8 @@ export class GameScene extends Phaser.Scene {
       this.aimAssistVisual = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
+      this.timeBasedLighting?.destroy();
+      this.timeBasedLighting = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
     });
@@ -326,6 +334,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.refreshAimAssist();
+    this.updateTimeBasedLighting(deltaMs);
 
     const spawnCount = this.wave.update(deltaMs, this.zombies.length);
 
@@ -574,6 +583,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.worldBackdrop?.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
+    this.timeBasedLighting?.resize(gameSize.width, gameSize.height);
 
     const playerPosition = constrainToBounds(this.player, {
       ...this.playArea,
@@ -590,6 +600,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateCameraPosition();
+    this.updateTimeBasedLighting();
 
     this.resizeHud();
     this.refreshInputMode();
@@ -768,6 +779,21 @@ export class GameScene extends Phaser.Scene {
   private updateCameraPosition(): void {
     const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
     this.cameras.main.setScroll(scroll.x, scroll.y);
+  }
+
+  private updateTimeBasedLighting(deltaMs = 0): void {
+    if (!this.timeBasedLighting) return;
+
+    this.timeBasedLighting.update(
+      darknessAlphaForTime(
+        this.gameTime.minuteOfDay,
+        TIME_BASED_LIGHTING_CONFIG.darknessKeyframes,
+      ),
+      this.player.x - this.cameras.main.scrollX,
+      this.player.y - this.cameras.main.scrollY,
+      this.finalAimDirection,
+      deltaMs,
+    );
   }
 
   private readSafeArea(): SafeAreaInsets {
