@@ -20,7 +20,9 @@ export interface TimeBasedLightingConfig {
   darknessResponseRate: number;
   flashlightFadeInResponseRate: number;
   flashlightFadeOutResponseRate: number;
-  muzzleFlashRadius: number;
+  muzzleFlashCoreRadius: number;
+  muzzleFlashForwardLength: number;
+  muzzleFlashForwardWidth: number;
   muzzleFlashDecayRate: number;
 }
 

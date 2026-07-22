@@ -11,18 +11,26 @@ import {
 const LIGHTING_DEPTH = 80;
 const AMBIENT_TEXTURE_KEY = 'time-based-lighting-ambient';
 const FLASHLIGHT_TEXTURE_KEY = 'time-based-lighting-flashlight';
+const MUZZLE_FLASH_TEXTURE_KEY = 'muzzle-flash-directional-light';
+const MUZZLE_FLASH_VARIANTS = [
+  { lengthScale: 0.88, widthScale: 1.12 },
+  { lengthScale: 1.08, widthScale: 0.86 },
+  { lengthScale: 1, widthScale: 1 },
+] as const;
 
 export class TimeBasedLighting {
   private readonly darkness: Phaser.GameObjects.Rectangle;
   private readonly ambientMaskSource: Phaser.GameObjects.Image;
   private readonly flashlightMaskSource: Phaser.GameObjects.Image;
-  private readonly muzzleFlashMaskSource: Phaser.GameObjects.Image;
+  private readonly muzzleFlashCoreMaskSource: Phaser.GameObjects.Image;
+  private readonly muzzleFlashForwardMaskSource: Phaser.GameObjects.Image;
   private readonly lightMaskSource: Phaser.GameObjects.Container;
   private readonly ambientMask: Phaser.Display.Masks.BitmapMask | null;
   private flashlightEnabled = false;
   private flashlightIntensity = 0;
   private visualDarknessAlpha: number | null = null;
   private muzzleFlashIntensity = 0;
+  private muzzleFlashSequence = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -30,6 +38,7 @@ export class TimeBasedLighting {
   ) {
     this.createAmbientTexture();
     this.createFlashlightTexture();
+    this.createMuzzleFlashTexture();
     this.darkness = scene.add.rectangle(0, 0, 1, 1, 0x05070b, 1)
       .setOrigin(0)
       .setScrollFactor(0)
@@ -49,15 +58,21 @@ export class TimeBasedLighting {
       key: FLASHLIGHT_TEXTURE_KEY,
       add: false,
     }).setOrigin(0, 0.5).setScrollFactor(0);
-    this.muzzleFlashMaskSource = scene.make.image({
+    this.muzzleFlashCoreMaskSource = scene.make.image({
       x: 0,
       y: 0,
       key: AMBIENT_TEXTURE_KEY,
       add: false,
     }).setScrollFactor(0).setDisplaySize(
-      config.muzzleFlashRadius * 2,
-      config.muzzleFlashRadius * 2,
+      config.muzzleFlashCoreRadius * 2,
+      config.muzzleFlashCoreRadius * 2,
     ).setVisible(false);
+    this.muzzleFlashForwardMaskSource = scene.make.image({
+      x: 0,
+      y: 0,
+      key: MUZZLE_FLASH_TEXTURE_KEY,
+      add: false,
+    }).setOrigin(0, 0.5).setScrollFactor(0).setVisible(false);
     this.lightMaskSource = scene.make.container({
       x: 0,
       y: 0,
@@ -66,7 +81,8 @@ export class TimeBasedLighting {
     this.lightMaskSource.add([
       this.ambientMaskSource,
       this.flashlightMaskSource,
-      this.muzzleFlashMaskSource,
+      this.muzzleFlashCoreMaskSource,
+      this.muzzleFlashForwardMaskSource,
     ]);
 
     if (scene.game.renderer.type === Phaser.WEBGL) {
@@ -127,7 +143,10 @@ export class TimeBasedLighting {
       deltaMs,
       this.config.muzzleFlashDecayRate,
     );
-    this.muzzleFlashMaskSource
+    this.muzzleFlashCoreMaskSource
+      .setAlpha(this.muzzleFlashIntensity)
+      .setVisible(this.muzzleFlashIntensity > 0.001);
+    this.muzzleFlashForwardMaskSource
       .setAlpha(this.muzzleFlashIntensity)
       .setVisible(this.muzzleFlashIntensity > 0.001);
 
@@ -136,14 +155,38 @@ export class TimeBasedLighting {
     }
   }
 
-  triggerMuzzleFlash(screenX: number, screenY: number): void {
+  triggerMuzzleFlash(
+    screenX: number,
+    screenY: number,
+    direction: { x: number; y: number },
+    maximumDistance = this.config.muzzleFlashForwardLength,
+  ): void {
     if (this.ambientMask === null) return;
 
+    const variant = MUZZLE_FLASH_VARIANTS[
+      this.muzzleFlashSequence % MUZZLE_FLASH_VARIANTS.length
+    ];
+    this.muzzleFlashSequence += 1;
     this.muzzleFlashIntensity = 1;
-    this.muzzleFlashMaskSource
+    this.muzzleFlashCoreMaskSource
       .setPosition(screenX, screenY)
       .setAlpha(1)
       .setVisible(true);
+    this.muzzleFlashForwardMaskSource
+      .setPosition(screenX, screenY)
+      .setDisplaySize(
+        Math.min(
+          this.config.muzzleFlashForwardLength * variant.lengthScale,
+          Math.max(1, maximumDistance),
+        ),
+        this.config.muzzleFlashForwardWidth * variant.widthScale,
+      )
+      .setAlpha(1)
+      .setVisible(true);
+
+    if (Math.hypot(direction.x, direction.y) > 1e-6) {
+      this.muzzleFlashForwardMaskSource.setRotation(Math.atan2(direction.y, direction.x));
+    }
   }
 
   destroy(): void {
@@ -153,6 +196,7 @@ export class TimeBasedLighting {
     this.darkness.destroy();
     this.scene.textures.remove(AMBIENT_TEXTURE_KEY);
     this.scene.textures.remove(FLASHLIGHT_TEXTURE_KEY);
+    this.scene.textures.remove(MUZZLE_FLASH_TEXTURE_KEY);
   }
 
   private createAmbientTexture(): void {
@@ -213,6 +257,44 @@ export class TimeBasedLighting {
         );
         const edgeAlpha = 1 - smoothstep(edgeProgress);
         const alpha = centerIntensity * distanceAlpha * edgeAlpha;
+        const pixel = (y * length + x) * 4;
+        image.data[pixel] = 255;
+        image.data[pixel + 1] = 255;
+        image.data[pixel + 2] = 255;
+        image.data[pixel + 3] = Math.round(alpha * 255);
+      }
+    }
+
+    context.putImageData(image, 0, 0);
+    texture.refresh();
+  }
+
+  private createMuzzleFlashTexture(): void {
+    if (this.scene.textures.exists(MUZZLE_FLASH_TEXTURE_KEY)) return;
+
+    const length = Math.max(2, Math.round(this.config.muzzleFlashForwardLength));
+    const height = Math.max(2, Math.round(this.config.muzzleFlashForwardWidth));
+    const texture = this.scene.textures.createCanvas(MUZZLE_FLASH_TEXTURE_KEY, length, height);
+
+    if (!texture) return;
+
+    const context = texture.context;
+    const image = context.createImageData(length, height);
+    const centerY = height / 2;
+
+    for (let x = 0; x < length; x += 1) {
+      const distanceProgress = x / Math.max(1, length - 1);
+      const shape = Math.pow(Math.sin(Math.PI * distanceProgress), 0.65);
+      const halfWidth = Math.max(1, centerY * shape);
+      const distanceAlpha = Math.pow(1 - distanceProgress, 0.65);
+
+      for (let y = 0; y < height; y += 1) {
+        const lateralProgress = Math.abs(y - centerY) / halfWidth;
+
+        if (lateralProgress >= 1) continue;
+
+        const edgeAlpha = 1 - smoothstep(lateralProgress);
+        const alpha = distanceAlpha * edgeAlpha;
         const pixel = (y * length + x) * 4;
         image.data[pixel] = 255;
         image.data[pixel + 1] = 255;

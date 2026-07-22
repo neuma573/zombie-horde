@@ -33,6 +33,7 @@ import {
   type GameTimeState,
 } from '../logic/gameTime';
 import { darknessAlphaForTime } from '../logic/timeBasedLighting';
+import { muzzleLightExposure } from '../logic/playerVisual';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import { shouldAutoReload } from '../logic/weapon';
@@ -214,6 +215,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
+    this.player.updateMuzzleReflection(deltaMs);
+    for (const zombie of this.zombies) {
+      zombie.updateMuzzleReflection(deltaMs);
+    }
+
     if (!isPlaying(this.sessionState)) {
       this.clearAimAssist();
       this.resetMobileInput();
@@ -419,7 +425,24 @@ export class GameScene extends Phaser.Scene {
     this.timeBasedLighting?.triggerMuzzleFlash(
       effectOrigin.x - this.cameras.main.scrollX,
       effectOrigin.y - this.cameras.main.scrollY,
+      shotDirection,
+      Math.hypot(result.endPoint.x - effectOrigin.x, result.endPoint.y - effectOrigin.y),
     );
+    this.player.triggerMuzzleReflection();
+    const flashReach = Math.min(
+      TIME_BASED_LIGHTING_CONFIG.muzzleFlashForwardLength,
+      Math.hypot(result.endPoint.x - effectOrigin.x, result.endPoint.y - effectOrigin.y),
+    );
+    for (const zombie of this.zombies) {
+      const exposure = muzzleLightExposure(
+        effectOrigin,
+        shotDirection,
+        zombie,
+        flashReach + zombie.hitRadius,
+        Math.atan2(TIME_BASED_LIGHTING_CONFIG.muzzleFlashForwardWidth / 2, Math.max(1, flashReach)),
+      );
+      if (exposure > 0) zombie.triggerMuzzleReflection(exposure);
+    }
     for (const impact of impactEvents) {
       this.effects?.playZombieHit(impact);
       if (impact.died) {
