@@ -2,6 +2,9 @@ import Phaser from 'phaser';
 
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { resolveZombieAttackPose } from '../logic/zombieVisual';
+import { decayTransientLight } from '../logic/timeBasedLighting';
+
+const MUZZLE_REFLECTION_DECAY_RATE = 22;
 
 function drawZombieArm(
   graphics: Phaser.GameObjects.Graphics,
@@ -27,6 +30,7 @@ export class Zombie extends Phaser.GameObjects.Container {
   attackCooldownRemainingMs = 0;
   attackWindupRemainingMs: number | null = null;
   private readonly visual: Phaser.GameObjects.Graphics;
+  private muzzleReflectionIntensity = 0;
 
   constructor(scene: Phaser.Scene, readonly id: string, x: number, y: number) {
     const visual = new Phaser.GameObjects.Graphics(scene);
@@ -54,6 +58,20 @@ export class Zombie extends Phaser.GameObjects.Container {
       ZOMBIE_CONFIG.attackWindupMs,
       ZOMBIE_CONFIG.attackIntervalMs - ZOMBIE_CONFIG.attackWindupMs,
     ));
+  }
+
+  triggerMuzzleReflection(intensity: number): void {
+    this.muzzleReflectionIntensity = Math.max(this.muzzleReflectionIntensity, intensity);
+    this.updateAttackVisual();
+  }
+
+  updateMuzzleReflection(deltaMs: number): void {
+    this.muzzleReflectionIntensity = decayTransientLight(
+      this.muzzleReflectionIntensity,
+      deltaMs,
+      MUZZLE_REFLECTION_DECAY_RATE,
+    );
+    this.updateAttackVisual();
   }
 
   private drawVisual(resolvedPose: ReturnType<typeof resolveZombieAttackPose>): void {
@@ -96,5 +114,14 @@ export class Zombie extends Phaser.GameObjects.Container {
     this.visual.fillCircle(-2, 0, ZOMBIE_CONFIG.radius * 0.62);
     this.visual.lineStyle(2, 0x121713, 1);
     this.visual.strokeCircle(-2, 0, ZOMBIE_CONFIG.radius * 0.62);
+
+    if (this.muzzleReflectionIntensity > 0.001) {
+      const alpha = this.muzzleReflectionIntensity;
+      // Zombies face the player, so the muzzle-facing surface is their local front.
+      this.visual.fillStyle(0xd6c99b, alpha * 0.42);
+      this.visual.fillEllipse(5, 0, 10, 23);
+      this.visual.fillStyle(0xf0ddb0, alpha * 0.58);
+      this.visual.fillEllipse(4, 0, 6, 13);
+    }
   }
 }
