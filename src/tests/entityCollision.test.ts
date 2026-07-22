@@ -309,4 +309,20 @@ describe('dynamic circle separation', () => {
       distance(entity.position, spawned[index].position) > 0
     ))).toBe(true);
   });
+
+  it('reserves a one-check budget for actual separation work', () => {
+    const overlapping = [
+      { id: 'zombie-1', position: { x: 100, y: 100 }, radius: 20 },
+      { id: 'zombie-2', position: { x: 110, y: 100 }, radius: 20 },
+    ];
+    const result = separateCircleEntitiesWithinBudget(overlapping, [], bounds, {
+      maxPairChecks: 1,
+    });
+
+    expect(result.pairChecks).toBe(1);
+    expect(distance(
+      result.positions.get('zombie-1')!,
+      result.positions.get('zombie-2')!,
+    )).toBeGreaterThanOrEqual(40 - 0.01);
+  });
 });

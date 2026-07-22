@@ -360,7 +360,13 @@ export function separateCircleEntitiesWithinBudget(
     : initialCandidateCursor();
 
   while (pairChecks < pairCheckBudget) {
-    if (isAtCandidatePassStart(candidateCursor)) {
+    // Keep at least one check available for the actual separation pass. With a
+    // one-check budget, pre-counting the first candidate would otherwise consume
+    // all work while leaving the cursor at the pass start forever.
+    if (
+      isAtCandidatePassStart(candidateCursor)
+      && pairCheckBudget - pairChecks > 1
+    ) {
       const checksBeforeCounting = pairChecks;
       const maximumCount = Math.floor((pairCheckBudget - pairChecks) / 2);
       const counter = streamCollisionCandidateIndices(
