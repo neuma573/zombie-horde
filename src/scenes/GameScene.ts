@@ -24,6 +24,7 @@ import {
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
+import { separatePlayerFromZombies } from '../logic/entityCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import {
@@ -305,8 +306,33 @@ export class GameScene extends Phaser.Scene {
         },
       );
       zombie.setPosition(nextPosition.x, nextPosition.y);
+    }
+
+    const separation = separatePlayerFromZombies(
+      {
+        position: { x: this.player.x, y: this.player.y },
+        previousPosition: playerStart,
+        radius: this.player.hitRadius,
+      },
+      this.zombies.map((zombie, index) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        previousPosition: zombieStarts[index],
+        radius: zombie.hitRadius,
+      })),
+      OBSTACLE_CONFIG,
+      this.playArea,
+    );
+    this.player.setPosition(
+      separation.playerPosition.x,
+      separation.playerPosition.y,
+    );
+    for (const zombie of this.zombies) {
+      const position = separation.zombiePositions.get(zombie.id);
+      if (position) zombie.setPosition(position.x, position.y);
       zombie.faceToward(this.player);
     }
+    this.updateCameraPosition();
 
     const contactDamage = this.damage.resolveZombieContacts(
       this.player,
