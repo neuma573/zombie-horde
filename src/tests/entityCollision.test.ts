@@ -5,6 +5,7 @@ import {
   separateCircleEntities,
 } from '../logic/entityCollision';
 import { circlesOverlap } from '../logic/contactDamage';
+import { getEdgeSpawnPosition } from '../logic/spawn';
 
 const bounds = { width: 500, height: 500 };
 
@@ -158,5 +159,18 @@ describe('dynamic circle separation', () => {
           .toBeGreaterThanOrEqual(radii[first] + radii[second] - 0.01);
       }
     }
+  });
+
+  it('separates repeated edge spawn positions in the same update', () => {
+    const spawned = Array.from({ length: 5 }, (_, index) => ({
+      id: `zombie-${index + 1}`,
+      position: getEdgeSpawnPosition(index, bounds, 20),
+      previousPosition: getEdgeSpawnPosition(index, bounds, 20),
+      radius: 20,
+    }));
+    const result = separateCircleEntities(spawned, [], bounds);
+
+    expect(distance(result.get('zombie-1')!, result.get('zombie-5')!))
+      .toBeGreaterThanOrEqual(40 - 0.01);
   });
 });

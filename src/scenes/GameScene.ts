@@ -285,9 +285,10 @@ export class GameScene extends Phaser.Scene {
     this.player.setPosition(nextPosition.x, nextPosition.y);
     this.updateCameraPosition();
 
-    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+    const contactZombies = [...this.zombies];
+    const zombieStarts = contactZombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
-    for (const zombie of this.zombies) {
+    for (const zombie of contactZombies) {
       const desiredZombiePosition = moveToward(
         zombie,
         this.player,
@@ -309,6 +310,12 @@ export class GameScene extends Phaser.Scene {
       zombie.faceToward(this.player);
     }
 
+    const spawnCount = this.wave.update(deltaMs, this.zombies.length);
+
+    for (let index = 0; index < spawnCount; index += 1) {
+      this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
+    }
+
     const separatedPositions = separateCircleEntities([
       {
         id: 'player',
@@ -320,7 +327,7 @@ export class GameScene extends Phaser.Scene {
       ...this.zombies.map((zombie, index) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
-        previousPosition: zombieStarts[index],
+        previousPosition: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
         radius: zombie.hitRadius,
       })),
     ], OBSTACLE_CONFIG, this.playArea);
@@ -333,7 +340,7 @@ export class GameScene extends Phaser.Scene {
     const contactDamage = this.damage.resolveZombieContacts(
       this.player,
       playerStart,
-      this.zombies,
+      contactZombies,
       zombieStarts,
       deltaMs,
       PLAYER_CONFIG.invulnerabilityMs,
@@ -363,12 +370,6 @@ export class GameScene extends Phaser.Scene {
 
     this.refreshAimAssist();
     this.updateTimeBasedLighting(deltaMs);
-
-    const spawnCount = this.wave.update(deltaMs, this.zombies.length);
-
-    for (let index = 0; index < spawnCount; index += 1) {
-      this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
-    }
 
     this.updateHud();
     this.playPlayerHitEffects(contactDamage.damageEvents.length);
