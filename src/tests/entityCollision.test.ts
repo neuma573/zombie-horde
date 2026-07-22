@@ -68,4 +68,25 @@ describe('player-zombie collision separation', () => {
     expect(distance(result.playerPosition, result.zombiePositions.get('zombie-1')!))
       .toBeCloseTo(28);
   });
+
+  it('fully resolves a pair squeezed against world bounds in one update', () => {
+    const result = separatePlayerFromZombies(
+      {
+        position: { x: 167.7, y: 178.8 },
+        previousPosition: { x: 167.7, y: 178.8 },
+        radius: 18,
+      },
+      [{
+        id: 'zombie-1',
+        position: { x: 172.45, y: 174.77 },
+        previousPosition: { x: 172.45, y: 174.77 },
+        radius: 20,
+      }],
+      [],
+      { width: 200, height: 200 },
+    );
+
+    expect(distance(result.playerPosition, result.zombiePositions.get('zombie-1')!))
+      .toBeGreaterThanOrEqual(38 - 0.000001);
+  });
 });

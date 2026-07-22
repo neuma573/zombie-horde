@@ -20,6 +20,7 @@ export interface PlayerZombieSeparationResult {
 }
 
 const OVERLAP_EPSILON = 1e-6;
+const MAXIMUM_SEPARATION_PASSES = 64;
 
 function separationNormal(
   player: PlayerCollisionBody,
@@ -105,12 +106,10 @@ export function separatePlayerFromZombies(
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 
-  // Moving the player as a fallback can create a new overlap with a zombie
-  // processed earlier. A bounded number of deterministic passes covers that
-  // chain without introducing frame-carried work or crowd simulation.
-  const maximumPasses = Math.max(1, zombies.length + 1);
-
-  for (let pass = 0; pass < maximumPasses; pass += 1) {
+  // Constrained moves near corners can resolve only part of an overlap at a
+  // time. Finish all measurable progress in this update instead of relying on
+  // later rendered frames. The cap protects physically impossible layouts.
+  for (let pass = 0; pass < MAXIMUM_SEPARATION_PASSES; pass += 1) {
     let foundOverlap = false;
     let madeProgress = false;
 
