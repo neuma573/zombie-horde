@@ -313,12 +313,14 @@ export class GameScene extends Phaser.Scene {
       {
         id: 'player',
         position: { x: this.player.x, y: this.player.y },
+        previousPosition: playerStart,
         radius: this.player.hitRadius,
         immovable: true,
       },
-      ...this.zombies.map((zombie) => ({
+      ...this.zombies.map((zombie, index) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
+        previousPosition: zombieStarts[index],
         radius: zombie.hitRadius,
       })),
     ], OBSTACLE_CONFIG, this.playArea);

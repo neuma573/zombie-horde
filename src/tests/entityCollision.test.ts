@@ -90,6 +90,48 @@ describe('dynamic circle separation', () => {
     expect(distance(forward.get('zombie-1')!, forward.get('zombie-2')!)).toBeCloseTo(40);
   });
 
+  it('uses the previous relative position when movement ends at the same point', () => {
+    const result = separateCircleEntities([
+      {
+        id: 'zombie-left',
+        previousPosition: { x: 80, y: 100 },
+        position: { x: 100, y: 100 },
+        radius: 20,
+      },
+      {
+        id: 'zombie-right',
+        previousPosition: { x: 120, y: 100 },
+        position: { x: 100, y: 100 },
+        radius: 20,
+      },
+    ], [], bounds);
+
+    expect(result.get('zombie-left')).toEqual({ x: 80, y: 100 });
+    expect(result.get('zombie-right')).toEqual({ x: 120, y: 100 });
+  });
+
+  it('does not let entity IDs change the coincident movement normal', () => {
+    const resolve = (leftId: string, rightId: string) => separateCircleEntities([
+      {
+        id: leftId,
+        previousPosition: { x: 100, y: 80 },
+        position: { x: 100, y: 100 },
+        radius: 20,
+      },
+      {
+        id: rightId,
+        previousPosition: { x: 100, y: 120 },
+        position: { x: 100, y: 100 },
+        radius: 20,
+      },
+    ], [], bounds);
+    const first = resolve('a', 'z');
+    const renamed = resolve('z', 'a');
+
+    expect([...first.values()].map((position) => position.y).sort((a, b) => a - b))
+      .toEqual([...renamed.values()].map((position) => position.y).sort((a, b) => a - b));
+  });
+
   it('does not push a separated zombie into an obstacle', () => {
     const obstacle = { x: 130, y: 50, width: 50, height: 100 };
     const result = separateCircleEntities([

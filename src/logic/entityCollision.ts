@@ -7,6 +7,7 @@ import type { MovementBounds, Position } from './movement';
 export interface CircleEntityPosition {
   id: string;
   position: Position;
+  previousPosition?: Position;
   radius: number;
   immovable?: boolean;
 }
@@ -92,6 +93,33 @@ function fallbackNormal(firstId: string, secondId: string): Position {
   return { x: Math.cos(angle), y: Math.sin(angle) };
 }
 
+function separationNormal(
+  first: CircleEntityPosition,
+  second: CircleEntityPosition,
+  offsetX: number,
+  offsetY: number,
+  distance: number,
+): Position {
+  if (distance > OVERLAP_EPSILON) {
+    return { x: offsetX / distance, y: offsetY / distance };
+  }
+
+  if (first.previousPosition && second.previousPosition) {
+    const previousOffsetX = second.previousPosition.x - first.previousPosition.x;
+    const previousOffsetY = second.previousPosition.y - first.previousPosition.y;
+    const previousDistance = Math.hypot(previousOffsetX, previousOffsetY);
+
+    if (previousDistance > OVERLAP_EPSILON) {
+      return {
+        x: previousOffsetX / previousDistance,
+        y: previousOffsetY / previousDistance,
+      };
+    }
+  }
+
+  return fallbackNormal(first.id, second.id);
+}
+
 function constrainedPosition(
   start: Position,
   desiredEnd: Position,
@@ -115,6 +143,7 @@ export function separateCircleEntities(
       ...entity,
       radius: Math.max(0, entity.radius),
       position: { ...entity.position },
+      previousPosition: entity.previousPosition ? { ...entity.previousPosition } : undefined,
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 
@@ -135,9 +164,7 @@ export function separateCircleEntities(
 
       if (overlap <= OVERLAP_EPSILON || (first.immovable && second.immovable)) continue;
 
-      const normal = distance > OVERLAP_EPSILON
-        ? { x: offsetX / distance, y: offsetY / distance }
-        : fallbackNormal(first.id, second.id);
+      const normal = separationNormal(first, second, offsetX, offsetY, distance);
       const firstShare = first.immovable ? 0 : second.immovable ? 1 : 0.5;
       const secondShare = second.immovable ? 0 : first.immovable ? 1 : 0.5;
 
