@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   findCircleCollisionCandidatePairs,
+  ENTITY_SEPARATION_PAIR_CHECK_BUDGET,
   separateCircleEntities,
+  separateCircleEntitiesWithinBudget,
 } from '../logic/entityCollision';
 import { circlesOverlap } from '../logic/contactDamage';
 import { getEdgeSpawnPosition } from '../logic/spawn';
@@ -11,6 +13,22 @@ const bounds = { width: 500, height: 500 };
 
 function distance(first: { x: number; y: number }, second: { x: number; y: number }): number {
   return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function maximumOverlap(
+  entities: readonly { position: { x: number; y: number }; radius: number }[],
+): number {
+  let maximum = 0;
+  for (let first = 0; first < entities.length; first += 1) {
+    for (let second = first + 1; second < entities.length; second += 1) {
+      maximum = Math.max(
+        maximum,
+        entities[first].radius + entities[second].radius
+          - distance(entities[first].position, entities[second].position),
+      );
+    }
+  }
+  return maximum;
 }
 
 describe('dynamic circle separation', () => {
@@ -174,8 +192,8 @@ describe('dynamic circle separation', () => {
     }
   });
 
-  it('keeps separating a dense late-wave crowd until every pair is clear', () => {
-    const crowd = Array.from({ length: 50 }, (_, index) => ({
+  it('keeps separating a dense late-wave crowd across bounded frames until clear', () => {
+    let crowd = Array.from({ length: 50 }, (_, index) => ({
       id: `zombie-${index.toString().padStart(2, '0')}`,
       position: {
         x: 460 + index % 10 * 8,
@@ -183,8 +201,28 @@ describe('dynamic circle separation', () => {
       },
       radius: 20,
     }));
-    const result = separateCircleEntities(crowd, [], { width: 1_000, height: 1_000 });
-    const positions = [...result.values()];
+    let complete = false;
+    let nextPairOffset = 0;
+
+    for (let frame = 0; frame < 20 && !complete; frame += 1) {
+      const result = separateCircleEntitiesWithinBudget(
+        crowd,
+        [],
+        { width: 1_000, height: 1_000 },
+        { startPairOffset: nextPairOffset },
+      );
+      expect(result.pairChecks).toBeLessThanOrEqual(ENTITY_SEPARATION_PAIR_CHECK_BUDGET);
+      crowd = crowd.map((entity) => ({
+        ...entity,
+        previousPosition: entity.position,
+        position: result.positions.get(entity.id)!,
+      }));
+      complete = result.complete;
+      nextPairOffset = result.nextPairOffset;
+    }
+
+    expect(complete).toBe(true);
+    const positions = crowd.map((entity) => entity.position);
 
     for (let first = 0; first < positions.length; first += 1) {
       for (let second = first + 1; second < positions.length; second += 1) {
@@ -204,5 +242,27 @@ describe('dynamic circle separation', () => {
 
     expect(distance(result.get('zombie-1')!, result.get('zombie-5')!))
       .toBeGreaterThanOrEqual(40 - 0.01);
+  });
+
+  it('bounds work for pathological repeated spawn batches', () => {
+    const spawned = Array.from({ length: 40 }, (_, index) => {
+      const position = getEdgeSpawnPosition(index, bounds, 20);
+      return {
+        id: `zombie-${index.toString().padStart(2, '0')}`,
+        position,
+        previousPosition: position,
+        radius: 20,
+      };
+    });
+    const result = separateCircleEntitiesWithinBudget(spawned, [], bounds, {
+      maxPairChecks: 500,
+    });
+    const resolved = spawned.map((entity) => ({
+      ...entity,
+      position: result.positions.get(entity.id)!,
+    }));
+
+    expect(result.pairChecks).toBeLessThanOrEqual(500);
+    expect(maximumOverlap(resolved)).toBeLessThan(maximumOverlap(spawned));
   });
 });

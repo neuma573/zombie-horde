@@ -14,6 +14,19 @@ export interface CircleEntityPosition {
 
 const OVERLAP_EPSILON = 1e-6;
 export const ENTITY_COLLISION_CELL_SIZE = 48;
+export const ENTITY_SEPARATION_PAIR_CHECK_BUDGET = 5_000;
+
+export interface CircleSeparationResult {
+  positions: Map<string, Position>;
+  pairChecks: number;
+  complete: boolean;
+  nextPairOffset: number;
+}
+
+export interface CircleSeparationOptions {
+  maxPairChecks?: number;
+  startPairOffset?: number;
+}
 
 interface IndexedPair {
   firstIndex: number;
@@ -162,11 +175,12 @@ function applySeparationMove(
   ) * direction);
 }
 
-export function separateCircleEntities(
+export function separateCircleEntitiesWithinBudget(
   entities: readonly CircleEntityPosition[],
   obstacles: readonly RectangleObstacle[],
   bounds: Omit<MovementBounds, 'padding'>,
-): Map<string, Position> {
+  options: CircleSeparationOptions = {},
+): CircleSeparationResult {
   const ordered = [...entities]
     .map((entity) => ({
       ...entity,
@@ -176,13 +190,44 @@ export function separateCircleEntities(
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 
-  while (true) {
-    let corrected = false;
+  const pairCheckBudget = Math.max(0, Math.floor(
+    Number.isFinite(options.maxPairChecks)
+      ? options.maxPairChecks!
+      : ENTITY_SEPARATION_PAIR_CHECK_BUDGET,
+  ));
+  let pairChecks = 0;
+  let complete = ordered.length < 2;
+  let nextPairOffset = Number.isFinite(options.startPairOffset)
+    ? Math.max(0, Math.floor(options.startPairOffset!))
+    : 0;
 
-    for (const { firstIndex, secondIndex } of collisionCandidateIndices(
-      ordered,
-      ENTITY_COLLISION_CELL_SIZE,
-    )) {
+  while (pairChecks < pairCheckBudget) {
+    const candidates = collisionCandidateIndices(ordered, ENTITY_COLLISION_CELL_SIZE);
+
+    if (candidates.length === 0) {
+      complete = true;
+      nextPairOffset = 0;
+      break;
+    }
+
+    const remainingBudget = pairCheckBudget - pairChecks;
+    const canCompletePass = candidates.length <= remainingBudget;
+
+    if (!canCompletePass && pairChecks > 0) break;
+
+    const checksThisPass = canCompletePass ? candidates.length : remainingBudget;
+    const passStartOffset = canCompletePass ? 0 : nextPairOffset % candidates.length;
+    let checkedThisPass = 0;
+    let corrected = false;
+    let foundOverlap = false;
+
+    while (checkedThisPass < checksThisPass) {
+      const { firstIndex, secondIndex } = candidates[
+        (passStartOffset + checkedThisPass) % candidates.length
+      ];
+      checkedThisPass += 1;
+      pairChecks += 1;
+
       const first = ordered[firstIndex];
       const second = ordered[secondIndex];
       const minimumDistance = first.radius + second.radius;
@@ -191,7 +236,9 @@ export function separateCircleEntities(
       const distance = Math.hypot(offsetX, offsetY);
       const overlap = minimumDistance - distance;
 
-      if (overlap <= OVERLAP_EPSILON || (first.immovable && second.immovable)) continue;
+      if (overlap <= OVERLAP_EPSILON) continue;
+      foundOverlap = true;
+      if (first.immovable && second.immovable) continue;
 
       const normal = separationNormal(first, second, offsetX, offsetY, distance);
       const firstShare = first.immovable ? 0 : second.immovable ? 1 : 0.5;
@@ -251,11 +298,35 @@ export function separateCircleEntities(
       corrected ||= movedDistance > OVERLAP_EPSILON;
     }
 
+    if (!canCompletePass) {
+      nextPairOffset = (passStartOffset + checkedThisPass) % candidates.length;
+      break;
+    }
+
+    nextPairOffset = 0;
+    if (!foundOverlap) {
+      complete = true;
+      break;
+    }
+
     // Rebuild the spatial grid only while at least one pair made real progress.
-    // This reaches a clear crowd in open space and terminates immediately when
-    // geometry prevents every remaining correction.
+    // Geometry-blocked overlaps stop immediately; budget exhaustion carries
+    // remaining work into the next rendered frame.
     if (!corrected) break;
   }
 
-  return new Map(ordered.map((entity) => [entity.id, { ...entity.position }]));
+  return {
+    positions: new Map(ordered.map((entity) => [entity.id, { ...entity.position }])),
+    pairChecks,
+    complete,
+    nextPairOffset,
+  };
+}
+
+export function separateCircleEntities(
+  entities: readonly CircleEntityPosition[],
+  obstacles: readonly RectangleObstacle[],
+  bounds: Omit<MovementBounds, 'padding'>,
+): Map<string, Position> {
+  return separateCircleEntitiesWithinBudget(entities, obstacles, bounds).positions;
 }

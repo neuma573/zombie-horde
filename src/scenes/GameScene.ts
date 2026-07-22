@@ -23,7 +23,7 @@ import {
   type AimSource,
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
-import { separateCircleEntities } from '../logic/entityCollision';
+import { separateCircleEntitiesWithinBudget } from '../logic/entityCollision';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
@@ -122,6 +122,7 @@ export class GameScene extends Phaser.Scene {
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
+  private entitySeparationPairOffset = 0;
 
   constructor() {
     super('GameScene');
@@ -141,6 +142,7 @@ export class GameScene extends Phaser.Scene {
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
     this.mobileRestartArmed = true;
+    this.entitySeparationPairOffset = 0;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
@@ -316,7 +318,7 @@ export class GameScene extends Phaser.Scene {
       this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
     }
 
-    const separatedPositions = separateCircleEntities([
+    const separation = separateCircleEntitiesWithinBudget([
       {
         id: 'player',
         position: { x: this.player.x, y: this.player.y },
@@ -330,7 +332,11 @@ export class GameScene extends Phaser.Scene {
         previousPosition: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
         radius: zombie.hitRadius,
       })),
-    ], OBSTACLE_CONFIG, this.playArea);
+    ], OBSTACLE_CONFIG, this.playArea, {
+      startPairOffset: this.entitySeparationPairOffset,
+    });
+    this.entitySeparationPairOffset = separation.nextPairOffset;
+    const separatedPositions = separation.positions;
 
     const separatedPlayer = separatedPositions.get('player');
     if (separatedPlayer) {
