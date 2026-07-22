@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   findCircleCollisionCandidatePairs,
+  entitySeparationWorkBudget,
   ENTITY_SEPARATION_PAIR_CHECK_BUDGET,
   separateCircleEntities,
   separateCircleEntitiesWithinBudget,
@@ -32,6 +33,41 @@ function maximumOverlap(
 }
 
 describe('dynamic circle separation', () => {
+  it('allocates the same collision work for equal elapsed time at 30 and 60 FPS', () => {
+    const totalForFrames = (frameCount: number): number => {
+      let credit = 0;
+      let total = 0;
+
+      for (let frame = 0; frame < frameCount; frame += 1) {
+        const budget = entitySeparationWorkBudget(1_000 / frameCount, credit);
+        credit = budget.remainingCredit;
+        total += budget.pairChecks;
+      }
+
+      return total;
+    };
+
+    expect(totalForFrames(30)).toBe(totalForFrames(60));
+    expect(totalForFrames(60)).toBe(300_000);
+  });
+
+  it('caps collision work after a large delta without retaining a large backlog', () => {
+    const resumed = entitySeparationWorkBudget(10_000, 0);
+    const nextFrame = entitySeparationWorkBudget(1_000 / 60, resumed.remainingCredit);
+
+    expect(resumed).toEqual({ pairChecks: 15_000, remainingCredit: 0 });
+    expect(nextFrame.pairChecks).toBe(5_000);
+  });
+
+  it('carries fractional collision work without tying it to frame count', () => {
+    const first = entitySeparationWorkBudget(0.001, 0);
+    const second = entitySeparationWorkBudget(0.001, first.remainingCredit);
+
+    expect(first).toEqual({ pairChecks: 0, remainingCredit: 0.3 });
+    expect(second.pairChecks).toBe(0);
+    expect(second.remainingCredit).toBeCloseTo(0.6);
+  });
+
   it('uses spatial cells to exclude distant entities from collision candidates', () => {
     const entities = Array.from({ length: 100 }, (_, index) => ({
       id: `zombie-${index.toString().padStart(3, '0')}`,

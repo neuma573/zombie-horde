@@ -15,6 +15,37 @@ export interface CircleEntityPosition {
 const OVERLAP_EPSILON = 1e-6;
 export const ENTITY_COLLISION_CELL_SIZE = 48;
 export const ENTITY_SEPARATION_PAIR_CHECK_BUDGET = 5_000;
+export const ENTITY_SEPARATION_CHECKS_PER_SECOND = 300_000;
+export const ENTITY_SEPARATION_MAX_CHECKS_PER_FRAME = 15_000;
+
+export interface EntitySeparationWorkBudget {
+  pairChecks: number;
+  remainingCredit: number;
+}
+
+export function entitySeparationWorkBudget(
+  deltaMs: number,
+  carriedCredit = 0,
+  checksPerSecond = ENTITY_SEPARATION_CHECKS_PER_SECOND,
+  maxChecksPerFrame = ENTITY_SEPARATION_MAX_CHECKS_PER_FRAME,
+): EntitySeparationWorkBudget {
+  const safeDeltaMs = Number.isFinite(deltaMs) ? Math.max(0, deltaMs) : 0;
+  const safeCredit = Number.isFinite(carriedCredit) ? Math.max(0, carriedCredit) : 0;
+  const safeRate = Number.isFinite(checksPerSecond) ? Math.max(0, checksPerSecond) : 0;
+  const safeMaximum = Number.isFinite(maxChecksPerFrame)
+    ? Math.max(0, Math.floor(maxChecksPerFrame))
+    : 0;
+  const available = Math.min(
+    safeMaximum,
+    safeCredit + safeRate * safeDeltaMs / 1_000,
+  );
+  const pairChecks = Math.floor(available);
+
+  return {
+    pairChecks,
+    remainingCredit: available - pairChecks,
+  };
+}
 
 export interface CircleSeparationResult {
   positions: Map<string, Position>;

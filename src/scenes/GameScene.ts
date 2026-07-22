@@ -23,7 +23,10 @@ import {
   type AimSource,
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
-import { separateCircleEntitiesWithinBudget } from '../logic/entityCollision';
+import {
+  entitySeparationWorkBudget,
+  separateCircleEntitiesWithinBudget,
+} from '../logic/entityCollision';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
@@ -123,6 +126,7 @@ export class GameScene extends Phaser.Scene {
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
   private entitySeparationPairOffset = 0;
+  private entitySeparationWorkCredit = 0;
 
   constructor() {
     super('GameScene');
@@ -143,6 +147,7 @@ export class GameScene extends Phaser.Scene {
     this.activeMobilePointers.clear();
     this.mobileRestartArmed = true;
     this.entitySeparationPairOffset = 0;
+    this.entitySeparationWorkCredit = 0;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
@@ -318,6 +323,11 @@ export class GameScene extends Phaser.Scene {
       this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
     }
 
+    const separationBudget = entitySeparationWorkBudget(
+      deltaMs,
+      this.entitySeparationWorkCredit,
+    );
+    this.entitySeparationWorkCredit = separationBudget.remainingCredit;
     const separation = separateCircleEntitiesWithinBudget([
       {
         id: 'player',
@@ -333,6 +343,7 @@ export class GameScene extends Phaser.Scene {
         radius: zombie.hitRadius,
       })),
     ], OBSTACLE_CONFIG, this.playArea, {
+      maxPairChecks: separationBudget.pairChecks,
       startPairOffset: this.entitySeparationPairOffset,
     });
     this.entitySeparationPairOffset = separation.nextPairOffset;
