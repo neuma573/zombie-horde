@@ -320,53 +320,17 @@ export class GameScene extends Phaser.Scene {
       zombie.faceToward(this.player);
     }
 
-    const spawnCount = this.wave.update(deltaMs, this.zombies.length);
-
-    for (let index = 0; index < spawnCount; index += 1) {
-      this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
-    }
-
     const separationBudget = entitySeparationWorkBudget(
       deltaMs,
       this.entitySeparationWorkCredit,
     );
     this.entitySeparationWorkCredit = separationBudget.remainingCredit;
-    const separationEntityCount = this.zombies.length + 1;
-    if (separationEntityCount !== this.entitySeparationEntityCount) {
-      this.entitySeparationCandidateCursor = undefined;
-      this.entitySeparationEntityCount = separationEntityCount;
-    }
-    const separation = separateCircleEntitiesWithinBudget([
-      {
-        id: 'player',
-        position: { x: this.player.x, y: this.player.y },
-        previousPosition: playerStart,
-        radius: this.player.hitRadius,
-        immovable: true,
-      },
-      ...this.zombies.map((zombie, index) => ({
-        id: zombie.id,
-        position: { x: zombie.x, y: zombie.y },
-        previousPosition: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
-        radius: zombie.hitRadius,
-      })),
-    ], OBSTACLE_CONFIG, this.playArea, {
-      maxPairChecks: separationBudget.pairChecks,
-      startCandidateCursor: this.entitySeparationCandidateCursor,
-    });
-    this.entitySeparationCandidateCursor = separation.nextCandidateCursor;
-    const separatedPositions = separation.positions;
-
-    const separatedPlayer = separatedPositions.get('player');
-    if (separatedPlayer) {
-      this.player.setPosition(separatedPlayer.x, separatedPlayer.y);
-      this.updateCameraPosition();
-    }
-
-    for (const zombie of this.zombies) {
-      const separated = separatedPositions.get(zombie.id);
-      if (separated) zombie.setPosition(separated.x, separated.y);
-    }
+    const initialSeparationBudget = Math.floor(separationBudget.pairChecks / 2);
+    const initialPairChecks = this.separateCurrentEntities(
+      playerStart,
+      zombieStarts,
+      initialSeparationBudget,
+    );
 
     const contactDamage = this.damage.resolveZombieContacts(
       this.player,
@@ -399,11 +363,73 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const spawnCount = this.wave.update(deltaMs, this.zombies.length);
+
+    for (let index = 0; index < spawnCount; index += 1) {
+      this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
+    }
+
+    const postContactPlayerPosition = { x: this.player.x, y: this.player.y };
+    const postContactZombiePositions = this.zombies.map((zombie) => ({
+      x: zombie.x,
+      y: zombie.y,
+    }));
+    this.separateCurrentEntities(
+      postContactPlayerPosition,
+      postContactZombiePositions,
+      Math.max(0, separationBudget.pairChecks - initialPairChecks),
+    );
+
     this.refreshAimAssist();
     this.updateTimeBasedLighting(deltaMs);
 
     this.updateHud();
     this.playPlayerHitEffects(contactDamage.damageEvents.length);
+  }
+
+  private separateCurrentEntities(
+    playerPreviousPosition: Vector2,
+    zombiePreviousPositions: readonly Vector2[],
+    maxPairChecks: number,
+  ): number {
+    const separationEntityCount = this.zombies.length + 1;
+    if (separationEntityCount !== this.entitySeparationEntityCount) {
+      this.entitySeparationCandidateCursor = undefined;
+      this.entitySeparationEntityCount = separationEntityCount;
+    }
+
+    const separation = separateCircleEntitiesWithinBudget([
+      {
+        id: 'player',
+        position: { x: this.player.x, y: this.player.y },
+        previousPosition: playerPreviousPosition,
+        radius: this.player.hitRadius,
+        immovable: true,
+      },
+      ...this.zombies.map((zombie, index) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        previousPosition: zombiePreviousPositions[index] ?? { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius,
+      })),
+    ], OBSTACLE_CONFIG, this.playArea, {
+      maxPairChecks,
+      startCandidateCursor: this.entitySeparationCandidateCursor,
+    });
+    this.entitySeparationCandidateCursor = separation.nextCandidateCursor;
+
+    const separatedPlayer = separation.positions.get('player');
+    if (separatedPlayer) {
+      this.player.setPosition(separatedPlayer.x, separatedPlayer.y);
+      this.updateCameraPosition();
+    }
+
+    for (const zombie of this.zombies) {
+      const separated = separation.positions.get(zombie.id);
+      if (separated) zombie.setPosition(separated.x, separated.y);
+    }
+
+    return separation.pairChecks;
   }
 
   private resolveFireRequest(): void {
