@@ -24,6 +24,7 @@ import {
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import {
+  type CircleCandidateCursor,
   entitySeparationWorkBudget,
   separateCircleEntitiesWithinBudget,
 } from '../logic/entityCollision';
@@ -125,8 +126,9 @@ export class GameScene extends Phaser.Scene {
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
-  private entitySeparationPairOffset = 0;
+  private entitySeparationCandidateCursor?: CircleCandidateCursor;
   private entitySeparationWorkCredit = 0;
+  private entitySeparationEntityCount = 0;
 
   constructor() {
     super('GameScene');
@@ -146,8 +148,9 @@ export class GameScene extends Phaser.Scene {
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
     this.mobileRestartArmed = true;
-    this.entitySeparationPairOffset = 0;
+    this.entitySeparationCandidateCursor = undefined;
     this.entitySeparationWorkCredit = 0;
+    this.entitySeparationEntityCount = 0;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
@@ -328,6 +331,11 @@ export class GameScene extends Phaser.Scene {
       this.entitySeparationWorkCredit,
     );
     this.entitySeparationWorkCredit = separationBudget.remainingCredit;
+    const separationEntityCount = this.zombies.length + 1;
+    if (separationEntityCount !== this.entitySeparationEntityCount) {
+      this.entitySeparationCandidateCursor = undefined;
+      this.entitySeparationEntityCount = separationEntityCount;
+    }
     const separation = separateCircleEntitiesWithinBudget([
       {
         id: 'player',
@@ -344,9 +352,9 @@ export class GameScene extends Phaser.Scene {
       })),
     ], OBSTACLE_CONFIG, this.playArea, {
       maxPairChecks: separationBudget.pairChecks,
-      startPairOffset: this.entitySeparationPairOffset,
+      startCandidateCursor: this.entitySeparationCandidateCursor,
     });
-    this.entitySeparationPairOffset = separation.nextPairOffset;
+    this.entitySeparationCandidateCursor = separation.nextCandidateCursor;
     const separatedPositions = separation.positions;
 
     const separatedPlayer = separatedPositions.get('player');

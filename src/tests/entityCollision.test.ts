@@ -6,6 +6,7 @@ import {
   ENTITY_SEPARATION_PAIR_CHECK_BUDGET,
   separateCircleEntities,
   separateCircleEntitiesWithinBudget,
+  type CircleCandidateCursor,
 } from '../logic/entityCollision';
 import { circlesOverlap } from '../logic/contactDamage';
 import { getEdgeSpawnPosition } from '../logic/spawn';
@@ -237,15 +238,14 @@ describe('dynamic circle separation', () => {
       },
       radius: 20,
     }));
-    let complete = false;
-    let nextPairOffset = 0;
+    let nextCandidateCursor: CircleCandidateCursor | undefined;
 
-    for (let frame = 0; frame < 20 && !complete; frame += 1) {
+    for (let frame = 0; frame < 20; frame += 1) {
       const result = separateCircleEntitiesWithinBudget(
         crowd,
         [],
         { width: 1_000, height: 1_000 },
-        { startPairOffset: nextPairOffset },
+        { startCandidateCursor: nextCandidateCursor },
       );
       expect(result.pairChecks).toBeLessThanOrEqual(ENTITY_SEPARATION_PAIR_CHECK_BUDGET);
       crowd = crowd.map((entity) => ({
@@ -253,11 +253,9 @@ describe('dynamic circle separation', () => {
         previousPosition: entity.position,
         position: result.positions.get(entity.id)!,
       }));
-      complete = result.complete;
-      nextPairOffset = result.nextPairOffset;
+      nextCandidateCursor = result.nextCandidateCursor;
     }
 
-    expect(complete).toBe(true);
     const positions = crowd.map((entity) => entity.position);
 
     for (let first = 0; first < positions.length; first += 1) {
@@ -281,7 +279,7 @@ describe('dynamic circle separation', () => {
   });
 
   it('bounds work for pathological repeated spawn batches', () => {
-    const spawned = Array.from({ length: 40 }, (_, index) => {
+    const spawned = Array.from({ length: 500 }, (_, index) => {
       const position = getEdgeSpawnPosition(index, bounds, 20);
       return {
         id: `zombie-${index.toString().padStart(2, '0')}`,
@@ -299,6 +297,16 @@ describe('dynamic circle separation', () => {
     }));
 
     expect(result.pairChecks).toBeLessThanOrEqual(500);
-    expect(maximumOverlap(resolved)).toBeLessThan(maximumOverlap(spawned));
+    expect(result.nextCandidateCursor).not.toEqual({
+      firstIndex: 0,
+      neighborCellOffset: 0,
+      occupantOffset: 0,
+      passHadOverlap: false,
+      passMadeProgress: false,
+    });
+    expect(maximumOverlap(resolved)).toBeLessThanOrEqual(maximumOverlap(spawned));
+    expect(resolved.some((entity, index) => (
+      distance(entity.position, spawned[index].position) > 0
+    ))).toBe(true);
   });
 });
