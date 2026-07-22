@@ -24,6 +24,7 @@ import {
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
+import { separatePlayerFromZombies } from '../logic/entityCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import {
@@ -282,6 +283,7 @@ export class GameScene extends Phaser.Scene {
       },
     );
     this.player.setPosition(nextPosition.x, nextPosition.y);
+    const playerMovementEnd = { x: nextPosition.x, y: nextPosition.y };
     this.updateCameraPosition();
 
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
@@ -305,20 +307,53 @@ export class GameScene extends Phaser.Scene {
         },
       );
       zombie.setPosition(nextPosition.x, nextPosition.y);
-      zombie.faceToward(this.player);
     }
+
+    const zombieMovementEnds = this.zombies.map((zombie) => ({
+      x: zombie.x,
+      y: zombie.y,
+    }));
 
     const contactDamage = this.damage.resolveZombieContacts(
       this.player,
-      playerStart,
+      { start: playerStart, end: playerMovementEnd },
       this.zombies,
-      zombieStarts,
+      this.zombies.map((_zombie, index) => ({
+        start: zombieStarts[index] ?? zombieMovementEnds[index],
+        end: zombieMovementEnds[index],
+      })),
       deltaMs,
       PLAYER_CONFIG.invulnerabilityMs,
       ZOMBIE_CONFIG.contactDamage,
       ZOMBIE_CONFIG.attackWindupMs,
       ZOMBIE_CONFIG.attackIntervalMs,
     );
+
+    const separation = separatePlayerFromZombies(
+      {
+        position: { x: this.player.x, y: this.player.y },
+        previousPosition: playerStart,
+        radius: this.player.hitRadius,
+      },
+      this.zombies.map((zombie, index) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        previousPosition: zombieStarts[index],
+        radius: zombie.hitRadius,
+      })),
+      OBSTACLE_CONFIG,
+      this.playArea,
+    );
+    this.player.setPosition(
+      separation.playerPosition.x,
+      separation.playerPosition.y,
+    );
+    for (const zombie of this.zombies) {
+      const position = separation.zombiePositions.get(zombie.id);
+      if (position) zombie.setPosition(position.x, position.y);
+      zombie.faceToward(this.player);
+    }
+    this.updateCameraPosition();
     for (const zombie of this.zombies) {
       zombie.updateAttackVisual();
     }
