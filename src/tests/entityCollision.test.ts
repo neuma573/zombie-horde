@@ -133,7 +133,7 @@ describe('dynamic circle separation', () => {
       .toEqual([...renamed.values()].map((position) => position.y).sort((a, b) => a - b));
   });
 
-  it('does not push a separated zombie into an obstacle', () => {
+  it('moves the priority player when an obstacle blocks zombie separation', () => {
     const obstacle = { x: 130, y: 50, width: 50, height: 100 };
     const result = separateCircleEntities([
       { id: 'player', position: { x: 100, y: 100 }, radius: 18, immovable: true },
@@ -141,6 +141,19 @@ describe('dynamic circle separation', () => {
     ], [obstacle], bounds);
 
     expect(result.get('zombie-1')!.x).toBeLessThanOrEqual(120);
+    expect(result.get('player')!.x).toBeCloseTo(92);
+    expect(distance(result.get('player')!, result.get('zombie-1')!)).toBeCloseTo(28);
+  });
+
+  it('moves the priority player when a world edge blocks zombie separation', () => {
+    const result = separateCircleEntities([
+      { id: 'player', position: { x: 30, y: 100 }, radius: 18, immovable: true },
+      { id: 'zombie-1', position: { x: 10, y: 100 }, radius: 10 },
+    ], [], bounds);
+
+    expect(result.get('zombie-1')).toEqual({ x: 10, y: 100 });
+    expect(result.get('player')!.x).toBeCloseTo(38);
+    expect(distance(result.get('player')!, result.get('zombie-1')!)).toBeCloseTo(28);
   });
 
   it('resolves a small crowd without remaining overlaps', () => {

@@ -332,6 +332,12 @@ export class GameScene extends Phaser.Scene {
       })),
     ], OBSTACLE_CONFIG, this.playArea);
 
+    const separatedPlayer = separatedPositions.get('player');
+    if (separatedPlayer) {
+      this.player.setPosition(separatedPlayer.x, separatedPlayer.y);
+      this.updateCameraPosition();
+    }
+
     for (const zombie of this.zombies) {
       const separated = separatedPositions.get(zombie.id);
       if (separated) zombie.setPosition(separated.x, separated.y);

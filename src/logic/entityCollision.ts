@@ -133,6 +133,36 @@ function constrainedPosition(
   });
 }
 
+function applySeparationMove(
+  entity: CircleEntityPosition,
+  normal: Position,
+  distance: number,
+  direction: -1 | 1,
+  obstacles: readonly RectangleObstacle[],
+  bounds: Omit<MovementBounds, 'padding'>,
+): number {
+  if (distance <= OVERLAP_EPSILON) return 0;
+
+  const start = entity.position;
+  const desired = {
+    x: start.x + normal.x * distance * direction,
+    y: start.y + normal.y * distance * direction,
+  };
+  const resolved = constrainedPosition(
+    start,
+    desired,
+    entity.radius,
+    obstacles,
+    bounds,
+  );
+  entity.position = resolved;
+
+  return Math.max(0, (
+    (resolved.x - start.x) * normal.x
+      + (resolved.y - start.y) * normal.y
+  ) * direction);
+}
+
 export function separateCircleEntities(
   entities: readonly CircleEntityPosition[],
   obstacles: readonly RectangleObstacle[],
@@ -167,36 +197,59 @@ export function separateCircleEntities(
       const normal = separationNormal(first, second, offsetX, offsetY, distance);
       const firstShare = first.immovable ? 0 : second.immovable ? 1 : 0.5;
       const secondShare = second.immovable ? 0 : first.immovable ? 1 : 0.5;
+      let movedDistance = 0;
 
       if (firstShare > 0) {
-        const desired = {
-          x: first.position.x - normal.x * overlap * firstShare,
-          y: first.position.y - normal.y * overlap * firstShare,
-        };
-        first.position = constrainedPosition(
-          first.position,
-          desired,
-          first.radius,
+        movedDistance += applySeparationMove(
+          first,
+          normal,
+          overlap * firstShare,
+          -1,
           obstacles,
           bounds,
         );
       }
 
       if (secondShare > 0) {
-        const desired = {
-          x: second.position.x + normal.x * overlap * secondShare,
-          y: second.position.y + normal.y * overlap * secondShare,
-        };
-        second.position = constrainedPosition(
-          second.position,
-          desired,
-          second.radius,
+        movedDistance += applySeparationMove(
+          second,
+          normal,
+          overlap * secondShare,
+          1,
           obstacles,
           bounds,
         );
       }
 
-      corrected = true;
+      let remaining = Math.max(0, overlap - movedDistance);
+
+      // An immovable entity is a priority hint. If its counterpart is blocked by
+      // geometry, consume the unresolved overlap on the other side instead.
+      if (remaining > OVERLAP_EPSILON) {
+        const firstFallback = applySeparationMove(
+          first,
+          normal,
+          remaining,
+          -1,
+          obstacles,
+          bounds,
+        );
+        movedDistance += firstFallback;
+        remaining = Math.max(0, remaining - firstFallback);
+      }
+
+      if (remaining > OVERLAP_EPSILON) {
+        movedDistance += applySeparationMove(
+          second,
+          normal,
+          remaining,
+          1,
+          obstacles,
+          bounds,
+        );
+      }
+
+      corrected ||= movedDistance > OVERLAP_EPSILON;
     }
 
     if (!corrected) break;
