@@ -174,6 +174,25 @@ describe('dynamic circle separation', () => {
     }
   });
 
+  it('keeps separating a dense late-wave crowd until every pair is clear', () => {
+    const crowd = Array.from({ length: 50 }, (_, index) => ({
+      id: `zombie-${index.toString().padStart(2, '0')}`,
+      position: {
+        x: 460 + index % 10 * 8,
+        y: 460 + Math.floor(index / 10) * 16,
+      },
+      radius: 20,
+    }));
+    const result = separateCircleEntities(crowd, [], { width: 1_000, height: 1_000 });
+    const positions = [...result.values()];
+
+    for (let first = 0; first < positions.length; first += 1) {
+      for (let second = first + 1; second < positions.length; second += 1) {
+        expect(distance(positions[first], positions[second])).toBeGreaterThanOrEqual(39.999);
+      }
+    }
+  });
+
   it('separates repeated edge spawn positions in the same update', () => {
     const spawned = Array.from({ length: 5 }, (_, index) => ({
       id: `zombie-${index + 1}`,

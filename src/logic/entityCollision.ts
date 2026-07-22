@@ -13,7 +13,6 @@ export interface CircleEntityPosition {
 }
 
 const OVERLAP_EPSILON = 1e-6;
-const MAX_SEPARATION_PASSES = 12;
 export const ENTITY_COLLISION_CELL_SIZE = 48;
 
 interface IndexedPair {
@@ -177,7 +176,7 @@ export function separateCircleEntities(
     }))
     .sort((left, right) => left.id.localeCompare(right.id));
 
-  for (let pass = 0; pass < MAX_SEPARATION_PASSES; pass += 1) {
+  while (true) {
     let corrected = false;
 
     for (const { firstIndex, secondIndex } of collisionCandidateIndices(
@@ -252,6 +251,9 @@ export function separateCircleEntities(
       corrected ||= movedDistance > OVERLAP_EPSILON;
     }
 
+    // Rebuild the spatial grid only while at least one pair made real progress.
+    // This reaches a clear crowd in open space and terminates immediately when
+    // geometry prevents every remaining correction.
     if (!corrected) break;
   }
 
