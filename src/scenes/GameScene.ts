@@ -283,6 +283,7 @@ export class GameScene extends Phaser.Scene {
       },
     );
     this.player.setPosition(nextPosition.x, nextPosition.y);
+    const playerMovementEnd = { x: nextPosition.x, y: nextPosition.y };
     this.updateCameraPosition();
 
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
@@ -307,6 +308,26 @@ export class GameScene extends Phaser.Scene {
       );
       zombie.setPosition(nextPosition.x, nextPosition.y);
     }
+
+    const zombieMovementEnds = this.zombies.map((zombie) => ({
+      x: zombie.x,
+      y: zombie.y,
+    }));
+
+    const contactDamage = this.damage.resolveZombieContacts(
+      this.player,
+      { start: playerStart, end: playerMovementEnd },
+      this.zombies,
+      this.zombies.map((_zombie, index) => ({
+        start: zombieStarts[index] ?? zombieMovementEnds[index],
+        end: zombieMovementEnds[index],
+      })),
+      deltaMs,
+      PLAYER_CONFIG.invulnerabilityMs,
+      ZOMBIE_CONFIG.contactDamage,
+      ZOMBIE_CONFIG.attackWindupMs,
+      ZOMBIE_CONFIG.attackIntervalMs,
+    );
 
     const separation = separatePlayerFromZombies(
       {
@@ -333,18 +354,6 @@ export class GameScene extends Phaser.Scene {
       zombie.faceToward(this.player);
     }
     this.updateCameraPosition();
-
-    const contactDamage = this.damage.resolveZombieContacts(
-      this.player,
-      playerStart,
-      this.zombies,
-      zombieStarts,
-      deltaMs,
-      PLAYER_CONFIG.invulnerabilityMs,
-      ZOMBIE_CONFIG.contactDamage,
-      ZOMBIE_CONFIG.attackWindupMs,
-      ZOMBIE_CONFIG.attackIntervalMs,
-    );
     for (const zombie of this.zombies) {
       zombie.updateAttackVisual();
     }

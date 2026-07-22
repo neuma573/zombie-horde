@@ -28,6 +28,11 @@ export interface ContactDamageDealer {
   attackWindupRemainingMs?: number | null;
 }
 
+export interface ContactMovementPath {
+  start: Position;
+  end: Position;
+}
+
 export class DamageSystem {
   apply(target: Damageable, damage: number): DamageResult {
     const result = applyDamage(target.health, damage);
@@ -37,9 +42,9 @@ export class DamageSystem {
 
   resolveZombieContacts(
     player: ContactDamageable,
-    playerStart: Position,
+    playerPath: ContactMovementPath,
     zombies: readonly ContactDamageDealer[],
-    zombieStarts: readonly Position[],
+    zombiePaths: readonly ContactMovementPath[],
     deltaMs: number,
     playerInvulnerabilityMs: number,
     zombieDamage: number,
@@ -52,22 +57,24 @@ export class DamageSystem {
       invulnerabilityRemainingMs: player.invulnerabilityRemainingMs,
       invulnerabilityMs: playerInvulnerabilityMs,
     };
-    const attackers: ContactAttacker[] = zombies.map((zombie, index) => ({
-      damage: zombieDamage,
-      attackIntervalMs: zombieAttackIntervalMs,
-      cooldownRemainingMs: zombie.attackCooldownRemainingMs,
-      windupMs: zombieAttackWindupMs,
-      windupRemainingMs: zombie.attackWindupRemainingMs ?? null,
-      contactWindow: movingCircleContactWindow(
-        { start: playerStart, end: { x: player.x, y: player.y }, radius: player.hitRadius },
-        {
-          start: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
-          end: { x: zombie.x, y: zombie.y },
-          radius: zombie.hitRadius,
-        },
-        deltaMs,
-      ),
-    }));
+    const attackers: ContactAttacker[] = zombies.map((zombie, index) => {
+      const zombiePath = zombiePaths[index];
+
+      return {
+        damage: zombieDamage,
+        attackIntervalMs: zombieAttackIntervalMs,
+        cooldownRemainingMs: zombie.attackCooldownRemainingMs,
+        windupMs: zombieAttackWindupMs,
+        windupRemainingMs: zombie.attackWindupRemainingMs ?? null,
+        contactWindow: zombiePath
+          ? movingCircleContactWindow(
+            { ...playerPath, radius: player.hitRadius },
+            { ...zombiePath, radius: zombie.hitRadius },
+            deltaMs,
+          )
+          : null,
+      };
+    });
     const result = resolveContactDamage(target, attackers, deltaMs);
 
     player.health = result.health;

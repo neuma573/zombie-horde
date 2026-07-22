@@ -89,4 +89,35 @@ describe('player-zombie collision separation', () => {
     expect(distance(result.playerPosition, result.zombiePositions.get('zombie-1')!))
       .toBeGreaterThanOrEqual(38 - 0.000001);
   });
+
+  it('produces the same result regardless of zombie input order', () => {
+    const player = { position: { x: 100, y: 100 }, radius: 18 };
+    const zombies = [
+      { id: 'zombie-b', position: { x: 115, y: 100 }, radius: 20 },
+      { id: 'zombie-a', position: { x: 85, y: 100 }, radius: 20 },
+    ];
+    const forward = separatePlayerFromZombies(player, zombies, [], bounds);
+    const reversed = separatePlayerFromZombies(player, [...zombies].reverse(), [], bounds);
+
+    expect(reversed).toEqual(forward);
+  });
+
+  it('terminates with finite valid positions when the world cannot fit both bodies', () => {
+    const result = separatePlayerFromZombies(
+      { position: { x: 20, y: 20 }, radius: 20 },
+      [{ id: 'zombie-1', position: { x: 20, y: 20 }, radius: 20 }],
+      [],
+      { width: 40, height: 40 },
+    );
+    const positions = [result.playerPosition, result.zombiePositions.get('zombie-1')!];
+
+    for (const position of positions) {
+      expect(Number.isFinite(position.x)).toBe(true);
+      expect(Number.isFinite(position.y)).toBe(true);
+      expect(position.x).toBeGreaterThanOrEqual(0);
+      expect(position.x).toBeLessThanOrEqual(40);
+      expect(position.y).toBeGreaterThanOrEqual(0);
+      expect(position.y).toBeLessThanOrEqual(40);
+    }
+  });
 });
