@@ -462,7 +462,14 @@ export class GameScene extends Phaser.Scene {
       BASIC_WEAPON_CONFIG.maxTargets,
       OBSTACLE_CONFIG,
     );
-    const impactEvents: Array<{ position: Vector2; radius: number; died: boolean }> = [];
+    const impactEvents: Array<{
+      position: Vector2;
+      radius: number;
+      died: boolean;
+      direction: Vector2;
+      rotation: number;
+      variantKey: string;
+    }> = [];
 
     const deadIds = new Set<string>();
 
@@ -475,7 +482,12 @@ export class GameScene extends Phaser.Scene {
           position: { x: zombie.x, y: zombie.y },
           radius: zombie.hitRadius,
           died: damage.died,
+          direction: { ...shotDirection },
+          rotation: zombie.rotation,
+          variantKey: zombie.id,
         });
+
+        zombie.triggerHitReaction(shotDirection);
 
         if (damage.died) {
           zombie.destroy();
