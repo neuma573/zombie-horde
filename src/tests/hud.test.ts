@@ -12,6 +12,10 @@ describe('createHudViewModel', () => {
       isReloading: true,
       reloadProgress: 0.5,
       waveNumber: 3,
+      wavePhase: 'spawning' as const,
+      waveTimerMs: 0,
+      remainingToSpawn: 3,
+      aliveZombieCount: 4,
       killCount: 5,
       sessionPhase: 'playing' as const,
       gameTimeText: '08:30',
@@ -19,11 +23,12 @@ describe('createHudViewModel', () => {
     const snapshot = structuredClone(state);
     const result = createHudViewModel(state);
 
-    expect(result.statusText).toBe('HP 70/100\nWAVE 3\nKILLS 5');
+    expect(result.statusText).toBe('HP 70/100\nWAVE 3  LEFT 7\nKILLS 5');
     expect(result.ammoText).toBe('4 / 36');
     expect(result.ammoText).not.toContain('AMMO');
     expect(result.timeText).toBe('08:30');
     expect(result.showGameOver).toBe(false);
+    expect(result.waveBannerText).toBeNull();
     expect(result.reloadProgress).toBe(0.5);
     expect(result.reloadPrompt).toBeNull();
     expect(state).toEqual(snapshot);
@@ -38,6 +43,10 @@ describe('createHudViewModel', () => {
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 1,
+      wavePhase: 'active',
+      waveTimerMs: 0,
+      remainingToSpawn: 0,
+      aliveZombieCount: 0,
       killCount: 0,
       sessionPhase: 'gameOver',
       gameTimeText: '11:40',
@@ -58,6 +67,10 @@ describe('createHudViewModel', () => {
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 1,
+      wavePhase: 'active' as const,
+      waveTimerMs: 0,
+      remainingToSpawn: 0,
+      aliveZombieCount: 1,
       killCount: 0,
       sessionPhase: 'playing' as const,
       gameTimeText: '08:00',
@@ -67,6 +80,32 @@ describe('createHudViewModel', () => {
     expect(createHudViewModel({ ...base, magazineAmmo: 1 }).reloadPrompt).toBeNull();
     expect(createHudViewModel({ ...base, reserveAmmo: 0 }).reloadPrompt).toBeNull();
     expect(createHudViewModel({ ...base, isReloading: true }).reloadPrompt).toBeNull();
+  });
+
+  it('shows preparation and cleared-wave countdowns during intermissions', () => {
+    const base = {
+      health: 100,
+      maxHealth: 100,
+      magazineAmmo: 12,
+      reserveAmmo: 48,
+      isReloading: false,
+      reloadProgress: 0,
+      waveNumber: 0,
+      wavePhase: 'waiting' as const,
+      waveTimerMs: 1_001,
+      remainingToSpawn: 0,
+      aliveZombieCount: 0,
+      killCount: 0,
+      sessionPhase: 'playing' as const,
+      gameTimeText: '08:00',
+    };
+
+    expect(createHudViewModel(base).waveBannerText).toBe('PREPARE\nWAVE 1 IN 2');
+    expect(createHudViewModel({
+      ...base,
+      waveNumber: 3,
+      waveTimerMs: 999,
+    }).waveBannerText).toBe('WAVE 3 CLEAR\nNEXT WAVE IN 1');
   });
 });
 
@@ -94,5 +133,18 @@ describe('createHudLayout', () => {
     expect(layout.reload.y).toBe(318);
     expect(layout.reload.width).toBeCloseTo(301.92);
     expect(layout.reload.height).toBe(10);
+    expect(layout.waveBanner.x).toBe(480);
+  });
+
+  it('keeps the wave banner inside a height-constrained safe area', () => {
+    const layout = createHudLayout(
+      360,
+      100,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.waveBanner).toEqual({ x: 180, y: 64 });
+    expect(layout.waveBanner.y - 24).toBeGreaterThanOrEqual(12);
+    expect(layout.waveBanner.y + 24).toBeLessThanOrEqual(88);
   });
 });

@@ -4,6 +4,8 @@ export interface WaveConfig {
   initialDelayMs: number;
   betweenWaveDelayMs: number;
   spawnIntervalMs: number;
+  spawnIntervalReductionPerWaveMs: number;
+  minimumSpawnIntervalMs: number;
   baseZombieCount: number;
   zombiesPerWave: number;
 }
@@ -31,6 +33,15 @@ export function createWaveState(config: WaveConfig): WaveState {
 
 export function zombieCountForWave(waveNumber: number, config: WaveConfig): number {
   return config.baseZombieCount + Math.max(0, waveNumber - 1) * config.zombiesPerWave;
+}
+
+export function spawnIntervalForWave(waveNumber: number, config: WaveConfig): number {
+  const reduction = Math.max(0, waveNumber - 1)
+    * Math.max(0, config.spawnIntervalReductionPerWaveMs);
+  return Math.max(
+    Math.max(0, config.minimumSpawnIntervalMs),
+    Math.max(0, config.spawnIntervalMs) - reduction,
+  );
 }
 
 export function advanceWave(
@@ -80,7 +91,7 @@ export function advanceWave(
     remainingDeltaMs -= state.timerMs;
     state.remainingToSpawn -= 1;
     spawnCount += 1;
-    state.timerMs = config.spawnIntervalMs;
+    state.timerMs = spawnIntervalForWave(state.waveNumber, config);
 
     if (state.remainingToSpawn === 0) {
       state.phase = 'active';
