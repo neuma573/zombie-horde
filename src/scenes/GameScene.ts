@@ -9,6 +9,7 @@ import { PLAYER_CONFIG } from '../config/playerConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
+import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Obstacle } from '../entities/Obstacle';
 import { Zombie } from '../entities/Zombie';
@@ -24,6 +25,12 @@ import {
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
+import {
+  moveZombieWithCrowdSpacing,
+  resolveZombieCrowdSpacing,
+  zombieVelocityWithCrowdSpacing,
+} from '../logic/zombieCrowdSpacing';
+import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
@@ -57,7 +64,6 @@ import {
 } from '../logic/mobileInput';
 import {
   constrainToBounds,
-  moveToward,
   moveWithinBounds,
   type MovementBounds,
 } from '../logic/movement';
@@ -288,11 +294,33 @@ export class GameScene extends Phaser.Scene {
 
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
+    const zombieSpatialEntries = this.zombies.map((zombie) => ({
+      id: zombie.id,
+      position: { x: zombie.x, y: zombie.y },
+      radius: zombie.hitRadius,
+    }));
+    const candidateQuery = queryZombieCollisionCandidates(zombieSpatialEntries);
+    const crowdSpacing = resolveZombieCrowdSpacing(
+      zombieSpatialEntries,
+      candidateQuery,
+      ZOMBIE_CROWD_SPACING_CONFIG,
+      ZOMBIE_CONFIG.speed,
+    );
+
     for (const zombie of this.zombies) {
-      const desiredZombiePosition = moveToward(
+      const separationVelocity = crowdSpacing.valid
+        ? crowdSpacing.velocities.get(zombie.id) ?? { x: 0, y: 0 }
+        : { x: 0, y: 0 };
+      const velocity = zombieVelocityWithCrowdSpacing(
         zombie,
         this.player,
         ZOMBIE_CONFIG.speed,
+        separationVelocity,
+      );
+      const desiredZombiePosition = moveZombieWithCrowdSpacing(
+        zombie,
+        this.player,
+        velocity,
         deltaMs,
       );
       const nextPosition = moveCircleWithObstacles(
