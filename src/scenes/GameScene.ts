@@ -6,9 +6,11 @@ import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
+import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
+import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
 import { Obstacle } from '../entities/Obstacle';
 import { Zombie } from '../entities/Zombie';
@@ -23,7 +25,14 @@ import {
   type AimSource,
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
+import { consumeFixedSteps, createFixedStepState, type FixedStepState } from '../logic/fixedStep';
 import { moveCircleWithObstacles } from '../logic/obstacleCollision';
+import {
+  moveZombieWithCrowdSpacing,
+  resolveZombieCrowdSpacing,
+  zombieVelocityWithCrowdSpacing,
+} from '../logic/zombieCrowdSpacing';
+import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
 import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
@@ -57,7 +66,6 @@ import {
 } from '../logic/mobileInput';
 import {
   constrainToBounds,
-  moveToward,
   moveWithinBounds,
   type MovementBounds,
 } from '../logic/movement';
@@ -111,6 +119,7 @@ export class GameScene extends Phaser.Scene {
   private killCount = 0;
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
+  private simulationStepState: FixedStepState = createFixedStepState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
@@ -130,6 +139,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.sessionState = createSessionState();
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
+    this.simulationStepState = createFixedStepState();
     this.playerInput = createPlayerInputState();
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
@@ -231,12 +241,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const playerStart = { x: this.player.x, y: this.player.y };
-
-    this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
-
-    this.weapon.update(deltaMs);
-
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
       this.playerInput = requestReload(this.playerInput);
     }
@@ -257,9 +261,61 @@ export class GameScene extends Phaser.Scene {
     if (reload.requested) {
       this.weapon.reload();
     }
-    this.startMobileAutoReloadIfNeeded();
-    this.updatePlayerWeaponVisual();
+    const fixedSteps = consumeFixedSteps(
+      this.simulationStepState,
+      deltaMs,
+      SIMULATION_CONFIG.fixedStepMs,
+    );
+    this.simulationStepState = fixedSteps.state;
+    let playerDamageEventCount = 0;
+    let playerDied = false;
 
+    for (let step = 0; step < fixedSteps.stepCount; step += 1) {
+      const simulation = this.advanceSimulationStep(SIMULATION_CONFIG.fixedStepMs);
+      playerDamageEventCount += simulation.damageEventCount;
+      if (simulation.died) {
+        playerDied = true;
+        this.simulationStepState = createFixedStepState();
+        break;
+      }
+    }
+
+    this.updatePlayerWeaponVisual();
+    this.updateCameraPosition();
+    for (const zombie of this.zombies) {
+      zombie.faceToward(this.player);
+      zombie.updateAttackVisual();
+    }
+
+    if (playerDied) {
+      const transition = transitionToGameOver(this.sessionState);
+      this.sessionState = transition.state;
+
+      if (transition.changed) {
+        this.events.emit('player-died');
+      }
+
+      this.mobileRestartArmed = this.activeMobilePointers.size === 0;
+      this.clearAimAssist();
+      this.resetMobileInput();
+      this.updateHud();
+      this.playPlayerHitEffects(playerDamageEventCount);
+      return;
+    }
+
+    this.refreshAimAssist();
+    this.updateTimeBasedLighting(deltaMs);
+
+    this.updateHud();
+    this.playPlayerHitEffects(playerDamageEventCount);
+  }
+
+  private advanceSimulationStep(deltaMs: number): { died: boolean; damageEventCount: number } {
+    this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
+    this.weapon.update(deltaMs);
+    this.startMobileAutoReloadIfNeeded();
+
+    const playerStart = { x: this.player.x, y: this.player.y };
     const desiredPosition = moveWithinBounds(
       this.player,
       this.playerInput.movement,
@@ -271,7 +327,7 @@ export class GameScene extends Phaser.Scene {
         padding: PLAYER_RADIUS,
       },
     );
-    const nextPosition = moveCircleWithObstacles(
+    const nextPlayerPosition = moveCircleWithObstacles(
       this.player,
       desiredPosition,
       PLAYER_RADIUS,
@@ -282,20 +338,39 @@ export class GameScene extends Phaser.Scene {
         padding: PLAYER_RADIUS,
       },
     );
-    this.player.setPosition(nextPosition.x, nextPosition.y);
-    const playerMovementEnd = { x: nextPosition.x, y: nextPosition.y };
-    this.updateCameraPosition();
-
+    this.player.setPosition(nextPlayerPosition.x, nextPlayerPosition.y);
+    const playerMovementEnd = { x: nextPlayerPosition.x, y: nextPlayerPosition.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+    const zombieSpatialEntries = this.zombies.map((zombie) => ({
+      id: zombie.id,
+      position: { x: zombie.x, y: zombie.y },
+      radius: zombie.hitRadius,
+    }));
+    const candidateQuery = queryZombieCollisionCandidates(zombieSpatialEntries);
+    const crowdSpacing = resolveZombieCrowdSpacing(
+      zombieSpatialEntries,
+      candidateQuery,
+      ZOMBIE_CROWD_SPACING_CONFIG,
+      ZOMBIE_CONFIG.speed,
+    );
 
     for (const zombie of this.zombies) {
-      const desiredZombiePosition = moveToward(
+      const separationVelocity = crowdSpacing.valid
+        ? crowdSpacing.velocities.get(zombie.id) ?? { x: 0, y: 0 }
+        : { x: 0, y: 0 };
+      const velocity = zombieVelocityWithCrowdSpacing(
         zombie,
         this.player,
         ZOMBIE_CONFIG.speed,
+        separationVelocity,
+      );
+      const desiredZombiePosition = moveZombieWithCrowdSpacing(
+        zombie,
+        this.player,
+        velocity,
         deltaMs,
       );
-      const nextPosition = moveCircleWithObstacles(
+      const nextZombiePosition = moveCircleWithObstacles(
         zombie,
         desiredZombiePosition,
         zombie.hitRadius,
@@ -306,14 +381,10 @@ export class GameScene extends Phaser.Scene {
           padding: zombie.hitRadius,
         },
       );
-      zombie.setPosition(nextPosition.x, nextPosition.y);
+      zombie.setPosition(nextZombiePosition.x, nextZombiePosition.y);
     }
 
-    const zombieMovementEnds = this.zombies.map((zombie) => ({
-      x: zombie.x,
-      y: zombie.y,
-    }));
-
+    const zombieMovementEnds = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
     const contactDamage = this.damage.resolveZombieContacts(
       this.player,
       { start: playerStart, end: playerMovementEnd },
@@ -328,7 +399,6 @@ export class GameScene extends Phaser.Scene {
       ZOMBIE_CONFIG.attackWindupMs,
       ZOMBIE_CONFIG.attackIntervalMs,
     );
-
     const separation = separatePlayerFromZombies(
       {
         position: { x: this.player.x, y: this.player.y },
@@ -344,47 +414,23 @@ export class GameScene extends Phaser.Scene {
       OBSTACLE_CONFIG,
       this.playArea,
     );
-    this.player.setPosition(
-      separation.playerPosition.x,
-      separation.playerPosition.y,
-    );
+    this.player.setPosition(separation.playerPosition.x, separation.playerPosition.y);
     for (const zombie of this.zombies) {
       const position = separation.zombiePositions.get(zombie.id);
       if (position) zombie.setPosition(position.x, position.y);
-      zombie.faceToward(this.player);
-    }
-    this.updateCameraPosition();
-    for (const zombie of this.zombies) {
-      zombie.updateAttackVisual();
     }
 
-    if (contactDamage.died) {
-      const transition = transitionToGameOver(this.sessionState);
-      this.sessionState = transition.state;
-
-      if (transition.changed) {
-        this.events.emit('player-died');
+    if (!contactDamage.died) {
+      const spawnCount = this.wave.update(deltaMs, this.zombies.length);
+      for (let index = 0; index < spawnCount; index += 1) {
+        this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
       }
-
-      this.mobileRestartArmed = this.activeMobilePointers.size === 0;
-      this.clearAimAssist();
-      this.resetMobileInput();
-      this.updateHud();
-      this.playPlayerHitEffects(contactDamage.damageEvents.length);
-      return;
     }
 
-    this.refreshAimAssist();
-    this.updateTimeBasedLighting(deltaMs);
-
-    const spawnCount = this.wave.update(deltaMs, this.zombies.length);
-
-    for (let index = 0; index < spawnCount; index += 1) {
-      this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
-    }
-
-    this.updateHud();
-    this.playPlayerHitEffects(contactDamage.damageEvents.length);
+    return {
+      died: contactDamage.died,
+      damageEventCount: contactDamage.damageEvents.length,
+    };
   }
 
   private resolveFireRequest(): void {
