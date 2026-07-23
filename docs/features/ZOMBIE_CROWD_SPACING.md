@@ -46,7 +46,6 @@
 - 좀비 반지름 합만큼 완전히 분리하는 hard collision
 - 겹침이 0이 될 때까지 반복하는 위치 projection
 - 프레임 간 후보 cursor, 작업 credit 및 backlog
-- fixed timestep 또는 별도 물리 시뮬레이션 루프
 - 좀비 pathfinding, 벽 우회, flocking 및 formation
 - 플레이어–좀비 충돌 로직 변경
 - 접촉 피해량, windup, cooldown 및 무적 시간 변경
@@ -172,7 +171,7 @@ finalVelocity = clampMagnitude(combinedVelocity, zombieSpeed)
 최종 이동은 다음과 같다.
 
 ```text
-desiredEnd = startPosition + finalVelocity * deltaMs / 1000
+desiredEnd = startPosition + finalVelocity * fixedStepMs / 1000
 resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 ```
 
@@ -196,38 +195,43 @@ resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 관련 업데이트 순서는 다음과 같다.
 
 ```text
-1. playerStart 저장
-2. 플레이어 이동 및 playerMovementEnd 저장
-3. zombieStarts 저장
-4. zombieStarts 스냅샷으로 공간 그리드 후보 쿼리
-5. 완전한 후보 결과로 ID별 separationVelocity 계산
-6. 각 좀비의 chaseVelocity와 separationVelocity 합성
-7. deltaMs로 desiredEnd 계산
-8. 장애물·월드 경계를 적용해 zombieMovementEnds 저장
-9. 기존 startPosition → movementEnd 경로로 접촉 피해 계산
-10. 기존 플레이어–좀비 겹침 해소
-11. resolvedPosition을 Phaser 객체와 카메라에 반영
-12. 기존 회전·HUD·Effect·Game Over·웨이브 처리
+1. 렌더 deltaMs를 simulation accumulator에 누적
+2. 누적 시간에서 1/60초 고정 step 수와 remainder 계산
+3. 각 고정 step에서 게임 시간·무기 시간을 진행
+4. playerStart 저장 후 플레이어 이동 및 playerMovementEnd 저장
+5. zombieStarts 저장
+6. zombieStarts 스냅샷으로 공간 그리드 후보 쿼리
+7. 완전한 후보 결과로 ID별 separationVelocity 계산
+8. 각 좀비의 chaseVelocity와 separationVelocity 합성
+9. 고정 step delta로 desiredEnd 계산
+10. 장애물·월드 경계를 적용해 zombieMovementEnds 저장
+11. 기존 startPosition → movementEnd 경로로 접촉 피해 계산
+12. 기존 플레이어–좀비 겹침 해소
+13. 플레이어가 생존했을 때 같은 step에서 웨이브와 생성을 진행
+14. 누적된 모든 step 처리 후 카메라·회전·HUD·Effect를 갱신
 ```
 
 - 군중 완화 이동은 좀비의 실제 이동 경로에 포함되므로 `zombieMovementEnd`에 반영한다.
 - 접촉 피해는 군중 완화와 장애물 이동을 적용한 실제 경로를 사용한다.
 - 플레이어–좀비 충돌 보정 후 위치를 접촉 endpoint로 사용하지 않는 기존 계약을 유지한다.
-- 새로 생성된 좀비는 다음 업데이트의 스냅샷부터 군중 완화에 참여한다.
+- 새로 생성된 좀비는 다음 고정 simulation step의 스냅샷부터 군중 완화에 참여한다.
 - Game Over에서는 기존 조기 반환으로 군중 완화를 실행하지 않는다.
 
 ## 11. delta 및 프레임 독립성 정책
 
 - 반발 결과는 px/frame이 아니라 px/s 속도다.
-- 이동 거리는 `velocity * deltaMs / 1000`으로 계산한다.
+- 렌더 delta는 직접 이동에 사용하지 않고 accumulator에 누적한다.
+- simulation step은 `1000 / 60ms`로 고정하며 이동 거리는 `velocity * fixedStepMs / 1000`으로 계산한다.
 - 후보 수나 이웃 수에 따라 delta를 변경하지 않는다.
-- 큰 delta에서도 경과 시간을 버리거나 별도 작업 부채를 만들지 않는다.
+- 큰 delta에서도 완전한 고정 step을 모두 소비하며 경과 시간을 버리거나 최대 substep으로 자르지 않는다.
+- 한 step보다 작은 remainder만 다음 렌더 업데이트로 이월한다.
 - 후보 탐색과 반발 속도 계산은 `deltaMs`를 받지 않는다.
 - 같은 위치 스냅샷과 목표에는 FPS와 무관하게 같은 속도를 반환한다.
-- 동일한 고정 스냅샷과 속도를 사용하면 `1000ms` 한 번과 `500ms + 500ms` 누적 이동량이 같아야 한다.
+- 같은 총시간은 렌더 delta 배열과 무관하게 같은 고정 step 열과 remainder로 변환되어야 한다.
+- `1000ms`, `500ms * 2`, `100ms * 10`, 불규칙 합계 `1000ms`는 같은 군중 상태를 만들어야 한다.
 - 고정 속도가 플레이어를 통과할 수 있는 경우에도 도달한 시점의 전체 이동을 종료하며, 이미 목표에 도달한 분할 구간에서 반발 이동을 재개하지 않는다.
-- 실제 이동 중 위치와 이웃 관계가 바뀌면 다음 업데이트에서 새 스냅샷으로 반발 방향을 다시 계산한다.
-- 이 비선형 갱신 차이를 없애기 위한 fixed timestep은 이번 범위에 포함하지 않는다.
+- 위치와 이웃 관계는 렌더 프레임이 아니라 다음 고정 simulation step에서 다시 계산한다.
+- 게임 시간, 무기 타이머, 접촉 피해 및 웨이브도 같은 step에서 진행해 렌더 분할에 따른 상태 순서 차이를 만들지 않는다.
 
 ## 12. 장애물과 월드 경계
 
@@ -253,7 +257,7 @@ resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 - 군중 계산은 완전한 후보 `k`에 대해 `O(k)` 시간과 좀비 수 `n`에 대해 `O(n)` 추가 메모리를 목표로 한다.
 - 후보 전체가 불완전하면 `O(k)` 부분 계산을 위치에 적용하지 않는다.
 - 반발 계산은 반복 수렴 루프를 사용하지 않는다.
-- 프레임 간 상태, 누적 작업량 및 후보 캐시는 두지 않는다.
+- 고정 step remainder 외에 후보 cursor, 누적 작업량 및 후보 캐시는 두지 않는다.
 - 이번 작업에서 객체 풀, Web Worker 또는 추가 공간 인덱스를 만들지 않는다.
 
 ## 15. 책임 경계
@@ -295,7 +299,7 @@ resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 - 후보가 없으면 기존 추적 방향과 속도가 유지된다.
 - 반발이 있어도 최종 속도는 좀비 속도를 넘지 않는다.
 - 최대 반발 속도가 추적 속도보다 작을 때 추적 진행 성분이 반대로 바뀌지 않는다.
-- 고정 스냅샷에서 큰 delta와 분할 delta의 누적 이동량이 같다.
+- 같은 총시간의 큰 delta와 규칙적·불규칙 분할 delta가 같은 고정 step 수, remainder 및 군중 위치를 만든다.
 - 장애물과 월드 경계 적용 후 유효 위치를 유지한다.
 
 ### 공간 그리드 통합
@@ -352,9 +356,13 @@ resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 ## 20. 현재 구현 상태
 
 - `src/config/zombieCrowdSpacingConfig.ts`에 0.9 최소 거리 비율과 36px/s 최대 반발 속도를 정의했다.
+- `src/config/simulationConfig.ts`에 1/60초 simulation step을 정의했다.
+- `src/logic/fixedStep.ts`가 렌더 delta를 결정론적인 고정 step 수와 remainder로 변환한다.
 - `src/logic/zombieCrowdSpacing.ts`에 후보 검증, 결정론적 대칭 반발, 합산 속도 제한, 속도 합성 및 delta 기반 이동을 구현했다.
 - 공간 그리드 결과가 유효하고 완전할 때만 군중 반발을 계산한다.
 - 불완전하거나 잘못된 후보 결과에서는 부분 반발 없이 기존 추적 이동을 사용한다.
-- `GameScene`은 `zombieStarts` 스냅샷에서 반발을 계산하고 장애물 적용 전 추적 속도에 합성한다.
+- `GameScene`은 accumulator가 산출한 각 고정 step의 `zombieStarts` 스냅샷에서 반발을 계산하고 장애물 적용 전 추적 속도에 합성한다.
+- 게임 시간, 무기, 플레이어·좀비 이동, 접촉 피해 및 웨이브 생성은 같은 고정 simulation step에서 진행한다.
+- `src/tests/fixedStep.test.ts`가 1000ms 단일 delta, 규칙 분할 및 불규칙 분할의 step 수·remainder·군중 위치 동등성을 검증한다.
 - 접촉 피해에는 군중 이동이 포함된 보정 전 `zombieMovementEnds`를 전달한다.
 - 플레이어–좀비 충돌 보정과 이후 게임 상태 흐름은 변경하지 않았다.
