@@ -28,14 +28,18 @@ export class HudSystem {
   private readonly gameOverText: Phaser.GameObjects.Text;
   private readonly reloadGraphics: Phaser.GameObjects.Graphics;
   private readonly reloadText: Phaser.GameObjects.Text;
+  private readonly waveBannerText: Phaser.GameObjects.Text;
+  private readonly waveAnnouncementText: Phaser.GameObjects.Text;
   private readonly clockBlinkEvent: Phaser.Time.TimerEvent;
+  private waveAnnouncementTween?: Phaser.Tweens.Tween;
+  private lastWaveNumber = 0;
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
   private clockText = '';
   private clockColonVisible = true;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(private readonly scene: Phaser.Scene) {
     this.statusText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
       fontSize: '14px',
@@ -66,6 +70,19 @@ export class HudSystem {
       stroke: '#000000',
       strokeThickness: 2,
     }).setDepth(111).setOrigin(0.5, 1).setScrollFactor(0).setVisible(false);
+    this.waveBannerText = scene.add.text(0, 0, '', {
+      ...STATUS_STYLE,
+      align: 'center',
+      fontSize: '18px',
+      fontStyle: 'bold',
+    }).setDepth(105).setOrigin(0.5).setScrollFactor(0).setVisible(false);
+    this.waveAnnouncementText = scene.add.text(0, 0, '', {
+      ...STATUS_STYLE,
+      align: 'center',
+      fontSize: '30px',
+      fontStyle: 'bold',
+      strokeThickness: 5,
+    }).setDepth(106).setOrigin(0.5).setScrollFactor(0).setVisible(false);
     this.clockBlinkEvent = scene.time.addEvent({
       delay: 500,
       loop: true,
@@ -93,6 +110,15 @@ export class HudSystem {
     if (this.current?.showGameOver !== viewModel.showGameOver) {
       this.gameOverText.setVisible(viewModel.showGameOver);
     }
+    if (this.current?.waveBannerText !== viewModel.waveBannerText) {
+      this.waveBannerText
+        .setText(viewModel.waveBannerText ?? '')
+        .setVisible(viewModel.waveBannerText !== null);
+    }
+    if (viewModel.waveNumber > 0 && viewModel.waveNumber !== this.lastWaveNumber) {
+      this.playWaveAnnouncement(viewModel.waveNumber);
+    }
+    this.lastWaveNumber = viewModel.waveNumber;
 
     this.drawReloadFeedback(viewModel.reloadProgress, viewModel.reloadPrompt);
 
@@ -108,6 +134,8 @@ export class HudSystem {
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);
+    this.waveBannerText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
+    this.waveAnnouncementText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
     this.drawReloadFeedback(
       this.current?.reloadProgress ?? null,
       this.current?.reloadPrompt ?? null,
@@ -123,10 +151,34 @@ export class HudSystem {
     this.gameOverText.destroy();
     this.reloadGraphics.destroy();
     this.reloadText.destroy();
+    this.waveAnnouncementTween?.stop();
+    this.waveBannerText.destroy();
+    this.waveAnnouncementText.destroy();
   }
 
   private renderClockText(): void {
     if (this.watchLayout) this.drawWatch(this.watchLayout);
+  }
+
+  private playWaveAnnouncement(waveNumber: number): void {
+    this.waveAnnouncementTween?.stop();
+    this.waveAnnouncementText
+      .setText(`WAVE ${waveNumber}`)
+      .setAlpha(1)
+      .setScale(0.92)
+      .setVisible(true);
+    this.waveAnnouncementTween = this.scene.tweens.add({
+      targets: this.waveAnnouncementText,
+      alpha: 0,
+      scale: 1.08,
+      delay: 350,
+      duration: 850,
+      ease: 'Sine.Out',
+      onComplete: () => {
+        this.waveAnnouncementText.setVisible(false);
+        this.waveAnnouncementTween = undefined;
+      },
+    });
   }
 
   private drawWatch(layout: ReturnType<typeof createHudLayout>['time']): void {

@@ -18,9 +18,19 @@ import {
 } from '../logic/weapon';
 
 describe('MVP integration', () => {
-  it('completes ten deterministic waves with movement, aim, hitscan, damage, and reload', () => {
+  it('completes ten deterministic waves with sufficient ammunition', () => {
+    const expectedZombieCount = Array.from({ length: 10 }, (_, index) => (
+      MVP_CONFIG.wave.baseZombieCount + index * MVP_CONFIG.wave.zombiesPerWave
+    )).reduce((total, count) => total + count, 0);
+    const shotsPerZombie = Math.ceil(
+      MVP_CONFIG.zombie.health / MVP_CONFIG.weapon.damage,
+    );
+    const requiredShots = expectedZombieCount * shotsPerZombie;
     let wave = createWaveState(MVP_CONFIG.wave);
-    let weapon = createWeaponState(MVP_CONFIG.weapon);
+    let weapon = createWeaponState({
+      ...MVP_CONFIG.weapon,
+      reserveAmmo: requiredShots,
+    });
     let playerPosition = { x: 400, y: 300 };
     let completedWaves = 0;
     let totalShots = 0;
@@ -95,8 +105,20 @@ describe('MVP integration', () => {
 
     expect(completedWaves).toBe(10);
     expect(wave.waveNumber).toBe(10);
-    expect(totalShots).toBe(240);
-    expect(weapon.reserveAmmo).toBeGreaterThan(0);
+    expect(totalShots).toBe(expectedZombieCount * shotsPerZombie);
+    expect(weapon.reserveAmmo).toBeLessThan(requiredShots);
+  });
+
+  it('keeps the production ammunition limit separate from wave progression', () => {
+    const availableShots = MVP_CONFIG.weapon.magazineSize + MVP_CONFIG.weapon.reserveAmmo;
+    const zombiesInTenWaves = Array.from({ length: 10 }, (_, index) => (
+      MVP_CONFIG.wave.baseZombieCount + index * MVP_CONFIG.wave.zombiesPerWave
+    )).reduce((total, count) => total + count, 0);
+    const requiredShots = zombiesInTenWaves * Math.ceil(
+      MVP_CONFIG.zombie.health / MVP_CONFIG.weapon.damage,
+    );
+
+    expect(availableShots).toBeLessThan(requiredShots);
   });
 
   it('creates clean session, weapon, and wave state after game over', () => {

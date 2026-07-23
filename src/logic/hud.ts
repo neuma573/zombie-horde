@@ -1,4 +1,5 @@
 import type { SessionPhase } from './session';
+import type { WavePhase } from './wave';
 
 export interface HudState {
   health: number;
@@ -8,6 +9,10 @@ export interface HudState {
   isReloading: boolean;
   reloadProgress: number;
   waveNumber: number;
+  wavePhase: WavePhase;
+  waveTimerMs: number;
+  remainingToSpawn: number;
+  aliveZombieCount: number;
   killCount: number;
   sessionPhase: SessionPhase;
   gameTimeText: string;
@@ -21,6 +26,8 @@ export interface HudViewModel {
   showGameOver: boolean;
   reloadProgress: number | null;
   reloadPrompt: string | null;
+  waveNumber: number;
+  waveBannerText: string | null;
 }
 
 export interface SafeAreaInsets {
@@ -36,6 +43,7 @@ export interface HudLayout {
   time: { x: number; y: number; width: number; height: number };
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
+  waveBanner: { x: number; y: number };
 }
 
 const HUD_MARGIN = 12;
@@ -48,10 +56,23 @@ const WATCH_WIDTH = 116;
 const WATCH_HEIGHT = 48;
 
 export function createHudViewModel(state: HudState): HudViewModel {
+  const remainingEnemies = Math.max(0, state.remainingToSpawn)
+    + Math.max(0, state.aliveZombieCount);
+  const waveStatus = state.waveNumber > 0
+    ? `WAVE ${state.waveNumber}  LEFT ${remainingEnemies}`
+    : 'WAVE --';
+  const nextWaveNumber = state.waveNumber + 1;
+  const countdownSeconds = Math.max(0, Math.ceil(state.waveTimerMs / 1_000));
+  const waveBannerText = state.sessionPhase === 'playing' && state.wavePhase === 'waiting'
+    ? state.waveNumber === 0
+      ? `PREPARE\nWAVE ${nextWaveNumber} IN ${countdownSeconds}`
+      : `WAVE ${state.waveNumber} CLEAR\nNEXT WAVE IN ${countdownSeconds}`
+    : null;
+
   return {
     statusText: [
       `HP ${state.health}/${state.maxHealth}`,
-      `WAVE ${state.waveNumber}`,
+      waveStatus,
       `KILLS ${state.killCount}`,
     ].join('\n'),
     ammoText: `${state.magazineAmmo} / ${state.reserveAmmo}`,
@@ -67,6 +88,8 @@ export function createHudViewModel(state: HudState): HudViewModel {
       && state.reserveAmmo > 0
       ? 'RELOAD'
       : null,
+    waveNumber: state.waveNumber,
+    waveBannerText,
   };
 }
 
@@ -113,6 +136,10 @@ export function createHudLayout(
       y: Math.min(safeBottom - RELOAD_HEIGHT, Math.max(safeTop + 24, gameOverY + 48)),
       width: reloadWidth,
       height: RELOAD_HEIGHT,
+    },
+    waveBanner: {
+      x: safeLeft + usableWidth / 2,
+      y: Math.max(safeTop + WATCH_HEIGHT + 32, gameOverY - 72),
     },
   };
 }

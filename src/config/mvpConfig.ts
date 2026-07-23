@@ -37,9 +37,11 @@ export const MVP_CONFIG = {
   wave: {
     initialDelayMs: 1_000,
     betweenWaveDelayMs: 2_000,
-    spawnIntervalMs: 500,
-    baseZombieCount: 3,
-    zombiesPerWave: 2,
+    spawnIntervalMs: 450,
+    spawnIntervalReductionPerWaveMs: 20,
+    minimumSpawnIntervalMs: 180,
+    baseZombieCount: 5,
+    zombiesPerWave: 3,
   } satisfies WaveConfig,
   spawn: {
     minPlayerDistance: 160,

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceWave,
   createWaveState,
+  spawnIntervalForWave,
   zombieCountForWave,
   type WaveConfig,
 } from '../logic/wave';
@@ -11,6 +12,8 @@ const config: WaveConfig = {
   initialDelayMs: 100,
   betweenWaveDelayMs: 200,
   spawnIntervalMs: 50,
+  spawnIntervalReductionPerWaveMs: 5,
+  minimumSpawnIntervalMs: 20,
   baseZombieCount: 3,
   zombiesPerWave: 2,
 };
@@ -75,6 +78,12 @@ describe('wave logic', () => {
   it('increases zombie count without imposing a final wave', () => {
     expect(zombieCountForWave(1, config)).toBe(3);
     expect(zombieCountForWave(50, config)).toBe(101);
+  });
+
+  it('reduces spawn intervals gradually without crossing the configured floor', () => {
+    expect(spawnIntervalForWave(1, config)).toBe(50);
+    expect(spawnIntervalForWave(4, config)).toBe(35);
+    expect(spawnIntervalForWave(100, config)).toBe(20);
   });
 
   it('does not lose spawn events when delta spans multiple intervals', () => {
