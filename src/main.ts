@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { INPUT_CONFIG } from './config/inputConfig';
 import { GameScene } from './scenes/GameScene';
+import { MainMenuScene } from './scenes/MainMenuScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -15,7 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
     width: '100%',
     height: '100%',
   },
-  scene: [GameScene],
+  scene: [MainMenuScene, GameScene],
 };
 
 new Phaser.Game(config);
