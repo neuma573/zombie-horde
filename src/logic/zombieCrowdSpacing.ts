@@ -231,6 +231,10 @@ export function moveZombieWithCrowdSpacing(
   };
   const distanceToTarget = Math.hypot(targetOffset.x, targetOffset.y);
 
+  if (distanceToTarget <= VECTOR_EPSILON) {
+    return { ...position };
+  }
+
   if (distanceToTarget > VECTOR_EPSILON) {
     const targetDirection = {
       x: targetOffset.x / distanceToTarget,
@@ -239,10 +243,8 @@ export function moveZombieWithCrowdSpacing(
     const forwardDistance = displacement.x * targetDirection.x
       + displacement.y * targetDirection.y;
 
-    if (forwardDistance > distanceToTarget) {
-      const excess = forwardDistance - distanceToTarget;
-      displacement.x -= targetDirection.x * excess;
-      displacement.y -= targetDirection.y * excess;
+    if (forwardDistance >= distanceToTarget) {
+      return { ...target };
     }
   }
 

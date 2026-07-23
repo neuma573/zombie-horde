@@ -133,13 +133,13 @@ describe('zombie crowd spacing', () => {
       .toEqual(moveToward(start, target, 80, 500));
   });
 
-  it('allows separation movement when the zombie is at the chase target', () => {
+  it('does not apply leftover separation after reaching the chase target', () => {
     expect(moveZombieWithCrowdSpacing(
       { x: 100, y: 100 },
       { x: 100, y: 100 },
       { x: 20, y: -10 },
       500,
-    )).toEqual({ x: 110, y: 95 });
+    )).toEqual({ x: 100, y: 100 });
   });
 
   it('caps final speed and preserves a forward chase component', () => {
@@ -163,6 +163,18 @@ describe('zombie crowd spacing', () => {
 
     expect(secondHalf.x).toBeCloseTo(oneStep.x);
     expect(secondHalf.y).toBeCloseTo(oneStep.y);
+  });
+
+  it('stops the whole step at the target consistently across delta partitions', () => {
+    const start = { x: 0, y: 0 };
+    const target = { x: 10, y: 0 };
+    const velocity = { x: 80, y: 20 };
+    const oneStep = moveZombieWithCrowdSpacing(start, target, velocity, 1_000);
+    const firstHalf = moveZombieWithCrowdSpacing(start, target, velocity, 500);
+    const secondHalf = moveZombieWithCrowdSpacing(firstHalf, target, velocity, 500);
+
+    expect(oneStep).toEqual(target);
+    expect(secondHalf).toEqual(oneStep);
   });
 
   it('keeps crowd movement outside obstacles and world bounds', () => {

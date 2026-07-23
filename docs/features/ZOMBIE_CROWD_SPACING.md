@@ -166,7 +166,7 @@ finalVelocity = clampMagnitude(combinedVelocity, zombieSpeed)
 - 추적 속도는 기존 `ZOMBIE_CONFIG.speed`를 사용한다.
 - 최종 속도는 기존 좀비 속도를 넘지 않는다.
 - `maximumSeparationSpeed < zombieSpeed`를 유지하므로 반발만으로 정상적인 추적 방향을 완전히 뒤집지 않는다.
-- 플레이어와 같은 위치라 chase 방향이 0이면 반발 속도만 적용할 수 있다.
+- 플레이어와 같은 위치라 chase 방향이 0이면 추적 이동을 종료한다. 이후의 실제 겹침은 기존 플레이어–좀비 분리 단계가 처리한다.
 - 반발 후보가 없으면 기존 추적 이동 결과와 같아야 한다.
 
 최종 이동은 다음과 같다.
@@ -176,7 +176,7 @@ desiredEnd = startPosition + finalVelocity * deltaMs / 1000
 resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 ```
 
-플레이어까지 남은 거리보다 과도하게 이동하지 않도록 기존 `moveToward`의 도달 거리 제한 의미를 유지한다. 정확한 helper 이름은 구현 시 현재 `movement.ts` 관례에 맞춘다.
+플레이어 방향 이동 성분이 남은 거리에 도달하면 횡방향 반발을 포함한 해당 이동 전체를 플레이어 위치에서 종료한다. 플레이어 방향의 초과분만 제거하고 횡방향 이동을 남기면 큰 delta 한 번과 분할 delta의 종점이 달라지므로 허용하지 않는다.
 
 ## 9. 공간 그리드 결과 정책
 
@@ -225,6 +225,7 @@ resolvedEnd = moveCircleWithObstacles(startPosition, desiredEnd, ...)
 - 후보 탐색과 반발 속도 계산은 `deltaMs`를 받지 않는다.
 - 같은 위치 스냅샷과 목표에는 FPS와 무관하게 같은 속도를 반환한다.
 - 동일한 고정 스냅샷과 속도를 사용하면 `1000ms` 한 번과 `500ms + 500ms` 누적 이동량이 같아야 한다.
+- 고정 속도가 플레이어를 통과할 수 있는 경우에도 도달한 시점의 전체 이동을 종료하며, 이미 목표에 도달한 분할 구간에서 반발 이동을 재개하지 않는다.
 - 실제 이동 중 위치와 이웃 관계가 바뀌면 다음 업데이트에서 새 스냅샷으로 반발 방향을 다시 계산한다.
 - 이 비선형 갱신 차이를 없애기 위한 fixed timestep은 이번 범위에 포함하지 않는다.
 
