@@ -5,6 +5,7 @@ import {
   DEFAULT_GAME_SETTINGS,
 } from '../config/menuConfig';
 import {
+  createMobileClassCardLayout,
   createMenuActionLayout,
   selectCharacterClass,
   toggleSound,
@@ -72,5 +73,19 @@ describe('main menu state', () => {
     expect(layout.back.width).toBe(94);
     expect(layout.deploy.width).toBe(94);
     expect(deployLeft - backRight).toBe(12);
+  });
+
+  it('fits mobile class cards above actions on a short landscape viewport', () => {
+    const cardTop = 24 + 88;
+    const actionY = 296 - 26;
+    const actionTop = actionY - 23;
+    const layout = createMobileClassCardLayout(cardTop, actionY - 42, 13);
+    const firstTop = layout.cardCenters[0] - layout.cardHeight / 2;
+    const secondBottom = layout.cardCenters[1] + layout.cardHeight / 2;
+
+    expect(layout.cardHeight).toBe(51.5);
+    expect(firstTop).toBe(cardTop);
+    expect(secondBottom).toBe(layout.cardBottom);
+    expect(secondBottom).toBeLessThan(actionTop);
   });
 });

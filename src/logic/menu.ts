@@ -12,6 +12,12 @@ export interface MenuActionLayout {
   deploy: { x: number; width: number };
 }
 
+export interface MobileClassCardLayout {
+  cardHeight: number;
+  cardCenters: [number, number];
+  cardBottom: number;
+}
+
 const MENU_ACTION_GAP = 12;
 const BACK_BUTTON_MAX_WIDTH = 140;
 const DEPLOY_BUTTON_MAX_WIDTH = 160;
@@ -47,5 +53,24 @@ export function createMenuActionLayout(left: number, right: number): MenuActionL
       x: safeRight - deployWidth / 2,
       width: deployWidth,
     },
+  };
+}
+
+export function createMobileClassCardLayout(
+  cardTop: number,
+  cardBottom: number,
+  requestedGap: number,
+): MobileClassCardLayout {
+  const availableHeight = Math.max(0, cardBottom - cardTop);
+  const gap = Math.min(Math.max(0, requestedGap), availableHeight);
+  const cardHeight = Math.max(0, (availableHeight - gap) / 2);
+
+  return {
+    cardHeight,
+    cardCenters: [
+      cardTop + cardHeight / 2,
+      cardTop + cardHeight * 1.5 + gap,
+    ],
+    cardBottom: cardTop + cardHeight * 2 + gap,
   };
 }

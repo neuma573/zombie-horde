@@ -8,6 +8,7 @@ import {
   type CharacterClassId,
 } from '../config/menuConfig';
 import {
+  createMobileClassCardLayout,
   createMenuActionLayout,
   selectCharacterClass,
   toggleSound,
@@ -163,16 +164,19 @@ export class MainMenuScene extends Phaser.Scene {
     const actionY = bottom - 26;
     const actionLayout = createMenuActionLayout(left, right);
     const cardBottom = actionY - 42;
-    const availableCardHeight = Math.max(150, cardBottom - cardTop);
+    const availableCardHeight = Math.max(0, cardBottom - cardTop);
+    const mobileCardLayout = createMobileClassCardLayout(
+      cardTop,
+      cardBottom,
+      cardGap,
+    );
     const cardWidth = isMobileLayout
       ? width
       : Math.min(300, Math.max(1, (width - cardGap) / 2));
     const cardHeight = isMobileLayout
-      ? Math.min(260, Math.max(100, (availableCardHeight - cardGap) / 2))
+      ? Math.min(260, mobileCardLayout.cardHeight)
       : Math.min(410, availableCardHeight);
     const cardsCenterY = cardTop + availableCardHeight / 2;
-    const mobileGroupHeight = cardHeight * 2 + cardGap;
-    const mobileStartY = cardsCenterY - mobileGroupHeight / 2 + cardHeight / 2;
 
     CHARACTER_CLASS_OPTIONS.forEach((option, index) => {
       const x = isMobileLayout
@@ -181,7 +185,7 @@ export class MainMenuScene extends Phaser.Scene {
           ? -(cardWidth + cardGap) / 2
           : (cardWidth + cardGap) / 2);
       const y = isMobileLayout
-        ? mobileStartY + index * (cardHeight + cardGap)
+        ? mobileCardLayout.cardCenters[index]
         : cardsCenterY;
       this.addClassCard(
         x,
@@ -260,7 +264,9 @@ export class MainMenuScene extends Phaser.Scene {
     const portraitX = isMobileLayout ? x + direction * width * 0.23 : x;
     const labelX = isMobileLayout ? x - direction * width * 0.23 : x;
     const portraitY = isMobileLayout ? y : y - 20;
-    const portraitHeight = Math.max(80, height - (isMobileLayout ? 12 : 66));
+    const portraitHeight = isMobileLayout
+      ? Math.max(1, height - 12)
+      : Math.max(80, height - 66);
     const portraitWidth = isMobileLayout
       ? Math.max(1, width * 0.46)
       : Math.max(1, width - 10);
@@ -297,25 +303,27 @@ export class MainMenuScene extends Phaser.Scene {
       this.ui?.add(silhouette);
     }
     const labelY = y + height / 2 - 24;
+    const mobileLabelOffset = Math.min(16, height * 0.2);
+    const mobileSelectedOffset = Math.min(48, height * 0.36);
     this.addText(
       labelX,
-      isMobileLayout ? y - 16 : labelY - 8,
+      isMobileLayout ? y - mobileLabelOffset : labelY - 8,
       option.name,
-      isMobileLayout ? 22 : width < 170 ? 13 : 16,
+      isMobileLayout ? Math.min(22, Math.max(11, height * 0.28)) : width < 170 ? 13 : 16,
       true,
     );
     this.addText(
       labelX,
-      isMobileLayout ? y + 16 : labelY + 13,
+      isMobileLayout ? y + mobileLabelOffset : labelY + 13,
       option.roleLabel,
-      isMobileLayout ? 11 : 10,
+      isMobileLayout ? Math.min(11, Math.max(8, height * 0.16)) : 10,
       false,
       COLORS.muted,
     );
     if (selected) {
       this.addText(
         labelX,
-        isMobileLayout ? y + 48 : labelY - 38,
+        isMobileLayout ? y + mobileSelectedOffset : labelY - 38,
         'SELECTED',
         11,
         true,
