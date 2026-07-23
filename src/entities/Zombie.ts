@@ -1,6 +1,14 @@
 import Phaser from 'phaser';
 
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
+import { ZOMBIE_HIT_REACTION_CONFIG } from '../config/hitFeedbackConfig';
+import type { Vector2 } from '../logic/hitscan';
+import {
+  advanceZombieHitReaction,
+  createZombieHitReaction,
+  resolveZombieHitReactionPose,
+  type ZombieHitReactionState,
+} from '../logic/zombieHitFeedback';
 import { resolveZombieAttackPose } from '../logic/zombieVisual';
 import { decayTransientLight } from '../logic/timeBasedLighting';
 
@@ -31,6 +39,7 @@ export class Zombie extends Phaser.GameObjects.Container {
   attackWindupRemainingMs: number | null = null;
   private readonly visual: Phaser.GameObjects.Graphics;
   private muzzleReflectionIntensity = 0;
+  private hitReaction: ZombieHitReactionState | null = null;
 
   constructor(scene: Phaser.Scene, readonly id: string, x: number, y: number) {
     const visual = new Phaser.GameObjects.Graphics(scene);
@@ -65,16 +74,32 @@ export class Zombie extends Phaser.GameObjects.Container {
     this.updateAttackVisual();
   }
 
+  triggerHitReaction(direction: Vector2): void {
+    this.hitReaction = createZombieHitReaction(
+      direction,
+      this.rotation,
+      ZOMBIE_HIT_REACTION_CONFIG,
+    );
+    this.updateAttackVisual();
+  }
+
   updateMuzzleReflection(deltaMs: number): void {
     this.muzzleReflectionIntensity = decayTransientLight(
       this.muzzleReflectionIntensity,
       deltaMs,
       MUZZLE_REFLECTION_DECAY_RATE,
     );
+    this.hitReaction = advanceZombieHitReaction(this.hitReaction, deltaMs);
     this.updateAttackVisual();
   }
 
   private drawVisual(resolvedPose: ReturnType<typeof resolveZombieAttackPose>): void {
+    const hitPose = resolveZombieHitReactionPose(
+      this.hitReaction,
+      ZOMBIE_HIT_REACTION_CONFIG,
+    );
+    this.visual.setPosition(hitPose.offset.x, hitPose.offset.y);
+    this.visual.setRotation(hitPose.rotation);
     this.visual.clear();
     this.visual.fillStyle(0x000000, 0.25);
     this.visual.fillEllipse(
@@ -84,18 +109,27 @@ export class Zombie extends Phaser.GameObjects.Container {
       ZOMBIE_CONFIG.radius * 2.1,
     );
 
-    drawZombieArm(this.visual, -10, resolvedPose.upperElbowX, resolvedPose.upperElbowY,
-      resolvedPose.upperHandY, resolvedPose.upperHandX, 0x121713, 8);
-    drawZombieArm(this.visual, 10, resolvedPose.lowerElbowX, resolvedPose.lowerElbowY,
-      resolvedPose.lowerHandY, resolvedPose.lowerHandX, 0x121713, 8);
-    drawZombieArm(this.visual, -10, resolvedPose.upperElbowX, resolvedPose.upperElbowY,
-      resolvedPose.upperHandY, resolvedPose.upperHandX, 0x53604e, 5);
-    drawZombieArm(this.visual, 10, resolvedPose.lowerElbowX, resolvedPose.lowerElbowY,
-      resolvedPose.lowerHandY, resolvedPose.lowerHandX, 0x606c58, 5);
+    const upperElbowX = resolvedPose.upperElbowX + hitPose.upperArmOffset.x * 0.55;
+    const upperElbowY = resolvedPose.upperElbowY + hitPose.upperArmOffset.y * 0.55;
+    const upperHandX = resolvedPose.upperHandX + hitPose.upperArmOffset.x;
+    const upperHandY = resolvedPose.upperHandY + hitPose.upperArmOffset.y;
+    const lowerElbowX = resolvedPose.lowerElbowX + hitPose.lowerArmOffset.x * 0.55;
+    const lowerElbowY = resolvedPose.lowerElbowY + hitPose.lowerArmOffset.y * 0.55;
+    const lowerHandX = resolvedPose.lowerHandX + hitPose.lowerArmOffset.x;
+    const lowerHandY = resolvedPose.lowerHandY + hitPose.lowerArmOffset.y;
+
+    drawZombieArm(this.visual, -10, upperElbowX, upperElbowY,
+      upperHandY, upperHandX, 0x121713, 8);
+    drawZombieArm(this.visual, 10, lowerElbowX, lowerElbowY,
+      lowerHandY, lowerHandX, 0x121713, 8);
+    drawZombieArm(this.visual, -10, upperElbowX, upperElbowY,
+      upperHandY, upperHandX, 0x53604e, 5);
+    drawZombieArm(this.visual, 10, lowerElbowX, lowerElbowY,
+      lowerHandY, lowerHandX, 0x606c58, 5);
 
     this.visual.fillStyle(0x1a201a, 1);
-    this.visual.fillCircle(resolvedPose.upperHandX, resolvedPose.upperHandY, 3.4);
-    this.visual.fillCircle(resolvedPose.lowerHandX, resolvedPose.lowerHandY, 3.4);
+    this.visual.fillCircle(upperHandX, upperHandY, 3.4);
+    this.visual.fillCircle(lowerHandX, lowerHandY, 3.4);
     this.visual.fillStyle(0x354035, 1);
     this.visual.fillEllipse(
       -3,

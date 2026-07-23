@@ -10,6 +10,9 @@ export interface ShotEffectEvent {
 export interface ImpactEffectEvent {
   position: Vector2;
   radius: number;
+  direction?: Vector2;
+  rotation?: number;
+  variantKey?: string;
 }
 
 export function constrainMuzzleToShotSegment(
