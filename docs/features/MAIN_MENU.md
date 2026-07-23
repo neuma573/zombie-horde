@@ -46,6 +46,7 @@ URL이 없는 향후 옵션은 임시 실루엣으로 대체할 수 있다.
 
 - 메뉴는 `Phaser.Scale.RESIZE`와 CSS safe-area 값을 사용한다.
 - resize 시 현재 화면과 선택·설정 상태를 유지하면서 UI만 다시 배치한다.
+- 클래스 선택의 `BACK`과 `DEPLOY`는 사용 가능 폭이 좁으면 함께 축소하며 12px 간격을 유지한다.
 - Scene shutdown에서 resize 리스너와 메뉴 객체를 정리한다.
 - PC와 모바일 모두 포인터 입력으로 조작할 수 있다.
 

@@ -7,7 +7,11 @@ import {
   type CharacterClassOption,
   type CharacterClassId,
 } from '../config/menuConfig';
-import { selectCharacterClass, toggleSound } from '../logic/menu';
+import {
+  createMenuActionLayout,
+  selectCharacterClass,
+  toggleSound,
+} from '../logic/menu';
 
 type MenuView = 'main' | 'settings' | 'classSelect';
 
@@ -157,6 +161,7 @@ export class MainMenuScene extends Phaser.Scene {
     const cardGap = Math.min(14, Math.max(8, width * 0.025));
     const cardTop = top + 88;
     const actionY = bottom - 26;
+    const actionLayout = createMenuActionLayout(left, right);
     const cardBottom = actionY - 42;
     const availableCardHeight = Math.max(150, cardBottom - cardTop);
     const cardWidth = isMobileLayout
@@ -189,16 +194,16 @@ export class MainMenuScene extends Phaser.Scene {
       );
     });
 
-    this.addButton(left + 82, actionY, 'BACK', () => {
+    this.addButton(actionLayout.back.x, actionY, 'BACK', () => {
       this.view = 'main';
       this.render();
-    }, 140);
+    }, actionLayout.back.width);
     this.addButton(
-      right - 92,
+      actionLayout.deploy.x,
       actionY,
       'DEPLOY',
       () => this.startGame(),
-      160,
+      actionLayout.deploy.width,
       this.selectedClassId !== null,
     );
   }

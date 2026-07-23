@@ -7,6 +7,15 @@ export interface GameSettings {
   soundEnabled: boolean;
 }
 
+export interface MenuActionLayout {
+  back: { x: number; width: number };
+  deploy: { x: number; width: number };
+}
+
+const MENU_ACTION_GAP = 12;
+const BACK_BUTTON_MAX_WIDTH = 140;
+const DEPLOY_BUTTON_MAX_WIDTH = 160;
+
 export function toggleSound(settings: GameSettings): GameSettings {
   return {
     ...settings,
@@ -20,4 +29,23 @@ export function selectCharacterClass(
 ): CharacterClassId | null {
   const option = CHARACTER_CLASS_OPTIONS.find(({ id }) => id === requested);
   return option?.id ?? current;
+}
+
+export function createMenuActionLayout(left: number, right: number): MenuActionLayout {
+  const safeLeft = Math.min(left, right);
+  const safeRight = Math.max(left, right);
+  const availableWidth = Math.max(0, safeRight - safeLeft - MENU_ACTION_GAP);
+  const backWidth = Math.min(BACK_BUTTON_MAX_WIDTH, availableWidth / 2);
+  const deployWidth = Math.min(DEPLOY_BUTTON_MAX_WIDTH, availableWidth - backWidth);
+
+  return {
+    back: {
+      x: safeLeft + backWidth / 2,
+      width: backWidth,
+    },
+    deploy: {
+      x: safeRight - deployWidth / 2,
+      width: deployWidth,
+    },
+  };
 }

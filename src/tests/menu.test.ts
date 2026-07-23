@@ -4,7 +4,11 @@ import {
   CHARACTER_CLASS_OPTIONS,
   DEFAULT_GAME_SETTINGS,
 } from '../config/menuConfig';
-import { selectCharacterClass, toggleSound } from '../logic/menu';
+import {
+  createMenuActionLayout,
+  selectCharacterClass,
+  toggleSound,
+} from '../logic/menu';
 
 describe('main menu state', () => {
   it('toggles sound without mutating the existing global setting', () => {
@@ -48,5 +52,25 @@ describe('main menu state', () => {
     expect(first).toBe('male-survivor');
     expect(second).toBe('female-survivor');
     expect(selectCharacterClass(second, 'unknown')).toBe(second);
+  });
+
+  it('keeps class-select actions separated on a 360px phone safe area', () => {
+    const layout = createMenuActionLayout(24, 336);
+    const backRight = layout.back.x + layout.back.width / 2;
+    const deployLeft = layout.deploy.x - layout.deploy.width / 2;
+
+    expect(layout.back).toEqual({ x: 94, width: 140 });
+    expect(layout.deploy).toEqual({ x: 256, width: 160 });
+    expect(deployLeft - backRight).toBe(12);
+  });
+
+  it('shrinks both class-select actions when the safe width is narrower', () => {
+    const layout = createMenuActionLayout(24, 224);
+    const backRight = layout.back.x + layout.back.width / 2;
+    const deployLeft = layout.deploy.x - layout.deploy.width / 2;
+
+    expect(layout.back.width).toBe(94);
+    expect(layout.deploy.width).toBe(94);
+    expect(deployLeft - backRight).toBe(12);
   });
 });
