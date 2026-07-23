@@ -135,4 +135,16 @@ describe('createHudLayout', () => {
     expect(layout.reload.height).toBe(10);
     expect(layout.waveBanner.x).toBe(480);
   });
+
+  it('keeps the wave banner inside a height-constrained safe area', () => {
+    const layout = createHudLayout(
+      360,
+      100,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.waveBanner).toEqual({ x: 180, y: 64 });
+    expect(layout.waveBanner.y - 24).toBeGreaterThanOrEqual(12);
+    expect(layout.waveBanner.y + 24).toBeLessThanOrEqual(88);
+  });
 });

@@ -54,6 +54,7 @@ const RELOAD_MAX_WIDTH = 320;
 const RELOAD_HEIGHT = 10;
 const WATCH_WIDTH = 116;
 const WATCH_HEIGHT = 48;
+const WAVE_BANNER_HALF_HEIGHT = 24;
 
 export function createHudViewModel(state: HudState): HudViewModel {
   const remainingEnemies = Math.max(0, state.remainingToSpawn)
@@ -106,6 +107,15 @@ export function createHudLayout(
   const gameOverY = Math.min(safeBottom, Math.max(safeTop, (safeTop + safeBottom) / 2));
   const watchWidth = Math.min(WATCH_WIDTH, usableWidth);
   const watchCenterX = safeLeft + usableWidth / 2;
+  const waveBannerMinY = Math.min(safeBottom, safeTop + WAVE_BANNER_HALF_HEIGHT);
+  const waveBannerMaxY = Math.max(
+    waveBannerMinY,
+    safeBottom - WAVE_BANNER_HALF_HEIGHT,
+  );
+  const waveBannerY = Math.min(
+    waveBannerMaxY,
+    Math.max(waveBannerMinY, safeTop + WATCH_HEIGHT + 32, gameOverY - 72),
+  );
   const reloadWidth = Math.max(0, Math.min(
     RELOAD_MAX_WIDTH,
     Math.max(RELOAD_MIN_WIDTH, usableWidth * RELOAD_WIDTH_RATIO),
@@ -139,7 +149,7 @@ export function createHudLayout(
     },
     waveBanner: {
       x: safeLeft + usableWidth / 2,
-      y: Math.max(safeTop + WATCH_HEIGHT + 32, gameOverY - 72),
+      y: waveBannerY,
     },
   };
 }
