@@ -10,10 +10,10 @@ export class Obstacle extends Phaser.GameObjects.Rectangle {
       config.y + config.height / 2,
       config.width,
       config.height,
-      0x4b5563,
+      0x3f464d,
     );
 
     scene.add.existing(this);
-    this.setStrokeStyle(3, 0x94a3b8);
+    this.setStrokeStyle(5, 0x737c84);
   }
 }

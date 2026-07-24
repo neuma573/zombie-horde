@@ -1,11 +1,12 @@
 import type { WaveConfig } from '../logic/wave';
 import type { WeaponConfig } from '../logic/weapon';
+import { URBAN_MAP_CONFIG } from './urbanMapConfig';
 
 export const MVP_CONFIG = {
   map: {
-    width: 2_400,
-    height: 1_600,
-    gridSize: 80,
+    width: URBAN_MAP_CONFIG.width,
+    height: URBAN_MAP_CONFIG.height,
+    gridSize: URBAN_MAP_CONFIG.gridSize,
   },
   player: {
     health: 100,

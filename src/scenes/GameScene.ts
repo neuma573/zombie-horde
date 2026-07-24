@@ -5,6 +5,7 @@ import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
+import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
@@ -159,7 +160,13 @@ export class GameScene extends Phaser.Scene {
     this.viewport = { width: this.scale.width, height: this.scale.height };
     this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.worldBackdrop = new WorldBackdrop(this);
-    this.worldBackdrop.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
+    this.worldBackdrop.resize(
+      this.playArea.width,
+      this.playArea.height,
+      MVP_CONFIG.map.gridSize,
+      URBAN_MAP_CONFIG.roads,
+      URBAN_MAP_CONFIG.pavedAreas,
+    );
     for (const obstacle of OBSTACLE_CONFIG) {
       new Obstacle(this, obstacle);
     }
@@ -717,7 +724,13 @@ export class GameScene extends Phaser.Scene {
     this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
-    this.worldBackdrop?.resize(this.playArea.width, this.playArea.height, MVP_CONFIG.map.gridSize);
+    this.worldBackdrop?.resize(
+      this.playArea.width,
+      this.playArea.height,
+      MVP_CONFIG.map.gridSize,
+      URBAN_MAP_CONFIG.roads,
+      URBAN_MAP_CONFIG.pavedAreas,
+    );
     this.timeBasedLighting?.resize(gameSize.width, gameSize.height);
 
     const playerPosition = constrainToBounds(this.player, {
