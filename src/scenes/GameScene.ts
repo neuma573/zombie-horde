@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene {
   private coarsePointerQuery?: MediaQueryList;
   private viewportOrientation?: ViewportOrientation;
   private readonly activeMobilePointers = new Set<number>();
+  private readonly guardedMobilePointers = new Set<number>();
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
   private killCount = 0;
@@ -150,6 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.mobileMovement = { x: 0, y: 0 };
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
+    this.guardedMobilePointers.clear();
     this.mobileRestartArmed = true;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
@@ -610,9 +612,18 @@ export class GameScene extends Phaser.Scene {
     const pointerId = pointer.id;
     this.activeMobilePointers.add(pointerId);
     const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
+    if (role === 'controlGuard') {
+      this.guardedMobilePointers.add(pointerId);
+      return;
+    }
     this.mobileOwnership = claimMobilePointer(this.mobileOwnership, pointerId, role);
 
-    if (roleForPointer(this.mobileOwnership, pointerId) !== role) return;
+    if (roleForPointer(this.mobileOwnership, pointerId) !== role) {
+      if (role === 'movement' || role === 'fire' || role === 'reload') {
+        this.guardedMobilePointers.add(pointerId);
+      }
+      return;
+    }
 
     if (role === 'movement') {
       this.updateMobileMovement(pointer);
@@ -633,6 +644,8 @@ export class GameScene extends Phaser.Scene {
       this.updateAimDirection(pointer, 'mouse');
       return;
     }
+
+    if (this.guardedMobilePointers.has(pointer.id)) return;
 
     let role = roleForPointer(this.mobileOwnership, pointer.id);
     if (
@@ -661,6 +674,7 @@ export class GameScene extends Phaser.Scene {
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
     if (pointer.wasTouch) {
       this.activeMobilePointers.delete(pointer.id);
+      this.guardedMobilePointers.delete(pointer.id);
       if (!isPlaying(this.sessionState) && this.activeMobilePointers.size === 0) {
         this.mobileRestartArmed = true;
       }
@@ -781,6 +795,7 @@ export class GameScene extends Phaser.Scene {
 
   private resetMobileInput(): void {
     this.mobileOwnership = createMobilePointerOwnership();
+    this.guardedMobilePointers.clear();
     this.mobileMovement = { x: 0, y: 0 };
     this.playerInput = clearActiveInput(this.playerInput);
     this.mobileControls?.setJoystickPointer(null);
@@ -788,6 +803,7 @@ export class GameScene extends Phaser.Scene {
 
   private cancelAllMobileInput(): void {
     this.activeMobilePointers.clear();
+    this.guardedMobilePointers.clear();
     if (!isPlaying(this.sessionState)) this.mobileRestartArmed = true;
     this.aimSource = 'none';
     this.clearAimAssist();

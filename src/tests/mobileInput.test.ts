@@ -82,6 +82,43 @@ describe('mobile input', () => {
     expect(classifyMobilePointer({ x: 180, y: 30 }, insetLayout)).toBe('aim');
   });
 
+  it('uses larger action targets and neutral guard bands around right-side controls', () => {
+    const layout = createMobileControlLayout(360, 640, noInsets);
+    const fireActionPoint = {
+      x: layout.fire.x + layout.fire.radius + 2,
+      y: layout.fire.y,
+    };
+    const fireGuardPoint = {
+      x: layout.fire.x - layout.fireHit.radius - 2,
+      y: layout.fire.y,
+    };
+    const reloadGuardPoint = {
+      x: layout.reload.x - layout.reloadHit.radius - 2,
+      y: layout.reload.y,
+    };
+    const emptyPanelPoint = {
+      x: layout.controlExclusion.x + layout.controlExclusion.width - 1,
+      y: layout.reload.y,
+    };
+    const aimPointBesidePanel = {
+      x: layout.controlExclusion.x - 1,
+      y: layout.fire.y,
+    };
+
+    expect(layout.fireHit.radius).toBeGreaterThan(layout.fire.radius);
+    expect(layout.fireGuard.radius).toBeGreaterThan(layout.fireHit.radius);
+    expect(layout.reloadHit.radius).toBeGreaterThan(layout.reload.radius);
+    expect(layout.reloadGuard.radius).toBeGreaterThan(layout.reloadHit.radius);
+    expect(classifyMobilePointer(fireActionPoint, layout)).toBe('fire');
+    expect(classifyMobilePointer(fireGuardPoint, layout)).toBe('controlGuard');
+    expect(classifyMobilePointer(reloadGuardPoint, layout)).toBe('controlGuard');
+    expect(classifyMobilePointer(emptyPanelPoint, layout)).toBe('controlGuard');
+    expect(classifyMobilePointer(aimPointBesidePanel, layout)).toBe('aim');
+    expect(Math.abs(layout.fire.y - layout.reload.y)).toBeGreaterThanOrEqual(
+      layout.fireHit.radius + layout.reloadHit.radius,
+    );
+  });
+
   it('keeps exclusive pointer ownership until release', () => {
     let ownership = createMobilePointerOwnership();
     ownership = claimMobilePointer(ownership, 10, 'movement');
@@ -103,6 +140,7 @@ describe('mobile input', () => {
     expect(lateClaimMobilePointerRole('movement')).toBeNull();
     expect(lateClaimMobilePointerRole('fire')).toBeNull();
     expect(lateClaimMobilePointerRole('reload')).toBeNull();
+    expect(lateClaimMobilePointerRole('controlGuard')).toBeNull();
     expect(lateClaimMobilePointerRole(null)).toBeNull();
   });
 });

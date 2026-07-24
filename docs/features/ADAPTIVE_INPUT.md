@@ -100,6 +100,9 @@
 
 - safe-area를 제외한 오른쪽 아래에 `FIRE`, 그 위에 `RELOAD`를 배치한다.
 - `FIRE` 원 안에서 시작한 pointer는 fire 역할을 소유하고, 한 번의 공통 발사 요청을 만든다. 누르고 있는 동안 추가 연사는 만들지 않아 기존 단발 정책을 유지한다.
+- FIRE와 RELOAD는 시각 반경보다 넓은 실제 hit area를 사용한다.
+- hit area 바깥에는 비가시 guard band를 두며, 이 영역에서 시작한 pointer는 발사나 재장전을 요청하지 않고 손을 뗄 때까지 aim으로도 사용하지 않는다.
+- 두 버튼을 포함하는 우측 하단 조작 패널 전체를 aim 제외 영역으로 취급해 버튼 사이와 화면 가장자리의 빈 공간을 잘못 눌러도 시선이 바뀌지 않는다.
 - fire 포인터는 aim을 바꾸지 않는다.
 - `RELOAD` 버튼은 한 번의 공통 재장전 요청을 만든다.
 - 탄약 부족, cooldown, 재장전 중, Game Over 차단은 기존 Weapon 및 Session 규칙에 맡긴다.
@@ -119,6 +122,7 @@
 - resize와 방향 전환은 session을 재시작하지 않는다. 일반 resize는 플레이 영역, HUD, control layout만 재계산하고 입력을 유지하며, 세로와 가로가 바뀌는 방향 전환만 모바일 입력을 해제한다.
 - `index.html`의 CSS safe-area custom property를 그대로 읽어 HUD와 control layout에 함께 사용한다.
 - 스틱과 버튼의 원 전체가 safe-area 안에 있도록 중심을 배치한다. 작은 viewport에서는 반경을 설정 최소값까지 축소한다.
+- 조작 UI의 시각 반경과 터치 hit area는 서로 독립적으로 관리한다.
 - HUD 제외 영역은 상단 safe-area와 현재 HUD의 세로 stack을 고려하며, control은 하단에 배치한다.
 - canvas에 `touch-action: none`, 사용자 선택 및 길게 누르기 억제를 적용해 스크롤, 확대, 선택 메뉴가 조작을 가로채지 않게 한다.
 
