@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
-import { CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
+import { CAMERA_FOLLOW_CONFIG, CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
@@ -47,6 +47,12 @@ import {
   createWorldSize,
   type Size,
 } from '../logic/camera';
+import {
+  snapCameraFollow,
+  updateCameraFollow,
+  velocityBetween,
+  type CameraFollowState,
+} from '../logic/cameraFollow';
 import {
   createPinchZoomState,
   interpolateCameraZoom,
@@ -144,6 +150,7 @@ export class GameScene extends Phaser.Scene {
   private pinchZoomState: PinchZoomState = createPinchZoomState();
   private pinchPointerIds: [number, number] | null = null;
   private targetZoom: number = CAMERA_ZOOM_CONFIG.initial;
+  private cameraFollowState: CameraFollowState = snapCameraFollow({ x: 0, y: 0 });
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
   private killCount = 0;
@@ -218,6 +225,7 @@ export class GameScene extends Phaser.Scene {
       MVP_CONFIG.player.spawn.x,
       MVP_CONFIG.player.spawn.y,
     );
+    this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
     this.killCount = 0;
@@ -488,6 +496,13 @@ export class GameScene extends Phaser.Scene {
       const position = separation.zombiePositions.get(zombie.id);
       if (position) zombie.setPosition(position.x, position.y);
     }
+    this.cameraFollowState = updateCameraFollow(
+      this.cameraFollowState,
+      this.player,
+      velocityBetween(playerStart, playerMovementEnd, deltaMs),
+      deltaMs,
+      CAMERA_FOLLOW_CONFIG,
+    );
 
     if (!contactDamage.died) {
       const spawnCount = this.wave.update(deltaMs, this.zombies.length);
@@ -1064,14 +1079,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshAimAssist(): Vector2 {
-    const cameraScroll = cameraScrollForPlayer(
-      this.player,
-      this.playArea,
-      this.viewport,
-      this.cameras.main.zoom,
-    );
     const worldView = cameraWorldView(
-      cameraScroll,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
       this.viewport,
       this.cameras.main.zoom,
     );
@@ -1177,12 +1189,17 @@ export class GameScene extends Phaser.Scene {
 
   private updateCameraPosition(): void {
     const scroll = cameraScrollForPlayer(
-      this.player,
+      this.cameraFollowState.targetPosition,
       this.playArea,
       this.viewport,
       this.cameras.main.zoom,
     );
     this.cameras.main.setScroll(scroll.x, scroll.y);
+  }
+
+  private snapCameraToPlayer(): void {
+    this.cameraFollowState = snapCameraFollow(this.player);
+    this.updateCameraPosition();
   }
 
   private updateTimeBasedLighting(deltaMs = 0): void {
