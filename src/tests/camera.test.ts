@@ -85,4 +85,16 @@ describe('responsive world and camera', () => {
       });
     }
   });
+
+  it('clamps delayed or look-ahead camera targets beyond world edges', () => {
+    const world = { width: 2_400, height: 1_600 };
+    const viewport = { width: 960, height: 540 };
+    const zoom = 0.75;
+    const left = cameraScrollForPlayer({ x: -100, y: 800 }, world, viewport, zoom);
+    const right = cameraScrollForPlayer({ x: 3_000, y: 800 }, world, viewport, zoom);
+
+    expect(cameraWorldView(left, viewport, zoom).x).toBe(0);
+    const rightView = cameraWorldView(right, viewport, zoom);
+    expect(rightView.x + rightView.width).toBe(world.width);
+  });
 });
