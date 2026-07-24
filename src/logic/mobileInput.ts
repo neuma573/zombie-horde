@@ -3,6 +3,7 @@ import type { SafeAreaInsets } from './hud';
 import type { MovementInput, Position } from './movement';
 
 export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload';
+export type MobilePointerClassification = MobilePointerRole | 'controlGuard' | null;
 export type ViewportOrientation = 'portrait' | 'landscape';
 
 export interface CircleControl {
@@ -11,10 +12,22 @@ export interface CircleControl {
   radius: number;
 }
 
+export interface RectangleControl {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface MobileControlLayout {
   joystick: CircleControl;
   fire: CircleControl;
+  fireHit: CircleControl;
+  fireGuard: CircleControl;
   reload: CircleControl;
+  reloadHit: CircleControl;
+  reloadGuard: CircleControl;
+  controlExclusion: RectangleControl;
   aimTop: number;
   knobRadius: number;
 }
@@ -75,7 +88,11 @@ export function createMobileControlLayout(
   );
   const joystickRadius = INPUT_CONFIG.joystickRadius * scale;
   const fireRadius = INPUT_CONFIG.fireButtonRadius * scale;
+  const fireHitRadius = fireRadius + INPUT_CONFIG.fireHitSlop * scale;
+  const fireGuardRadius = fireHitRadius + INPUT_CONFIG.fireGuardSlop * scale;
   const reloadRadius = INPUT_CONFIG.reloadButtonRadius * scale;
+  const reloadHitRadius = reloadRadius + INPUT_CONFIG.reloadHitSlop * scale;
+  const reloadGuardRadius = reloadHitRadius + INPUT_CONFIG.reloadGuardSlop * scale;
   const margin = INPUT_CONFIG.edgeMargin * scale;
   const gap = INPUT_CONFIG.controlGap * scale;
   const left = Math.max(0, safeArea.left);
@@ -94,16 +111,36 @@ export function createMobileControlLayout(
   const reload = {
     x: fire.x,
     y: clamp(
-      fire.y - fireRadius - reloadRadius - gap,
+      fire.y - fireHitRadius - reloadHitRadius - gap,
       reloadRadius,
       Math.max(reloadRadius, height - reloadRadius),
     ),
     radius: reloadRadius,
   };
+  const exclusionLeft = Math.max(
+    0,
+    Math.min(fire.x - fireGuardRadius, reload.x - reloadGuardRadius),
+  );
+  const exclusionTop = Math.max(
+    0,
+    Math.min(fire.y - fireGuardRadius, reload.y - reloadGuardRadius),
+  );
+  const exclusionRight = width;
+  const exclusionBottom = height;
   return {
     joystick,
     fire,
+    fireHit: { ...fire, radius: fireHitRadius },
+    fireGuard: { ...fire, radius: fireGuardRadius },
     reload,
+    reloadHit: { ...reload, radius: reloadHitRadius },
+    reloadGuard: { ...reload, radius: reloadGuardRadius },
+    controlExclusion: {
+      x: exclusionLeft,
+      y: exclusionTop,
+      width: Math.max(0, exclusionRight - exclusionLeft),
+      height: Math.max(0, exclusionBottom - exclusionTop),
+    },
     aimTop: Math.min(height, Math.max(0, safeArea.top)),
     knobRadius: INPUT_CONFIG.joystickKnobRadius * scale,
   };
@@ -163,18 +200,32 @@ function contains(circle: CircleControl, point: Position): boolean {
   return Math.hypot(point.x - circle.x, point.y - circle.y) <= circle.radius;
 }
 
+function containsRectangle(rectangle: RectangleControl, point: Position): boolean {
+  return point.x >= rectangle.x
+    && point.x <= rectangle.x + rectangle.width
+    && point.y >= rectangle.y
+    && point.y <= rectangle.y + rectangle.height;
+}
+
 export function classifyMobilePointer(
   point: Position,
   layout: MobileControlLayout,
-): MobilePointerRole | null {
-  if (contains(layout.fire, point)) return 'fire';
-  if (contains(layout.reload, point)) return 'reload';
+): MobilePointerClassification {
+  if (contains(layout.fireHit, point)) return 'fire';
+  if (contains(layout.reloadHit, point)) return 'reload';
   if (contains(layout.joystick, point)) return 'movement';
+  if (
+    contains(layout.fireGuard, point)
+    || contains(layout.reloadGuard, point)
+    || containsRectangle(layout.controlExclusion, point)
+  ) {
+    return 'controlGuard';
+  }
   return point.y >= layout.aimTop ? 'aim' : null;
 }
 
 export function lateClaimMobilePointerRole(
-  role: MobilePointerRole | null,
+  role: MobilePointerClassification,
 ): 'aim' | null {
   return role === 'aim' ? role : null;
 }
