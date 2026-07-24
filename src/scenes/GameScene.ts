@@ -69,6 +69,7 @@ import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import { shouldAutoReload } from '../logic/weapon';
 import {
   claimMobilePointer,
+  canStartPinchFromRole,
   canRestartWithMobileTouch,
   classifyMobilePointer,
   createMobileControlLayout,
@@ -78,7 +79,9 @@ import {
   joystickMovement,
   lateClaimMobilePointerRole,
   releaseMobilePointer,
+  releasePinchPointerOwnership,
   roleForPointer,
+  selectPinchPointerIds,
   shouldShowMobileControls,
   type MobileControlLayout,
   type MobilePointerOwnership,
@@ -134,6 +137,7 @@ export class GameScene extends Phaser.Scene {
   private coarsePointerQuery?: MediaQueryList;
   private viewportOrientation?: ViewportOrientation;
   private readonly activeMobilePointers = new Set<number>();
+  private readonly pinchEligiblePointers = new Set<number>();
   private readonly mobilePointerPositions = new Map<number, Vector2>();
   private readonly guardedMobilePointers = new Set<number>();
   private pinchZoomState: PinchZoomState = createPinchZoomState();
@@ -182,6 +186,7 @@ export class GameScene extends Phaser.Scene {
     this.mobileMovement = { x: 0, y: 0 };
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
+    this.pinchEligiblePointers.clear();
     this.mobilePointerPositions.clear();
     this.guardedMobilePointers.clear();
     this.pinchZoomState = createPinchZoomState();
@@ -685,12 +690,13 @@ export class GameScene extends Phaser.Scene {
   };
 
   private updatePinchGesture(): void {
-    const pointerIds = [...this.activeMobilePointers]
-      .filter((pointerId) => this.mobilePointerPositions.has(pointerId))
-      .sort((left, right) => left - right)
-      .slice(0, 2);
+    const pointerIds = selectPinchPointerIds(
+      this.activeMobilePointers,
+      this.pinchEligiblePointers,
+      this.mobilePointerPositions,
+    );
 
-    if (pointerIds.length < 2) {
+    if (pointerIds === null) {
       this.resetPinchState();
       return;
     }
@@ -726,18 +732,21 @@ export class GameScene extends Phaser.Scene {
     this.setTargetZoom(result.targetZoom);
 
     if (result.started) {
-      for (const pointerId of pointerIds) {
-        this.mobileOwnership = releaseMobilePointer(this.mobileOwnership, pointerId);
-      }
-      this.mobileMovement = { x: 0, y: 0 };
-      this.playerInput = clearActiveInput(this.playerInput);
-      this.mobileControls?.setJoystickPointer(null);
+      this.mobileOwnership = releasePinchPointerOwnership(
+        this.mobileOwnership,
+        pointerIds,
+      );
     }
   }
 
   private resetPinchState(): void {
     this.pinchZoomState = resetPinchZoom();
     this.pinchPointerIds = null;
+  }
+
+  private isPinchPointer(pointerId: number): boolean {
+    return this.pinchZoomState.isPinching
+      && this.pinchPointerIds?.includes(pointerId) === true;
   }
 
   private updateCameraZoom(deltaMs: number): void {
@@ -800,12 +809,15 @@ export class GameScene extends Phaser.Scene {
     if (!this.mobileControlsEnabled || !this.mobileLayout) return;
 
     const pointerId = pointer.id;
+    const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
     this.activeMobilePointers.add(pointerId);
     this.mobilePointerPositions.set(pointerId, { x: pointer.x, y: pointer.y });
+    if (canStartPinchFromRole(role)) {
+      this.pinchEligiblePointers.add(pointerId);
+    }
     this.updatePinchGesture();
-    if (this.pinchZoomState.isPinching) return;
+    if (this.isPinchPointer(pointerId)) return;
 
-    const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
     if (role === 'controlGuard') {
       this.guardedMobilePointers.add(pointerId);
       return;
@@ -841,7 +853,7 @@ export class GameScene extends Phaser.Scene {
 
     this.mobilePointerPositions.set(pointer.id, { x: pointer.x, y: pointer.y });
     this.updatePinchGesture();
-    if (this.pinchZoomState.isPinching) return;
+    if (this.isPinchPointer(pointer.id)) return;
 
     if (this.guardedMobilePointers.has(pointer.id)) return;
 
@@ -871,14 +883,19 @@ export class GameScene extends Phaser.Scene {
 
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
     if (pointer.wasTouch) {
+      const previousPinchPointers = this.pinchPointerIds;
       this.activeMobilePointers.delete(pointer.id);
+      this.pinchEligiblePointers.delete(pointer.id);
       this.mobilePointerPositions.delete(pointer.id);
       this.guardedMobilePointers.delete(pointer.id);
       const wasPinching = this.pinchZoomState.isPinching;
       this.updatePinchGesture();
-      if (wasPinching && !this.pinchZoomState.isPinching) {
-        for (const remainingPointerId of this.activeMobilePointers) {
-          this.guardedMobilePointers.add(remainingPointerId);
+      if (wasPinching && !this.pinchZoomState.isPinching && previousPinchPointers) {
+        for (const remainingPointerId of previousPinchPointers) {
+          if (this.activeMobilePointers.has(remainingPointerId)) {
+            this.pinchEligiblePointers.delete(remainingPointerId);
+            this.guardedMobilePointers.add(remainingPointerId);
+          }
         }
       }
       if (!isPlaying(this.sessionState) && this.activeMobilePointers.size === 0) {
@@ -1019,6 +1036,7 @@ export class GameScene extends Phaser.Scene {
 
   private cancelAllMobileInput(): void {
     this.activeMobilePointers.clear();
+    this.pinchEligiblePointers.clear();
     this.mobilePointerPositions.clear();
     this.guardedMobilePointers.clear();
     this.resetPinchState();

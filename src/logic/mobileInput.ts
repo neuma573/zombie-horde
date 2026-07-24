@@ -230,6 +230,28 @@ export function lateClaimMobilePointerRole(
   return role === 'aim' ? role : null;
 }
 
+export function canStartPinchFromRole(
+  role: MobilePointerClassification,
+): boolean {
+  return role === 'aim';
+}
+
+export function selectPinchPointerIds(
+  activePointerIds: Iterable<number>,
+  eligiblePointerIds: ReadonlySet<number>,
+  positionedPointerIds: { has(pointerId: number): boolean },
+): [number, number] | null {
+  const candidates = [...activePointerIds]
+    .filter((pointerId) => eligiblePointerIds.has(pointerId))
+    .filter((pointerId) => positionedPointerIds.has(pointerId))
+    .sort((left, right) => left - right)
+    .slice(0, 2);
+
+  return candidates.length === 2
+    ? [candidates[0], candidates[1]]
+    : null;
+}
+
 export function claimMobilePointer(
   ownership: MobilePointerOwnership,
   pointerId: number,
@@ -256,4 +278,14 @@ export function releaseMobilePointer(
 ): MobilePointerOwnership {
   const role = roleForPointer(ownership, pointerId);
   return role ? { ...ownership, [role]: null } : ownership;
+}
+
+export function releasePinchPointerOwnership(
+  ownership: MobilePointerOwnership,
+  pointerIds: readonly number[],
+): MobilePointerOwnership {
+  return pointerIds.reduce(
+    (current, pointerId) => releaseMobilePointer(current, pointerId),
+    ownership,
+  );
 }
