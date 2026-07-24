@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
+import { CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import { MVP_CONFIG } from '../config/mvpConfig';
@@ -39,7 +40,21 @@ import {
 } from '../logic/zombieCrowdSpacing';
 import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
-import { cameraScrollForPlayer, createWorldSize, type Size } from '../logic/camera';
+import {
+  cameraScreenPoint,
+  cameraScrollForPlayer,
+  cameraWorldView,
+  createWorldSize,
+  type Size,
+} from '../logic/camera';
+import {
+  createPinchZoomState,
+  interpolateCameraZoom,
+  resetPinchZoom,
+  updatePinchZoom,
+  wheelZoomTarget,
+  type PinchZoomState,
+} from '../logic/cameraZoom';
 import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import {
   advanceGameTime,
@@ -119,7 +134,11 @@ export class GameScene extends Phaser.Scene {
   private coarsePointerQuery?: MediaQueryList;
   private viewportOrientation?: ViewportOrientation;
   private readonly activeMobilePointers = new Set<number>();
+  private readonly mobilePointerPositions = new Map<number, Vector2>();
   private readonly guardedMobilePointers = new Set<number>();
+  private pinchZoomState: PinchZoomState = createPinchZoomState();
+  private pinchPointerIds: [number, number] | null = null;
+  private targetZoom: number = CAMERA_ZOOM_CONFIG.initial;
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
   private killCount = 0;
@@ -137,6 +156,7 @@ export class GameScene extends Phaser.Scene {
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
+  private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
     super('GameScene');
@@ -162,7 +182,12 @@ export class GameScene extends Phaser.Scene {
     this.mobileMovement = { x: 0, y: 0 };
     this.mobileOwnership = createMobilePointerOwnership();
     this.activeMobilePointers.clear();
+    this.mobilePointerPositions.clear();
     this.guardedMobilePointers.clear();
+    this.pinchZoomState = createPinchZoomState();
+    this.pinchPointerIds = null;
+    this.targetZoom = CAMERA_ZOOM_CONFIG.initial;
+    this.cameras.main.setZoom(CAMERA_ZOOM_CONFIG.initial);
     this.mobileRestartArmed = true;
     this.spawn = new SpawnSystem();
     this.wave = new WaveSystem(WAVE_CONFIG);
@@ -196,6 +221,15 @@ export class GameScene extends Phaser.Scene {
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
     this.mobileControls = new MobileControls(this);
+    this.uiCamera = this.cameras.add(
+      0,
+      0,
+      this.viewport.width,
+      this.viewport.height,
+      false,
+      'ui',
+    );
+    this.syncCameraLayers();
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
     this.resizeHud();
@@ -213,10 +247,13 @@ export class GameScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.handlePointerUp, this);
+    this.input.on(Phaser.Input.Events.POINTER_WHEEL, this.handleWheelZoom, this);
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, this.syncCameraLayers, this);
     this.scale.on(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
     this.coarsePointerQuery.addEventListener('change', this.handleInputModeChange);
     this.game.canvas.addEventListener('pointercancel', this.handleNativeCancel);
     this.game.canvas.addEventListener('touchcancel', this.handleNativeCancel);
+    this.game.canvas.addEventListener('wheel', this.preventCanvasWheel, { passive: false });
     window.addEventListener('blur', this.handleWindowBlur);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -225,10 +262,13 @@ export class GameScene extends Phaser.Scene {
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
       this.input.off(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
       this.input.off(Phaser.Input.Events.POINTER_UP_OUTSIDE, this.handlePointerUp, this);
+      this.input.off(Phaser.Input.Events.POINTER_WHEEL, this.handleWheelZoom, this);
+      this.events.off(Phaser.Scenes.Events.POST_UPDATE, this.syncCameraLayers, this);
       this.scale.off(Phaser.Scale.Events.RESIZE, this.resizePlayArea, this);
       this.coarsePointerQuery?.removeEventListener('change', this.handleInputModeChange);
       this.game.canvas.removeEventListener('pointercancel', this.handleNativeCancel);
       this.game.canvas.removeEventListener('touchcancel', this.handleNativeCancel);
+      this.game.canvas.removeEventListener('wheel', this.preventCanvasWheel);
       window.removeEventListener('blur', this.handleWindowBlur);
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       this.hud?.destroy();
@@ -243,10 +283,12 @@ export class GameScene extends Phaser.Scene {
       this.timeBasedLighting = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
+      this.uiCamera = undefined;
     });
   }
 
   update(_time: number, deltaMs: number): void {
+    this.updateCameraZoom(deltaMs);
     this.player.updateMuzzleReflection(deltaMs);
     for (const zombie of this.zombies) {
       zombie.updateMuzzleReflection(deltaMs);
@@ -536,11 +578,21 @@ export class GameScene extends Phaser.Scene {
       origin: effectOrigin,
       endPoint: result.endPoint,
     });
+    const muzzleScreenPosition = cameraScreenPoint(
+      effectOrigin,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
+      this.viewport,
+      this.cameras.main.zoom,
+    );
     this.timeBasedLighting?.triggerMuzzleFlash(
-      effectOrigin.x - this.cameras.main.scrollX,
-      effectOrigin.y - this.cameras.main.scrollY,
+      muzzleScreenPosition.x,
+      muzzleScreenPosition.y,
       shotDirection,
       Math.hypot(result.endPoint.x - effectOrigin.x, result.endPoint.y - effectOrigin.y),
+      this.cameras.main.zoom,
     );
     this.player.triggerMuzzleReflection();
     const flashReach = Math.min(
@@ -584,9 +636,10 @@ export class GameScene extends Phaser.Scene {
       this.clearAimAssist();
     }
 
+    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const nextInput = withAimCandidate(
       this.playerInput,
-      { x: pointer.worldX - this.player.x, y: pointer.worldY - this.player.y },
+      { x: worldPoint.x - this.player.x, y: worldPoint.y - this.player.y },
     );
     const releasesLock = source === 'mobile'
       && this.aimTargetId !== null
@@ -603,6 +656,124 @@ export class GameScene extends Phaser.Scene {
       this.viewDirection = { ...this.playerInput.manualAimDirection };
     }
     this.refreshAimAssist();
+  }
+
+  private setTargetZoom(nextZoom: number): void {
+    this.targetZoom = Math.min(
+      CAMERA_ZOOM_CONFIG.max,
+      Math.max(CAMERA_ZOOM_CONFIG.min, nextZoom),
+    );
+  }
+
+  private readonly handleWheelZoom = (
+    _pointer: Phaser.Input.Pointer,
+    _currentlyOver: Phaser.GameObjects.GameObject[],
+    _deltaX: number,
+    deltaY: number,
+  ): void => {
+    this.setTargetZoom(wheelZoomTarget(
+      this.targetZoom,
+      deltaY,
+      CAMERA_ZOOM_CONFIG.wheelStep,
+      CAMERA_ZOOM_CONFIG.min,
+      CAMERA_ZOOM_CONFIG.max,
+    ));
+  };
+
+  private readonly preventCanvasWheel = (event: WheelEvent): void => {
+    event.preventDefault();
+  };
+
+  private updatePinchGesture(): void {
+    const pointerIds = [...this.activeMobilePointers]
+      .filter((pointerId) => this.mobilePointerPositions.has(pointerId))
+      .sort((left, right) => left - right)
+      .slice(0, 2);
+
+    if (pointerIds.length < 2) {
+      this.resetPinchState();
+      return;
+    }
+
+    const pairChanged = this.pinchPointerIds === null
+      || this.pinchPointerIds[0] !== pointerIds[0]
+      || this.pinchPointerIds[1] !== pointerIds[1];
+    if (pairChanged) {
+      this.pinchZoomState = resetPinchZoom();
+      this.pinchPointerIds = [pointerIds[0], pointerIds[1]];
+    }
+
+    const first = this.mobilePointerPositions.get(pointerIds[0]);
+    const second = this.mobilePointerPositions.get(pointerIds[1]);
+    if (!first || !second) {
+      this.resetPinchState();
+      return;
+    }
+
+    const result = updatePinchZoom(
+      this.pinchZoomState,
+      pointerIds.length,
+      Math.hypot(second.x - first.x, second.y - first.y),
+      this.targetZoom,
+      {
+        thresholdPixels: CAMERA_ZOOM_CONFIG.pinchThresholdPixels,
+        sensitivity: CAMERA_ZOOM_CONFIG.pinchSensitivity,
+        minZoom: CAMERA_ZOOM_CONFIG.min,
+        maxZoom: CAMERA_ZOOM_CONFIG.max,
+      },
+    );
+    this.pinchZoomState = result.state;
+    this.setTargetZoom(result.targetZoom);
+
+    if (result.started) {
+      for (const pointerId of pointerIds) {
+        this.mobileOwnership = releaseMobilePointer(this.mobileOwnership, pointerId);
+      }
+      this.mobileMovement = { x: 0, y: 0 };
+      this.playerInput = clearActiveInput(this.playerInput);
+      this.mobileControls?.setJoystickPointer(null);
+    }
+  }
+
+  private resetPinchState(): void {
+    this.pinchZoomState = resetPinchZoom();
+    this.pinchPointerIds = null;
+  }
+
+  private updateCameraZoom(deltaMs: number): void {
+    const nextZoom = interpolateCameraZoom(
+      this.cameras.main.zoom,
+      this.targetZoom,
+      deltaMs,
+      CAMERA_ZOOM_CONFIG.smoothSpeed,
+      CAMERA_ZOOM_CONFIG.snapThreshold,
+    );
+    if (nextZoom !== this.cameras.main.zoom) {
+      this.cameras.main.setZoom(nextZoom);
+      this.updateCameraPosition();
+    }
+  }
+
+  private syncCameraLayers(): void {
+    if (!this.uiCamera) return;
+
+    const fixedObjects: Phaser.GameObjects.GameObject[] = [];
+    const worldObjects: Phaser.GameObjects.GameObject[] = [];
+    for (const gameObject of this.children.list) {
+      if (
+        'scrollFactorX' in gameObject
+        && 'scrollFactorY' in gameObject
+        && gameObject.scrollFactorX === 0
+        && gameObject.scrollFactorY === 0
+      ) {
+        fixedObjects.push(gameObject);
+      } else {
+        worldObjects.push(gameObject);
+      }
+    }
+
+    this.cameras.main.ignore(fixedObjects);
+    this.uiCamera.ignore(worldObjects);
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
@@ -630,6 +801,10 @@ export class GameScene extends Phaser.Scene {
 
     const pointerId = pointer.id;
     this.activeMobilePointers.add(pointerId);
+    this.mobilePointerPositions.set(pointerId, { x: pointer.x, y: pointer.y });
+    this.updatePinchGesture();
+    if (this.pinchZoomState.isPinching) return;
+
     const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
     if (role === 'controlGuard') {
       this.guardedMobilePointers.add(pointerId);
@@ -664,6 +839,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.mobilePointerPositions.set(pointer.id, { x: pointer.x, y: pointer.y });
+    this.updatePinchGesture();
+    if (this.pinchZoomState.isPinching) return;
+
     if (this.guardedMobilePointers.has(pointer.id)) return;
 
     let role = roleForPointer(this.mobileOwnership, pointer.id);
@@ -693,7 +872,15 @@ export class GameScene extends Phaser.Scene {
   private handlePointerUp(pointer: Phaser.Input.Pointer): void {
     if (pointer.wasTouch) {
       this.activeMobilePointers.delete(pointer.id);
+      this.mobilePointerPositions.delete(pointer.id);
       this.guardedMobilePointers.delete(pointer.id);
+      const wasPinching = this.pinchZoomState.isPinching;
+      this.updatePinchGesture();
+      if (wasPinching && !this.pinchZoomState.isPinching) {
+        for (const remainingPointerId of this.activeMobilePointers) {
+          this.guardedMobilePointers.add(remainingPointerId);
+        }
+      }
       if (!isPlaying(this.sessionState) && this.activeMobilePointers.size === 0) {
         this.mobileRestartArmed = true;
       }
@@ -736,6 +923,7 @@ export class GameScene extends Phaser.Scene {
     this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
+    this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
     this.worldBackdrop?.resize(
       this.playArea.width,
       this.playArea.height,
@@ -823,6 +1011,7 @@ export class GameScene extends Phaser.Scene {
   private resetMobileInput(): void {
     this.mobileOwnership = createMobilePointerOwnership();
     this.guardedMobilePointers.clear();
+    this.resetPinchState();
     this.mobileMovement = { x: 0, y: 0 };
     this.playerInput = clearActiveInput(this.playerInput);
     this.mobileControls?.setJoystickPointer(null);
@@ -830,7 +1019,9 @@ export class GameScene extends Phaser.Scene {
 
   private cancelAllMobileInput(): void {
     this.activeMobilePointers.clear();
+    this.mobilePointerPositions.clear();
     this.guardedMobilePointers.clear();
+    this.resetPinchState();
     if (!isPlaying(this.sessionState)) this.mobileRestartArmed = true;
     this.aimSource = 'none';
     this.clearAimAssist();
@@ -838,7 +1029,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshAimAssist(): Vector2 {
-    const cameraScroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
+    const cameraScroll = cameraScrollForPlayer(
+      this.player,
+      this.playArea,
+      this.viewport,
+      this.cameras.main.zoom,
+    );
+    const worldView = cameraWorldView(
+      cameraScroll,
+      this.viewport,
+      this.cameras.main.zoom,
+    );
     const previousTargetId = this.aimTargetId;
     const result = resolveAimAssist({
       enabled: isPlaying(this.sessionState)
@@ -854,12 +1055,7 @@ export class GameScene extends Phaser.Scene {
         health: zombie.health,
         active: zombie.active,
       })),
-      worldView: {
-        x: cameraScroll.x,
-        y: cameraScroll.y,
-        width: this.viewport.width,
-        height: this.viewport.height,
-      },
+      worldView,
       hitscanRange: BASIC_WEAPON_CONFIG.range,
       hitscanBlockers: OBSTACLE_CONFIG,
       config: MOBILE_AIM_ASSIST_CONFIG,
@@ -945,22 +1141,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateCameraPosition(): void {
-    const scroll = cameraScrollForPlayer(this.player, this.playArea, this.viewport);
+    const scroll = cameraScrollForPlayer(
+      this.player,
+      this.playArea,
+      this.viewport,
+      this.cameras.main.zoom,
+    );
     this.cameras.main.setScroll(scroll.x, scroll.y);
   }
 
   private updateTimeBasedLighting(deltaMs = 0): void {
     if (!this.timeBasedLighting) return;
 
+    const playerScreenPosition = cameraScreenPoint(
+      this.player,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
+      this.viewport,
+      this.cameras.main.zoom,
+    );
     this.timeBasedLighting.update(
       darknessAlphaForTime(
         this.gameTime.minuteOfDay,
         TIME_BASED_LIGHTING_CONFIG.darknessKeyframes,
       ),
-      this.player.x - this.cameras.main.scrollX,
-      this.player.y - this.cameras.main.scrollY,
+      playerScreenPosition.x,
+      playerScreenPosition.y,
       this.finalAimDirection,
       deltaMs,
+      this.cameras.main.zoom,
     );
   }
 

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { cameraScrollForPlayer, createWorldSize } from '../logic/camera';
+import {
+  cameraScreenPoint,
+  cameraScrollForPlayer,
+  cameraWorldView,
+  createWorldSize,
+} from '../logic/camera';
 
 describe('responsive world and camera', () => {
   it('keeps the configured medium map when the viewport is smaller', () => {
@@ -42,5 +47,42 @@ describe('responsive world and camera', () => {
       { width: 1_000, height: 1_600 },
       { width: 1_000, height: 600 },
     )).toEqual({ x: 0, y: 300 });
+  });
+
+  it('uses the zoom-adjusted visible world size at map edges', () => {
+    const scroll = cameraScrollForPlayer(
+      { x: 1_200, y: 800 },
+      { width: 2_400, height: 1_600 },
+      { width: 960, height: 540 },
+      1.5,
+    );
+
+    expect(scroll).toEqual({ x: 720, y: 530 });
+    expect(cameraWorldView(scroll, { width: 960, height: 540 }, 1.5)).toEqual({
+      x: 880,
+      y: 620,
+      width: 640,
+      height: 360,
+    });
+    expect(cameraScreenPoint(
+      { x: 1_200, y: 800 },
+      scroll,
+      { width: 960, height: 540 },
+      1.5,
+    )).toEqual({ x: 480, y: 270 });
+  });
+
+  it('keeps the player centered while zooming away from map edges', () => {
+    const player = { x: 1_200, y: 800 };
+    const world = { width: 2_400, height: 1_600 };
+    const viewport = { width: 960, height: 540 };
+
+    for (const zoom of [0.75, 1, 1.5]) {
+      const scroll = cameraScrollForPlayer(player, world, viewport, zoom);
+      expect(cameraScreenPoint(player, scroll, viewport, zoom)).toEqual({
+        x: 480,
+        y: 270,
+      });
+    }
   });
 });
