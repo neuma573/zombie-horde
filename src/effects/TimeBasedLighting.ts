@@ -105,7 +105,9 @@ export class TimeBasedLighting {
     playerScreenY: number,
     aimDirection: { x: number; y: number },
     deltaMs = 0,
+    cameraZoom = 1,
   ): void {
+    const safeZoom = Number.isFinite(cameraZoom) ? Math.max(0.01, cameraZoom) : 1;
     const targetDarknessAlpha = renderableDarknessAlpha(
       darknessAlpha,
       this.ambientMask !== null,
@@ -119,8 +121,15 @@ export class TimeBasedLighting {
         this.config.darknessResponseRate,
       );
     this.darkness.setAlpha(this.visualDarknessAlpha);
-    this.ambientMaskSource.setPosition(playerScreenX, playerScreenY);
-    this.flashlightMaskSource.setPosition(playerScreenX, playerScreenY);
+    this.ambientMaskSource
+      .setPosition(playerScreenX, playerScreenY)
+      .setDisplaySize(
+        this.config.ambientLightRadius * 2 * safeZoom,
+        this.config.ambientLightRadius * 2 * safeZoom,
+      );
+    this.flashlightMaskSource
+      .setPosition(playerScreenX, playerScreenY)
+      .setScale(safeZoom);
     this.flashlightEnabled = resolveFlashlightEnabled(
       this.flashlightEnabled,
       targetDarknessAlpha,
@@ -160,9 +169,11 @@ export class TimeBasedLighting {
     screenY: number,
     direction: { x: number; y: number },
     maximumDistance = this.config.muzzleFlashForwardLength,
+    cameraZoom = 1,
   ): void {
     if (this.ambientMask === null) return;
 
+    const safeZoom = Number.isFinite(cameraZoom) ? Math.max(0.01, cameraZoom) : 1;
     const variant = MUZZLE_FLASH_VARIANTS[
       this.muzzleFlashSequence % MUZZLE_FLASH_VARIANTS.length
     ];
@@ -170,6 +181,10 @@ export class TimeBasedLighting {
     this.muzzleFlashIntensity = 1;
     this.muzzleFlashCoreMaskSource
       .setPosition(screenX, screenY)
+      .setDisplaySize(
+        this.config.muzzleFlashCoreRadius * 2 * safeZoom,
+        this.config.muzzleFlashCoreRadius * 2 * safeZoom,
+      )
       .setAlpha(1)
       .setVisible(true);
     this.muzzleFlashForwardMaskSource
@@ -178,8 +193,8 @@ export class TimeBasedLighting {
         Math.min(
           this.config.muzzleFlashForwardLength * variant.lengthScale,
           Math.max(1, maximumDistance),
-        ),
-        this.config.muzzleFlashForwardWidth * variant.widthScale,
+        ) * safeZoom,
+        this.config.muzzleFlashForwardWidth * variant.widthScale * safeZoom,
       )
       .setAlpha(1)
       .setVisible(true);

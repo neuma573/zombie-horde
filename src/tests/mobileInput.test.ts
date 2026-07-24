@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  canStartPinchFromRole,
   canRestartWithMobileTouch,
   claimMobilePointer,
   classifyMobilePointer,
@@ -10,7 +11,9 @@ import {
   joystickMovement,
   lateClaimMobilePointerRole,
   releaseMobilePointer,
+  releasePinchPointerOwnership,
   roleForPointer,
+  selectPinchPointerIds,
   shouldShowMobileControls,
 } from '../logic/mobileInput';
 
@@ -160,5 +163,44 @@ describe('mobile input', () => {
     expect(lateClaimMobilePointerRole('reload')).toBeNull();
     expect(lateClaimMobilePointerRole('controlGuard')).toBeNull();
     expect(lateClaimMobilePointerRole(null)).toBeNull();
+  });
+
+  it('allows pinch candidates only from the neutral playfield aim region', () => {
+    expect(canStartPinchFromRole('aim')).toBe(true);
+    expect(canStartPinchFromRole('movement')).toBe(false);
+    expect(canStartPinchFromRole('fire')).toBe(false);
+    expect(canStartPinchFromRole('reload')).toBe(false);
+    expect(canStartPinchFromRole('controlGuard')).toBe(false);
+    expect(canStartPinchFromRole(null)).toBe(false);
+  });
+
+  it('does not form a pinch pair from movement plus aim or fire plus aim', () => {
+    const active = [10, 20];
+    const positioned = new Set(active);
+
+    expect(selectPinchPointerIds(active, new Set([20]), positioned)).toBeNull();
+    expect(selectPinchPointerIds(active, new Set([10]), positioned)).toBeNull();
+  });
+
+  it('forms a deterministic pinch pair only from two eligible playfield touches', () => {
+    expect(selectPinchPointerIds(
+      [30, 10, 20],
+      new Set([30, 20]),
+      new Set([10, 20, 30]),
+    )).toEqual([20, 30]);
+  });
+
+  it('releases only pinch pointer roles and preserves unrelated controls', () => {
+    let ownership = createMobilePointerOwnership();
+    ownership = claimMobilePointer(ownership, 10, 'movement');
+    ownership = claimMobilePointer(ownership, 20, 'aim');
+    ownership = claimMobilePointer(ownership, 30, 'fire');
+
+    expect(releasePinchPointerOwnership(ownership, [20, 40])).toEqual({
+      movement: 10,
+      aim: null,
+      fire: 30,
+      reload: null,
+    });
   });
 });
