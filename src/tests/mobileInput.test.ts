@@ -119,6 +119,24 @@ describe('mobile input', () => {
     );
   });
 
+  it('guards the lower-right safe-area strips without moving visible controls', () => {
+    const width = 844;
+    const height = 390;
+    const safeArea = { top: 0, right: 44, bottom: 21, left: 44 };
+    const layout = createMobileControlLayout(width, height, safeArea);
+
+    expect(layout.fire.x + layout.fire.radius).toBeLessThanOrEqual(width - safeArea.right);
+    expect(layout.fire.y + layout.fire.radius).toBeLessThanOrEqual(height - safeArea.bottom);
+    expect(layout.controlExclusion.x + layout.controlExclusion.width).toBe(width);
+    expect(layout.controlExclusion.y + layout.controlExclusion.height).toBe(height);
+    expect(classifyMobilePointer({ x: width - 1, y: layout.reload.y }, layout)).toBe(
+      'controlGuard',
+    );
+    expect(classifyMobilePointer({ x: layout.fire.x, y: height - 1 }, layout)).toBe(
+      'controlGuard',
+    );
+  });
+
   it('keeps exclusive pointer ownership until release', () => {
     let ownership = createMobilePointerOwnership();
     ownership = claimMobilePointer(ownership, 10, 'movement');

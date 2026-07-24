@@ -125,8 +125,8 @@ export function createMobileControlLayout(
     0,
     Math.min(fire.y - fireGuardRadius, reload.y - reloadGuardRadius),
   );
-  const exclusionRight = Math.min(width, right);
-  const exclusionBottom = Math.min(height, bottom);
+  const exclusionRight = width;
+  const exclusionBottom = height;
   return {
     joystick,
     fire,
