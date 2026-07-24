@@ -9,6 +9,11 @@ import type { Position } from '../logic/movement';
 
 export class SpawnSystem {
   private nextZombieId = 1;
+  private readonly seed: number;
+
+  constructor(seed = Math.floor(Math.random() * 0x1_0000_0000)) {
+    this.seed = seed >>> 0;
+  }
 
   spawn(
     scene: Phaser.Scene,
@@ -23,6 +28,7 @@ export class SpawnSystem {
       radius,
       playerPosition,
       MVP_CONFIG.spawn.minPlayerDistance,
+      this.seed,
     );
     this.nextZombieId += 1;
 
