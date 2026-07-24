@@ -50,6 +50,7 @@ import {
 import {
   createPinchZoomState,
   interpolateCameraZoom,
+  minimumZoomToCoverViewport,
   resetPinchZoom,
   updatePinchZoom,
   wheelZoomTarget,
@@ -664,9 +665,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setTargetZoom(nextZoom: number): void {
+    const minimumZoom = this.minimumAllowedZoom();
     this.targetZoom = Math.min(
       CAMERA_ZOOM_CONFIG.max,
-      Math.max(CAMERA_ZOOM_CONFIG.min, nextZoom),
+      Math.max(minimumZoom, nextZoom),
+    );
+  }
+
+  private minimumAllowedZoom(): number {
+    return minimumZoomToCoverViewport(
+      CAMERA_ZOOM_CONFIG.min,
+      CAMERA_ZOOM_CONFIG.max,
+      this.viewport,
+      this.playArea,
     );
   }
 
@@ -676,11 +687,12 @@ export class GameScene extends Phaser.Scene {
     _deltaX: number,
     deltaY: number,
   ): void => {
+    const minimumZoom = this.minimumAllowedZoom();
     this.setTargetZoom(wheelZoomTarget(
       this.targetZoom,
       deltaY,
       CAMERA_ZOOM_CONFIG.wheelStep,
-      CAMERA_ZOOM_CONFIG.min,
+      minimumZoom,
       CAMERA_ZOOM_CONFIG.max,
     ));
   };
@@ -724,7 +736,7 @@ export class GameScene extends Phaser.Scene {
       {
         thresholdPixels: CAMERA_ZOOM_CONFIG.pinchThresholdPixels,
         sensitivity: CAMERA_ZOOM_CONFIG.pinchSensitivity,
-        minZoom: CAMERA_ZOOM_CONFIG.min,
+        minZoom: this.minimumAllowedZoom(),
         maxZoom: CAMERA_ZOOM_CONFIG.max,
       },
     );
@@ -941,6 +953,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
+    const minimumZoom = this.minimumAllowedZoom();
+    this.setTargetZoom(this.targetZoom);
+    if (this.cameras.main.zoom < minimumZoom) {
+      this.cameras.main.setZoom(minimumZoom);
+    }
     this.worldBackdrop?.resize(
       this.playArea.width,
       this.playArea.height,

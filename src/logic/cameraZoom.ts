@@ -17,6 +17,26 @@ export function clampZoom(zoom: number, minZoom: number, maxZoom: number): numbe
   return Math.min(upper, Math.max(lower, finiteZoom));
 }
 
+export function minimumZoomToCoverViewport(
+  configuredMinZoom: number,
+  maxZoom: number,
+  viewport: { width: number; height: number },
+  world: { width: number; height: number },
+): number {
+  const requiredWidthZoom = Number.isFinite(world.width) && world.width > 0
+    ? Math.max(0, viewport.width) / world.width
+    : maxZoom;
+  const requiredHeightZoom = Number.isFinite(world.height) && world.height > 0
+    ? Math.max(0, viewport.height) / world.height
+    : maxZoom;
+
+  return clampZoom(
+    Math.max(configuredMinZoom, requiredWidthZoom, requiredHeightZoom),
+    configuredMinZoom,
+    maxZoom,
+  );
+}
+
 export function wheelZoomTarget(
   targetZoom: number,
   deltaY: number,

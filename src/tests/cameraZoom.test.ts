@@ -4,6 +4,7 @@ import {
   clampZoom,
   createPinchZoomState,
   interpolateCameraZoom,
+  minimumZoomToCoverViewport,
   updatePinchZoom,
   wheelZoomTarget,
 } from '../logic/cameraZoom';
@@ -72,5 +73,32 @@ describe('camera zoom', () => {
 
     expect(twoFrames).toBeCloseTo(oneFrame, 12);
     expect(interpolateCameraZoom(1.4995, 1.5, 16, 12, 0.001)).toBe(1.5);
+  });
+
+  it('raises the minimum zoom when zoom-out would exceed the generated world', () => {
+    expect(minimumZoomToCoverViewport(
+      0.75,
+      1.5,
+      { width: 3_840, height: 2_160 },
+      { width: 4_000, height: 3_000 },
+    )).toBeCloseTo(0.96);
+  });
+
+  it('keeps the configured minimum on ordinary viewports', () => {
+    expect(minimumZoomToCoverViewport(
+      0.75,
+      1.5,
+      { width: 1_280, height: 720 },
+      { width: 4_000, height: 3_000 },
+    )).toBe(0.75);
+  });
+
+  it('never raises the effective minimum beyond maximum zoom', () => {
+    expect(minimumZoomToCoverViewport(
+      0.75,
+      1.5,
+      { width: 4_000, height: 3_000 },
+      { width: 1_000, height: 1_000 },
+    )).toBe(1.5);
   });
 });
