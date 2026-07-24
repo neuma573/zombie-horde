@@ -14,8 +14,8 @@ export const MVP_CONFIG = {
     speed: 240,
     invulnerabilityMs: 400,
     spawn: {
-      x: 1_200,
-      y: 800,
+      x: 2_000,
+      y: 1_500,
     },
   },
   weapon: {

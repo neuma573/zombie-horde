@@ -73,7 +73,7 @@ describe('urban map layout', () => {
     expect(URBAN_MAP_CONFIG.roads).toHaveLength(9);
     expect(URBAN_MAP_CONFIG.obstacles).toHaveLength(6);
     expect(URBAN_MAP_CONFIG.pavedAreas).toEqual([
-      { x: 280, y: 960, width: 760, height: 360 },
+      { x: 320, y: 1_780, width: 1_400, height: 900 },
     ]);
 
     const parkingArea = URBAN_MAP_CONFIG.pavedAreas[0];
@@ -88,5 +88,49 @@ describe('urban map layout', () => {
         !rectanglesOverlap(obstacle, road)
       ))).toBe(true);
     }
+  });
+
+  it('assigns varied visual styles and valid decoration metadata to every building', () => {
+    const styles = new Set(URBAN_MAP_CONFIG.obstacles.map(({ visual }) => visual.style));
+    const kinds = new Set(URBAN_MAP_CONFIG.obstacles.map(({ visual }) => visual.kind));
+    const allowedSides = new Set(['north', 'east', 'south', 'west']);
+    const allowedVariants = new Set([0, 1, 2]);
+
+    expect(styles).toEqual(new Set(['brick', 'concrete', 'industrial']));
+    expect(kinds).toEqual(new Set(['flat', 'house', 'storefront']));
+    for (const { visual } of URBAN_MAP_CONFIG.obstacles) {
+      expect(allowedSides.has(visual.entranceSide)).toBe(true);
+      expect(allowedVariants.has(visual.fixtureVariant)).toBe(true);
+    }
+  });
+
+  it('keeps buildings and parking stalls readable at the player scale', () => {
+    const playerDiameter = MVP_CONFIG.player.radius * 2;
+    const smallestBuildingWidth = Math.min(
+      ...URBAN_MAP_CONFIG.obstacles.map(({ width }) => width),
+    );
+    const mainRoad = URBAN_MAP_CONFIG.roads.find(({ kind }) => kind === 'main');
+    const laneWidth = Math.min(mainRoad!.width, mainRoad!.height) / 4;
+    const localLaneWidths = URBAN_MAP_CONFIG.roads
+      .filter(({ kind }) => kind === 'local')
+      .map((road) => Math.min(road.width, road.height) / 2);
+
+    expect(URBAN_MAP_CONFIG.parkingSlotSpacing).toBeGreaterThanOrEqual(playerDiameter * 3);
+    expect(laneWidth).toBeGreaterThanOrEqual(URBAN_MAP_CONFIG.parkingSlotSpacing * 1.2);
+    expect(Math.min(...localLaneWidths)).toBeGreaterThanOrEqual(
+      URBAN_MAP_CONFIG.parkingSlotSpacing,
+    );
+    expect(smallestBuildingWidth).toBeGreaterThanOrEqual(playerDiameter * 5);
+  });
+
+  it('reserves a visible sidewalk around authored roads', () => {
+    const narrowestRoad = Math.min(
+      ...URBAN_MAP_CONFIG.roads.map((road) => Math.min(road.width, road.height)),
+    );
+
+    expect(URBAN_MAP_CONFIG.sidewalkWidth).toBeGreaterThanOrEqual(
+      MVP_CONFIG.player.radius * 6,
+    );
+    expect(URBAN_MAP_CONFIG.sidewalkWidth).toBeLessThan(narrowestRoad / 2);
   });
 });

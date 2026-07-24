@@ -13,12 +13,16 @@ import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
 import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
-import { Obstacle } from '../entities/Obstacle';
+import { BuildingVisual } from '../effects/BuildingVisual';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
-import { WorldBackdrop } from '../effects/WorldBackdrop';
+import {
+  PEDESTRIAN_ARROW_TEXTURE_KEY,
+  WorldBackdrop,
+} from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
+import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
 import {
   resolveAimAssist,
   shouldReleaseAimLock,
@@ -138,6 +142,12 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
+  preload(): void {
+    if (!this.textures.exists(PEDESTRIAN_ARROW_TEXTURE_KEY)) {
+      this.load.image(PEDESTRIAN_ARROW_TEXTURE_KEY, pedestrianArrowUrl);
+    }
+  }
+
   create(): void {
     this.sessionState = createSessionState();
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
@@ -166,9 +176,11 @@ export class GameScene extends Phaser.Scene {
       MVP_CONFIG.map.gridSize,
       URBAN_MAP_CONFIG.roads,
       URBAN_MAP_CONFIG.pavedAreas,
+      URBAN_MAP_CONFIG.parkingSlotSpacing,
+      URBAN_MAP_CONFIG.sidewalkWidth,
     );
     for (const obstacle of OBSTACLE_CONFIG) {
-      new Obstacle(this, obstacle);
+      new BuildingVisual(this, obstacle);
     }
     this.player = new Player(
       this,
@@ -730,6 +742,8 @@ export class GameScene extends Phaser.Scene {
       MVP_CONFIG.map.gridSize,
       URBAN_MAP_CONFIG.roads,
       URBAN_MAP_CONFIG.pavedAreas,
+      URBAN_MAP_CONFIG.parkingSlotSpacing,
+      URBAN_MAP_CONFIG.sidewalkWidth,
     );
     this.timeBasedLighting?.resize(gameSize.width, gameSize.height);
 
