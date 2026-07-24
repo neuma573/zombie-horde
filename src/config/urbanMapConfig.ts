@@ -1,69 +1,123 @@
 import type { RectangleObstacle } from '../logic/obstacleCollision';
 
+export type BuildingStyle = 'brick' | 'concrete' | 'industrial';
+export type BuildingKind = 'flat' | 'house' | 'storefront';
+export type BuildingEntranceSide = 'north' | 'east' | 'south' | 'west';
+
+export interface BuildingVisualConfig {
+  kind: BuildingKind;
+  style: BuildingStyle;
+  entranceSide: BuildingEntranceSide;
+  fixtureVariant: 0 | 1 | 2;
+}
+
 export interface UrbanMapObstacle extends RectangleObstacle {
   blocksHitscan: boolean;
+  visual: BuildingVisualConfig;
+}
+
+export interface UrbanRoad extends RectangleObstacle {
+  kind: 'main' | 'local';
 }
 
 export const URBAN_MAP_CONFIG = {
-  width: 2_400,
-  height: 1_600,
+  width: 4_000,
+  height: 3_000,
   gridSize: 80,
+  sidewalkWidth: 108,
   roads: [
-    { x: 0, y: 640, width: 2_400, height: 320 },
-    { x: 1_040, y: 0, width: 320, height: 1_600 },
-    { x: 120, y: 120, width: 2_160, height: 160 },
-    { x: 120, y: 1_320, width: 2_160, height: 160 },
-    { x: 120, y: 120, width: 160, height: 1_360 },
-    { x: 2_120, y: 120, width: 160, height: 1_360 },
-    { x: 600, y: 280, width: 160, height: 360 },
-    { x: 1_640, y: 280, width: 160, height: 360 },
-    { x: 1_720, y: 960, width: 160, height: 360 },
-  ] satisfies readonly RectangleObstacle[],
+    { x: 0, y: 1_220, width: 4_000, height: 560, kind: 'main' },
+    { x: 1_720, y: 0, width: 560, height: 3_000, kind: 'main' },
+    { x: 80, y: 80, width: 3_840, height: 240, kind: 'local' },
+    { x: 80, y: 2_680, width: 3_840, height: 240, kind: 'local' },
+    { x: 80, y: 80, width: 240, height: 2_840, kind: 'local' },
+    { x: 3_680, y: 80, width: 240, height: 2_840, kind: 'local' },
+    { x: 900, y: 320, width: 240, height: 900, kind: 'local' },
+    { x: 2_860, y: 320, width: 240, height: 900, kind: 'local' },
+    { x: 2_940, y: 1_780, width: 240, height: 900, kind: 'local' },
+  ] satisfies readonly UrbanRoad[],
   pavedAreas: [
-    { x: 280, y: 960, width: 760, height: 360 },
+    { x: 320, y: 1_780, width: 1_400, height: 900 },
   ] satisfies readonly RectangleObstacle[],
+  parkingSlotSpacing: 112,
   obstacles: [
     {
-      x: 320,
-      y: 320,
-      width: 240,
-      height: 280,
+      x: 474,
+      y: 570,
+      width: 272,
+      height: 400,
       blocksHitscan: true,
+      visual: {
+        kind: 'house',
+        style: 'brick',
+        entranceSide: 'east',
+        fixtureVariant: 0,
+      },
     },
     {
-      x: 800,
-      y: 300,
-      width: 200,
-      height: 300,
+      x: 1_294,
+      y: 550,
+      width: 232,
+      height: 440,
       blocksHitscan: true,
+      visual: {
+        kind: 'storefront',
+        style: 'concrete',
+        entranceSide: 'east',
+        fixtureVariant: 1,
+      },
     },
     {
-      x: 1_400,
-      y: 300,
-      width: 200,
-      height: 300,
+      x: 2_444,
+      y: 550,
+      width: 232,
+      height: 440,
       blocksHitscan: true,
+      visual: {
+        kind: 'storefront',
+        style: 'industrial',
+        entranceSide: 'west',
+        fixtureVariant: 2,
+      },
     },
     {
-      x: 1_840,
-      y: 340,
-      width: 240,
-      height: 240,
+      x: 3_254,
+      y: 570,
+      width: 272,
+      height: 400,
       blocksHitscan: true,
+      visual: {
+        kind: 'house',
+        style: 'brick',
+        entranceSide: 'east',
+        fixtureVariant: 1,
+      },
     },
     {
-      x: 1_400,
-      y: 1_000,
-      width: 280,
-      height: 240,
+      x: 2_444,
+      y: 2_030,
+      width: 312,
+      height: 400,
       blocksHitscan: true,
+      visual: {
+        kind: 'flat',
+        style: 'concrete',
+        entranceSide: 'west',
+        fixtureVariant: 0,
+      },
     },
     {
-      x: 1_920,
-      y: 980,
-      width: 160,
-      height: 300,
+      x: 3_334,
+      y: 2_025,
+      width: 192,
+      height: 410,
       blocksHitscan: true,
+      visual: {
+        kind: 'storefront',
+        style: 'industrial',
+        entranceSide: 'east',
+        fixtureVariant: 2,
+      },
     },
   ] satisfies readonly UrbanMapObstacle[],
 } as const;
