@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { MVP_CONFIG } from '../config/mvpConfig';
+import { PLAYER_CONFIG } from '../config/playerConfig';
+import { SPAWN_CONFIG } from '../config/spawnConfig';
+import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
+import { WAVE_CONFIG } from '../config/waveConfig';
+import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { resolveContactDamage } from '../logic/contactDamage';
 import { applyDamage } from '../logic/damage';
 import { resolveAimDirection } from '../logic/aim';
@@ -17,18 +21,18 @@ import {
   tryFire,
 } from '../logic/weapon';
 
-describe('MVP integration', () => {
+describe('game integration', () => {
   it('completes ten deterministic waves with sufficient ammunition', () => {
     const expectedZombieCount = Array.from({ length: 10 }, (_, index) => (
-      MVP_CONFIG.wave.baseZombieCount + index * MVP_CONFIG.wave.zombiesPerWave
+      WAVE_CONFIG.baseZombieCount + index * WAVE_CONFIG.zombiesPerWave
     )).reduce((total, count) => total + count, 0);
     const shotsPerZombie = Math.ceil(
-      MVP_CONFIG.zombie.health / MVP_CONFIG.weapon.damage,
+      ZOMBIE_CONFIG.health / BASIC_WEAPON_CONFIG.damage,
     );
     const requiredShots = expectedZombieCount * shotsPerZombie;
-    let wave = createWaveState(MVP_CONFIG.wave);
+    let wave = createWaveState(WAVE_CONFIG);
     let weapon = createWeaponState({
-      ...MVP_CONFIG.weapon,
+      ...BASIC_WEAPON_CONFIG,
       reserveAmmo: requiredShots,
     });
     let playerPosition = { x: 400, y: 300 };
@@ -38,7 +42,7 @@ describe('MVP integration', () => {
     let spawnedThisWave = 0;
 
     while (completedWaves < 10 && updateCount < 1_000) {
-      const waveUpdate = advanceWave(wave, MVP_CONFIG.wave, 500, 0);
+      const waveUpdate = advanceWave(wave, WAVE_CONFIG, 500, 0);
       wave = waveUpdate.state;
       spawnedThisWave += waveUpdate.spawnCount;
       updateCount += 1;
@@ -50,34 +54,34 @@ describe('MVP integration', () => {
       playerPosition = moveWithinBounds(
         playerPosition,
         { x: 1, y: completedWaves % 2 === 0 ? 1 : -1 },
-        MVP_CONFIG.player.speed,
+        PLAYER_CONFIG.speed,
         50,
-        { width: 800, height: 600, padding: MVP_CONFIG.player.radius },
+        { width: 800, height: 600, padding: PLAYER_CONFIG.radius },
       );
-      const zombieCount = MVP_CONFIG.wave.baseZombieCount
-        + completedWaves * MVP_CONFIG.wave.zombiesPerWave;
+      const zombieCount = WAVE_CONFIG.baseZombieCount
+        + completedWaves * WAVE_CONFIG.zombiesPerWave;
       expect(spawnedThisWave).toBe(zombieCount);
 
       for (let zombieIndex = 0; zombieIndex < zombieCount; zombieIndex += 1) {
-        let zombieHealth: number = MVP_CONFIG.zombie.health;
+        let zombieHealth: number = ZOMBIE_CONFIG.health;
 
         while (zombieHealth > 0) {
-          let fire = tryFire(weapon, MVP_CONFIG.weapon);
+          let fire = tryFire(weapon, BASIC_WEAPON_CONFIG);
 
           if (!fire.fired) {
             weapon = advanceWeapon(
-              startReload(weapon, MVP_CONFIG.weapon),
-              MVP_CONFIG.weapon,
-              MVP_CONFIG.weapon.reloadDurationMs,
+              startReload(weapon, BASIC_WEAPON_CONFIG),
+              BASIC_WEAPON_CONFIG,
+              BASIC_WEAPON_CONFIG.reloadDurationMs,
             );
-            fire = tryFire(weapon, MVP_CONFIG.weapon);
+            fire = tryFire(weapon, BASIC_WEAPON_CONFIG);
           }
 
           expect(fire.fired).toBe(true);
           weapon = advanceWeapon(
             fire.state,
-            MVP_CONFIG.weapon,
-            MVP_CONFIG.weapon.fireIntervalMs,
+            BASIC_WEAPON_CONFIG,
+            BASIC_WEAPON_CONFIG.fireIntervalMs,
           );
           totalShots += 1;
 
@@ -89,13 +93,13 @@ describe('MVP integration', () => {
           const shot = resolveHitscan(
             playerPosition,
             aim,
-            MVP_CONFIG.weapon.range,
-            [{ id: 'zombie', position: zombiePosition, radius: MVP_CONFIG.zombie.radius }],
-            MVP_CONFIG.weapon.maxTargets,
+            BASIC_WEAPON_CONFIG.range,
+            [{ id: 'zombie', position: zombiePosition, radius: ZOMBIE_CONFIG.radius }],
+            BASIC_WEAPON_CONFIG.maxTargets,
           );
 
           expect(shot.hits).toHaveLength(1);
-          zombieHealth = applyDamage(zombieHealth, MVP_CONFIG.weapon.damage).health;
+          zombieHealth = applyDamage(zombieHealth, BASIC_WEAPON_CONFIG.damage).health;
         }
       }
 
@@ -110,12 +114,13 @@ describe('MVP integration', () => {
   });
 
   it('keeps the production ammunition limit separate from wave progression', () => {
-    const availableShots = MVP_CONFIG.weapon.magazineSize + MVP_CONFIG.weapon.reserveAmmo;
+    const availableShots = BASIC_WEAPON_CONFIG.magazineSize
+      + BASIC_WEAPON_CONFIG.reserveAmmo;
     const zombiesInTenWaves = Array.from({ length: 10 }, (_, index) => (
-      MVP_CONFIG.wave.baseZombieCount + index * MVP_CONFIG.wave.zombiesPerWave
+      WAVE_CONFIG.baseZombieCount + index * WAVE_CONFIG.zombiesPerWave
     )).reduce((total, count) => total + count, 0);
     const requiredShots = zombiesInTenWaves * Math.ceil(
-      MVP_CONFIG.zombie.health / MVP_CONFIG.weapon.damage,
+      ZOMBIE_CONFIG.health / BASIC_WEAPON_CONFIG.damage,
     );
 
     expect(availableShots).toBeLessThan(requiredShots);
@@ -127,30 +132,30 @@ describe('MVP integration', () => {
         health: 10,
         isAlive: true,
         invulnerabilityRemainingMs: 0,
-        invulnerabilityMs: MVP_CONFIG.player.invulnerabilityMs,
+        invulnerabilityMs: PLAYER_CONFIG.invulnerabilityMs,
       },
       [{
-        damage: MVP_CONFIG.zombie.contactDamage,
-        attackIntervalMs: MVP_CONFIG.zombie.attackIntervalMs,
+        damage: ZOMBIE_CONFIG.contactDamage,
+        attackIntervalMs: ZOMBIE_CONFIG.attackIntervalMs,
         cooldownRemainingMs: 0,
-        windupMs: MVP_CONFIG.zombie.attackWindupMs,
-        contactWindow: { startMs: 0, endMs: MVP_CONFIG.zombie.attackWindupMs },
+        windupMs: ZOMBIE_CONFIG.attackWindupMs,
+        contactWindow: { startMs: 0, endMs: ZOMBIE_CONFIG.attackWindupMs },
       }],
-      MVP_CONFIG.zombie.attackWindupMs,
+      ZOMBIE_CONFIG.attackWindupMs,
     );
     const gameOver = lethalDamage.died
       ? transitionToGameOver(createSessionState()).state
       : createSessionState();
     const restartedSession = createSessionState();
-    const restartedWeapon = createWeaponState(MVP_CONFIG.weapon);
-    const restartedWave = createWaveState(MVP_CONFIG.wave);
+    const restartedWeapon = createWeaponState(BASIC_WEAPON_CONFIG);
+    const restartedWave = createWaveState(WAVE_CONFIG);
 
     expect(gameOver.phase).toBe('gameOver');
     expect(lethalDamage.health).toBe(0);
     expect(restartedSession).toEqual({ phase: 'playing' });
     expect(restartedWeapon).toEqual({
-      magazineAmmo: MVP_CONFIG.weapon.magazineSize,
-      reserveAmmo: MVP_CONFIG.weapon.reserveAmmo,
+      magazineAmmo: BASIC_WEAPON_CONFIG.magazineSize,
+      reserveAmmo: BASIC_WEAPON_CONFIG.reserveAmmo,
       cooldownRemainingMs: 0,
       reloadRemainingMs: null,
     });
@@ -158,7 +163,7 @@ describe('MVP integration', () => {
       phase: 'waiting',
       waveNumber: 0,
       remainingToSpawn: 0,
-      timerMs: MVP_CONFIG.wave.initialDelayMs,
+      timerMs: WAVE_CONFIG.initialDelayMs,
     });
   });
 
@@ -166,14 +171,14 @@ describe('MVP integration', () => {
     const portrait = { width: 360, height: 640 };
     const player = constrainToBounds(
       { x: 900, y: 500 },
-      { ...portrait, padding: MVP_CONFIG.player.radius },
+      { ...portrait, padding: PLAYER_CONFIG.radius },
     );
     const zombie = getEdgeSpawnPosition(
       0,
       portrait,
-      MVP_CONFIG.zombie.radius,
+      ZOMBIE_CONFIG.radius,
       player,
-      MVP_CONFIG.spawn.minPlayerDistance,
+      SPAWN_CONFIG.minimumZombieDistanceFromPlayer,
     );
     const aim = resolveAimDirection(
       { x: zombie.x - player.x, y: zombie.y - player.y },
@@ -182,14 +187,14 @@ describe('MVP integration', () => {
     const shot = resolveHitscan(
       player,
       aim,
-      MVP_CONFIG.weapon.range,
-      [{ id: 'zombie', position: zombie, radius: MVP_CONFIG.zombie.radius }],
+      BASIC_WEAPON_CONFIG.range,
+      [{ id: 'zombie', position: zombie, radius: ZOMBIE_CONFIG.radius }],
       1,
     );
     const portraitHud = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
     const landscapeHud = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
-    expect(player.x).toBeLessThanOrEqual(portrait.width - MVP_CONFIG.player.radius);
+    expect(player.x).toBeLessThanOrEqual(portrait.width - PLAYER_CONFIG.radius);
     expect(shot.hits[0]?.targetId).toBe('zombie');
     expect(portraitHud.status.x).toBeGreaterThanOrEqual(0);
     expect(portraitHud.ammo.y).toBeLessThan(portrait.height);

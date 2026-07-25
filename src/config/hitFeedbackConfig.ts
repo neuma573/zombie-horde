@@ -14,11 +14,11 @@ export const ZOMBIE_HIT_EFFECT_CONFIG = {
 } as const;
 
 export const ZOMBIE_DEATH_EFFECT_CONFIG = {
-  fallDurationMs: 280,
-  restDurationMs: 360,
-  fadeDurationMs: 350,
+  fallDurationMs: 450,
+  restDurationMs: 900,
+  fadeDurationMs: 450,
   driftDistance: 4,
   fallRotationRadians: 0.12,
-  bloodPoolGrowDurationMs: 420,
-  bloodPoolAlpha: 0.52,
+  bloodPoolGrowDurationMs: 560,
+  bloodPoolAlpha: 0.78,
 } as const;

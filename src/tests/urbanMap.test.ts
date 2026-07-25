@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { MVP_CONFIG } from '../config/mvpConfig';
+import { PLAYER_CONFIG } from '../config/playerConfig';
+import { SPAWN_CONFIG } from '../config/spawnConfig';
+import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 
 function circleIntersectsRectangle(
@@ -34,8 +36,8 @@ describe('urban map layout', () => {
 
   it('keeps the player spawn clear of every building block', () => {
     const player = {
-      ...MVP_CONFIG.player.spawn,
-      radius: MVP_CONFIG.player.radius,
+      ...SPAWN_CONFIG.playerPosition,
+      radius: PLAYER_CONFIG.radius,
     };
 
     expect(URBAN_MAP_CONFIG.obstacles.every((obstacle) => (
@@ -45,19 +47,21 @@ describe('urban map layout', () => {
 
   it('leaves wide horizontal and vertical routes through the center', () => {
     const [horizontalRoad, verticalRoad] = URBAN_MAP_CONFIG.roads;
-    const minimumRouteWidth = MVP_CONFIG.zombie.radius * 4;
+    const minimumRouteWidth = ZOMBIE_CONFIG.radius * 4;
 
     expect(horizontalRoad.height).toBeGreaterThanOrEqual(minimumRouteWidth);
     expect(verticalRoad.width).toBeGreaterThanOrEqual(minimumRouteWidth);
     expect(horizontalRoad.height).toBe(verticalRoad.width);
-    expect(MVP_CONFIG.player.spawn.y).toBeGreaterThan(horizontalRoad.y);
-    expect(MVP_CONFIG.player.spawn.y).toBeLessThan(horizontalRoad.y + horizontalRoad.height);
-    expect(MVP_CONFIG.player.spawn.x).toBeGreaterThan(verticalRoad.x);
-    expect(MVP_CONFIG.player.spawn.x).toBeLessThan(verticalRoad.x + verticalRoad.width);
+    expect(SPAWN_CONFIG.playerPosition.y).toBeGreaterThan(horizontalRoad.y);
+    expect(SPAWN_CONFIG.playerPosition.y)
+      .toBeLessThan(horizontalRoad.y + horizontalRoad.height);
+    expect(SPAWN_CONFIG.playerPosition.x).toBeGreaterThan(verticalRoad.x);
+    expect(SPAWN_CONFIG.playerPosition.x)
+      .toBeLessThan(verticalRoad.x + verticalRoad.width);
   });
 
   it('keeps an obstacle-free perimeter for edge spawning', () => {
-    const minimumClearance = MVP_CONFIG.zombie.radius * 2;
+    const minimumClearance = ZOMBIE_CONFIG.radius * 2;
 
     for (const obstacle of URBAN_MAP_CONFIG.obstacles) {
       expect(obstacle.x).toBeGreaterThanOrEqual(minimumClearance);
@@ -105,7 +109,7 @@ describe('urban map layout', () => {
   });
 
   it('keeps buildings and parking stalls readable at the player scale', () => {
-    const playerDiameter = MVP_CONFIG.player.radius * 2;
+    const playerDiameter = PLAYER_CONFIG.radius * 2;
     const smallestBuildingWidth = Math.min(
       ...URBAN_MAP_CONFIG.obstacles.map(({ width }) => width),
     );
@@ -129,7 +133,7 @@ describe('urban map layout', () => {
     );
 
     expect(URBAN_MAP_CONFIG.sidewalkWidth).toBeGreaterThanOrEqual(
-      MVP_CONFIG.player.radius * 6,
+      PLAYER_CONFIG.radius * 6,
     );
     expect(URBAN_MAP_CONFIG.sidewalkWidth).toBeLessThan(narrowestRoad / 2);
   });
