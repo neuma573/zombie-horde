@@ -15,10 +15,10 @@ describe('game time', () => {
     expect(formatGameTime(state)).toBe('17:00');
   });
 
-  it('advances ten game minutes per ten real seconds using deltaMs', () => {
+  it('advances ten game minutes per real second using deltaMs', () => {
     const state = advanceGameTime(
       createGameTimeState(GAME_TIME_CONFIG),
-      10_000,
+      1_000,
       GAME_TIME_CONFIG,
     );
 
@@ -38,7 +38,7 @@ describe('game time', () => {
 
   it('wraps through 24 hours and consumes large deltas without a frame cap', () => {
     const initial = createGameTimeState(GAME_TIME_CONFIG);
-    const elapsed = GAME_TIME_CONFIG.realMillisecondsPerGameDay * 3 + 90_000;
+    const elapsed = GAME_TIME_CONFIG.realMillisecondsPerGameDay * 3 + 9_000;
     const state = advanceGameTime(initial, elapsed, GAME_TIME_CONFIG);
 
     expect(formatGameTime(state)).toBe('18:30');
@@ -46,8 +46,8 @@ describe('game time', () => {
 
   it('updates the watch display in ten-minute steps', () => {
     const initial = createGameTimeState(GAME_TIME_CONFIG);
-    const beforeStep = advanceGameTime(initial, 9_999, GAME_TIME_CONFIG);
-    const atStep = advanceGameTime(initial, 10_000, GAME_TIME_CONFIG);
+    const beforeStep = advanceGameTime(initial, 999, GAME_TIME_CONFIG);
+    const atStep = advanceGameTime(initial, 1_000, GAME_TIME_CONFIG);
 
     expect(formatGameTime(beforeStep)).toBe('17:00');
     expect(formatGameTime(atStep)).toBe('17:10');
