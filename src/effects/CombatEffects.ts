@@ -251,28 +251,63 @@ export class CombatEffects {
     const main = this.scene.add.ellipse(
       0,
       0,
-      safeRadius * 2.05,
-      safeRadius * 1.05,
-      0x4b0d13,
+      safeRadius * 2.9,
+      safeRadius * 2.1,
+      0x681019,
       1,
     );
     const forwardLobe = this.scene.add.ellipse(
-      safeRadius * 0.62,
-      -safeRadius * 0.12,
-      safeRadius * 0.86,
-      safeRadius * 0.58,
-      0x5a1017,
-      0.92,
+      safeRadius * 0.82,
+      -safeRadius * 0.72,
+      safeRadius * 1.26,
+      safeRadius * 0.9,
+      0x861b24,
+      0.95,
     );
     const sideLobe = this.scene.add.ellipse(
-      -safeRadius * 0.48,
-      safeRadius * 0.3,
-      safeRadius * 0.72,
-      safeRadius * 0.5,
-      0x3c0a0f,
-      0.9,
+      -safeRadius * 0.68,
+      safeRadius * 0.82,
+      safeRadius * 1.18,
+      safeRadius * 0.88,
+      0x541018,
+      0.94,
     );
-    return this.scene.add.container(0, 0, [main, forwardLobe, sideLobe]);
+    const highlight = this.scene.add.ellipse(
+      safeRadius * 0.36,
+      -safeRadius * 0.72,
+      safeRadius * 0.82,
+      safeRadius * 0.28,
+      0xb83a3f,
+      0.58,
+    );
+    const droplets = [
+      this.scene.add.circle(
+        safeRadius * 1.65,
+        -safeRadius * 0.82,
+        safeRadius * 0.16,
+        0x7c1720,
+        0.92,
+      ),
+      this.scene.add.circle(
+        safeRadius * 1.92,
+        -safeRadius * 0.58,
+        safeRadius * 0.1,
+        0x9a222a,
+        0.88,
+      ),
+      this.scene.add.circle(
+        -safeRadius * 1.48,
+        safeRadius * 0.92,
+        safeRadius * 0.13,
+        0x64121a,
+        0.9,
+      ),
+    ];
+    return this.scene.add.container(
+      0,
+      0,
+      [main, forwardLobe, sideLobe, highlight, ...droplets],
+    );
   }
 
   private createCorpseArm(color: number): Phaser.GameObjects.Graphics {
