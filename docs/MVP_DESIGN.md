@@ -75,8 +75,8 @@
 └── src/
     ├── main.ts
     ├── config/
-    │   ├── mvpConfig.ts
     │   ├── playerConfig.ts
+    │   ├── spawnConfig.ts
     │   ├── waveConfig.ts
     │   ├── weaponConfig.ts
     │   └── zombieConfig.ts
@@ -114,7 +114,7 @@
         ├── hitscan.test.ts
         ├── hud.test.ts
         ├── movement.test.ts
-        ├── mvpIntegration.test.ts
+        ├── gameIntegration.test.ts
         ├── projectSetup.test.ts
         ├── session.test.ts
         ├── spawn.test.ts
@@ -196,9 +196,9 @@
 
 ### 설정
 
-- 실제 밸런스 값은 `config/mvpConfig.ts`의 `MVP_CONFIG`에 모여 있다.
-- player, weapon, zombie, wave 설정 파일은 기존 모듈 경계를 유지하는 re-export 역할을 한다.
-- 현재 주요 값은 플레이어 체력 100, 무기 피해 25, 탄창 12, 예비 탄약 300, 좀비 체력 50, 웨이브 기본 3마리와 웨이브당 2마리 증가다.
+- 실제 밸런스 값은 player, spawn, weapon, zombie, wave 등 역할별 설정 파일이 소유한다.
+- 런타임 시스템은 필요한 역할별 설정만 참조하며 전체 설정을 집계하는 전역 객체는 두지 않는다.
+- 현재 주요 값은 플레이어 체력 100, 무기 피해 25, 탄창 12, 예비 탄약 300, 좀비 체력 50, 웨이브 기본 5마리와 웨이브당 3마리 증가다.
 - 예비 탄약은 유한하며 무한 웨이브 전체의 진행 가능성을 보장하지 않는다.
 
 ## 5. Hitscan 명중 판정과 관통 규칙
@@ -347,7 +347,7 @@ active
 ### HUD와 통합
 
 - `hud.test.ts`: 읽기 전용 화면 모델, Game Over 안내, portrait stack, landscape split과 safe-area
-- `mvpIntegration.test.ts`: 10웨이브의 이동·조준·hitscan·피해·재장전·웨이브 통합, Game Over 초기화, resize 후 좌표와 HUD 연계
+- `gameIntegration.test.ts`: 10웨이브의 이동·조준·hitscan·피해·재장전·웨이브 통합, Game Over 초기화, resize 후 좌표와 HUD 연계
 
 자동 테스트는 Phaser 렌더링을 직접 검증하지 않는다. 실제 모바일 방향 전환, 브라우저 콘솔 및 장시간 플레이는 수동 검증 대상이다.
 

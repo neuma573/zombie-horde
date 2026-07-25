@@ -4,11 +4,11 @@ import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
 import { CAMERA_FOLLOW_CONFIG, CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
-import { MVP_CONFIG } from '../config/mvpConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
+import { SPAWN_CONFIG } from '../config/spawnConfig';
 import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
@@ -202,16 +202,16 @@ export class GameScene extends Phaser.Scene {
     this.targetZoom = CAMERA_ZOOM_CONFIG.initial;
     this.cameras.main.setZoom(CAMERA_ZOOM_CONFIG.initial);
     this.mobileRestartArmed = true;
-    this.spawn = new SpawnSystem();
+    this.spawn = new SpawnSystem(SPAWN_CONFIG, ZOMBIE_CONFIG.radius);
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
     this.viewport = { width: this.scale.width, height: this.scale.height };
-    this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
+    this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
     this.worldBackdrop = new WorldBackdrop(this);
     this.worldBackdrop.resize(
       this.playArea.width,
       this.playArea.height,
-      MVP_CONFIG.map.gridSize,
+      URBAN_MAP_CONFIG.gridSize,
       URBAN_MAP_CONFIG.roads,
       URBAN_MAP_CONFIG.pavedAreas,
       URBAN_MAP_CONFIG.parkingSlotSpacing,
@@ -222,8 +222,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.player = new Player(
       this,
-      MVP_CONFIG.player.spawn.x,
-      MVP_CONFIG.player.spawn.y,
+      SPAWN_CONFIG.playerPosition.x,
+      SPAWN_CONFIG.playerPosition.y,
     );
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
@@ -964,7 +964,7 @@ export class GameScene extends Phaser.Scene {
       width: gameSize.width,
       height: gameSize.height,
     };
-    this.playArea = createWorldSize(MVP_CONFIG.map, this.viewport);
+    this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
@@ -976,7 +976,7 @@ export class GameScene extends Phaser.Scene {
     this.worldBackdrop?.resize(
       this.playArea.width,
       this.playArea.height,
-      MVP_CONFIG.map.gridSize,
+      URBAN_MAP_CONFIG.gridSize,
       URBAN_MAP_CONFIG.roads,
       URBAN_MAP_CONFIG.pavedAreas,
       URBAN_MAP_CONFIG.parkingSlotSpacing,
