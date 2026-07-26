@@ -2,8 +2,11 @@ import Phaser from 'phaser';
 
 import {
   createHudLayout,
+  positionTooltip,
   type HudViewModel,
   type SafeAreaInsets,
+  type TooltipPlacement,
+  type WeaponPickupViewModel,
 } from '../logic/hud';
 import {
   SEVEN_SEGMENTS,
@@ -19,6 +22,13 @@ const STATUS_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   stroke: '#000000',
   strokeThickness: 3,
 };
+const RARITY_COLORS = {
+  common: 0x9ca5ad,
+  uncommon: 0x4fc47a,
+  rare: 0x4f8cff,
+  epic: 0xb96cff,
+  legendary: 0xffa63d,
+} as const;
 
 export class HudSystem {
   private readonly statusText: Phaser.GameObjects.Text;
@@ -30,6 +40,11 @@ export class HudSystem {
   private readonly reloadText: Phaser.GameObjects.Text;
   private readonly waveBannerText: Phaser.GameObjects.Text;
   private readonly waveAnnouncementText: Phaser.GameObjects.Text;
+  private readonly weaponSlotGraphics: Phaser.GameObjects.Graphics;
+  private readonly weaponIcons: Phaser.GameObjects.Image[];
+  private readonly pickupPanel: Phaser.GameObjects.Container;
+  private readonly pickupPanelGraphics: Phaser.GameObjects.Graphics;
+  private readonly pickupText: Phaser.GameObjects.Text;
   private readonly clockBlinkEvent: Phaser.Time.TimerEvent;
   private waveAnnouncementTween?: Phaser.Tweens.Tween;
   private lastWaveNumber = 0;
@@ -38,6 +53,10 @@ export class HudSystem {
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
   private clockText = '';
   private clockColonVisible = true;
+  private hoveredWeaponSlot: number | null = null;
+  private viewportWidth = 0;
+  private viewportHeight = 0;
+  private pickupPanelDefaultPosition = { x: 0, y: 0 };
 
   constructor(private readonly scene: Phaser.Scene) {
     this.statusText = scene.add.text(0, 0, '', {
@@ -83,6 +102,43 @@ export class HudSystem {
       fontStyle: 'bold',
       strokeThickness: 5,
     }).setDepth(106).setOrigin(0.5).setScrollFactor(0).setVisible(false);
+    this.weaponSlotGraphics = scene.add.graphics().setDepth(102).setScrollFactor(0);
+    this.weaponIcons = [
+      scene.add.image(0, 0, 'weapon-pistol').setDepth(103).setScrollFactor(0),
+      scene.add.image(0, 0, 'weapon-pistol').setDepth(103).setScrollFactor(0),
+    ];
+    this.weaponIcons.forEach((icon, index) => {
+      icon.setInteractive({ useHandCursor: true });
+      icon.on(Phaser.Input.Events.POINTER_OVER, () => {
+        this.hoveredWeaponSlot = index;
+        this.showHoveredWeaponTooltip();
+      });
+      icon.on(Phaser.Input.Events.POINTER_OUT, () => {
+        this.hoveredWeaponSlot = null;
+        this.showWeaponPickup(null);
+      });
+      icon.on(
+        Phaser.Input.Events.POINTER_DOWN,
+        (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData,
+        ) => event.stopPropagation(),
+      );
+    });
+    this.pickupPanelGraphics = scene.add.graphics();
+    this.pickupText = scene.add.text(0, 0, '', {
+      color: '#f5f7fa',
+      fontFamily: 'sans-serif',
+      fontSize: '13px',
+      lineSpacing: 4,
+      wordWrap: { width: 260 },
+    }).setOrigin(0.5);
+    this.pickupPanel = scene.add.container(0, 0, [
+      this.pickupPanelGraphics,
+      this.pickupText,
+    ]).setDepth(220).setScrollFactor(0).setVisible(false);
     this.clockBlinkEvent = scene.time.addEvent({
       delay: 500,
       loop: true,
@@ -121,11 +177,15 @@ export class HudSystem {
     this.lastWaveNumber = viewModel.waveNumber;
 
     this.drawReloadFeedback(viewModel.reloadProgress, viewModel.reloadPrompt);
+    this.drawWeaponSlots(viewModel);
 
     this.current = viewModel;
+    this.showHoveredWeaponTooltip();
   }
 
   resize(width: number, height: number, safeArea: SafeAreaInsets): void {
+    this.viewportWidth = width;
+    this.viewportHeight = height;
     const layout = createHudLayout(width, height, safeArea);
 
     this.statusText.setPosition(layout.status.x, layout.status.y);
@@ -136,6 +196,15 @@ export class HudSystem {
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);
     this.waveBannerText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
     this.waveAnnouncementText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
+    this.positionWeaponSlots(layout.time.x, layout.time.y + layout.time.height + 30);
+    this.pickupPanelDefaultPosition = {
+      x: width / 2,
+      y: Math.min(height - 125, height * 0.68),
+    };
+    this.pickupPanel.setPosition(
+      this.pickupPanelDefaultPosition.x,
+      this.pickupPanelDefaultPosition.y,
+    );
     this.drawReloadFeedback(
       this.current?.reloadProgress ?? null,
       this.current?.reloadPrompt ?? null,
@@ -154,6 +223,52 @@ export class HudSystem {
     this.waveAnnouncementTween?.stop();
     this.waveBannerText.destroy();
     this.waveAnnouncementText.destroy();
+    this.weaponSlotGraphics.destroy();
+    this.weaponIcons.forEach((icon) => icon.destroy());
+    this.pickupPanel.destroy();
+  }
+
+  showWeaponPickup(
+    viewModel: WeaponPickupViewModel | null,
+    fieldPosition?: { x: number; y: number },
+    placement: TooltipPlacement = 'above',
+  ): void {
+    if (!viewModel) {
+      this.pickupPanel.setVisible(false);
+      return;
+    }
+
+    const rarity = viewModel.rarity.toUpperCase();
+    this.pickupText.setText([
+      `${viewModel.name}  ·  ${rarity}`,
+      viewModel.description,
+      `FIRE RATE ${viewModel.fireRateText}   RECOIL ${viewModel.recoil}`,
+      `MAGAZINE ${viewModel.magazineSize}`,
+      viewModel.interactionText,
+    ]);
+    const bounds = this.pickupText.getBounds();
+    const width = Math.max(260, bounds.width + 32);
+    const height = bounds.height + 26;
+    const position = fieldPosition
+      ? positionTooltip(
+        fieldPosition,
+        { width, height },
+        { width: this.viewportWidth, height: this.viewportHeight },
+        placement,
+      )
+      : this.pickupPanelDefaultPosition;
+    this.pickupPanel.setPosition(position.x, position.y);
+    this.pickupPanelGraphics
+      .clear()
+      .fillStyle(0x101820, 0.94)
+      .fillRoundedRect(-width / 2, -height / 2, width, height, 8)
+      .lineStyle(2, RARITY_COLORS[viewModel.rarity], 1)
+      .strokeRoundedRect(-width / 2, -height / 2, width, height, 8);
+    this.pickupPanel.setVisible(true);
+  }
+
+  isWeaponSlotHovered(): boolean {
+    return this.hoveredWeaponSlot !== null;
   }
 
   private renderClockText(): void {
@@ -291,5 +406,59 @@ export class HudSystem {
       .strokeRect(x, y, width, height)
       .setVisible(true);
     this.reloadText.setVisible(true);
+  }
+
+  private positionWeaponSlots(centerX: number, centerY: number): void {
+    const gap = 8;
+    const size = 46;
+    this.weaponIcons[0].setPosition(centerX - size / 2 - gap / 2, centerY);
+    this.weaponIcons[1].setPosition(centerX + size / 2 + gap / 2, centerY);
+    this.drawWeaponSlots(this.current);
+  }
+
+  private drawWeaponSlots(viewModel?: HudViewModel): void {
+    if (!viewModel) return;
+    const size = 46;
+    this.weaponSlotGraphics.clear();
+
+    viewModel.weaponSlots.forEach((weapon, index) => {
+      const icon = this.weaponIcons[index];
+      const x = icon.x;
+      const y = icon.y;
+      const active = index === viewModel.activeWeaponSlot;
+      const backgroundColor = weapon ? RARITY_COLORS[weapon.rarity] : 0x161b20;
+      this.weaponSlotGraphics
+        .fillStyle(backgroundColor, weapon ? 0.72 : 0.9)
+        .fillRoundedRect(x - size / 2, y - size / 2, size, size, 4)
+        .lineStyle(active ? 3 : 1, active ? 0x65b5ff : 0x7d8790, 1)
+        .strokeRoundedRect(x - size / 2, y - size / 2, size, size, 4);
+      if (weapon) {
+        icon
+          .setTexture(weapon.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle')
+          .setDisplaySize(38, 38)
+          .setVisible(true);
+      } else {
+        icon.setVisible(false);
+      }
+    });
+  }
+
+  private showHoveredWeaponTooltip(): void {
+    if (this.hoveredWeaponSlot === null || !this.current) return;
+    const weapon = this.current.weaponSlots[this.hoveredWeaponSlot];
+    if (!weapon) {
+      this.showWeaponPickup(null);
+      return;
+    }
+    const icon = this.weaponIcons[this.hoveredWeaponSlot];
+    this.showWeaponPickup({
+      name: weapon.name,
+      description: weapon.description,
+      rarity: weapon.rarity,
+      fireRateText: weapon.fireRateText,
+      recoil: weapon.recoil,
+      magazineSize: weapon.magazineSize,
+      interactionText: `WEAPON SLOT ${this.hoveredWeaponSlot + 1}`,
+    }, { x: icon.x, y: icon.y + 24 }, 'below');
   }
 }

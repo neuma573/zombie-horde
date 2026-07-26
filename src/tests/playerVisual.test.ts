@@ -3,11 +3,82 @@ import { describe, expect, it } from 'vitest';
 import {
   blendVisualColor,
   muzzleLightExposure,
+  RIFLE_VISUAL,
+  resolveRifleReloadVisual,
+  resolveSidearmHandPose,
   resolveSidearmPose,
   SIDEARM_VISUAL,
 } from '../logic/playerVisual';
 
 describe('player visual pose', () => {
+  it('extends the right arm toward the pistol while the left hand supports it', () => {
+    const pose = resolveSidearmHandPose(SIDEARM_VISUAL.readyPose);
+    const shoulder = { x: 2, y: 10 };
+    const fullArm = {
+      x: pose.rightHand.x - shoulder.x,
+      y: pose.rightHand.y - shoulder.y,
+    };
+    const upperArm = {
+      x: pose.rightElbow.x - shoulder.x,
+      y: pose.rightElbow.y - shoulder.y,
+    };
+    const cross = fullArm.x * upperArm.y - fullArm.y * upperArm.x;
+
+    expect(Math.abs(cross)).toBeLessThan(1e-8);
+    expect(pose.rightHand.x).toBeGreaterThan(pose.rightElbow.x);
+    expect(pose.leftHand.x).toBeCloseTo(pose.rightHand.x);
+    expect(pose.leftHand.y).toBeLessThan(pose.rightHand.y);
+    expect(Math.abs(pose.rightHand.y - shoulder.y)).toBeLessThan(
+      Math.abs(pose.leftHand.y - (-9)),
+    );
+  });
+
+  it('places the rifle support hand ahead of the trigger hand', () => {
+    expect(RIFLE_VISUAL.leftHand.x).toBeGreaterThan(RIFLE_VISUAL.rightHand.x);
+    expect(RIFLE_VISUAL.rightHand.x).toBeLessThan(RIFLE_VISUAL.readyPose.x);
+    expect(RIFLE_VISUAL.readyPose.y).toBeGreaterThan(0);
+  });
+
+  it('moves the right hand through magazine insertion and charging phases', () => {
+    const drawMagazine = resolveRifleReloadVisual(true, 0.12);
+    const insertMagazine = resolveRifleReloadVisual(true, 0.45);
+    const reachChargingHandle = resolveRifleReloadVisual(true, 0.7);
+    const pullChargingHandle = resolveRifleReloadVisual(true, 0.88);
+
+    expect(drawMagazine.rightHand.y).toBeGreaterThan(RIFLE_VISUAL.rightHand.y);
+    expect(insertMagazine.magazine.visible).toBe(true);
+    expect(reachChargingHandle.rightHand.y).toBeLessThan(0);
+    expect(pullChargingHandle.chargingHandleOffset).toBeLessThan(0);
+  });
+
+  it('returns the rifle and both hands to ready after reloading', () => {
+    const completed = resolveRifleReloadVisual(true, 1);
+
+    expect(completed.pose.x).toBeCloseTo(RIFLE_VISUAL.readyPose.x);
+    expect(completed.pose.y).toBeCloseTo(RIFLE_VISUAL.readyPose.y);
+    expect(completed.leftHand.x).toBeCloseTo(RIFLE_VISUAL.leftHand.x);
+    expect(completed.rightHand.x).toBeCloseTo(RIFLE_VISUAL.rightHand.x);
+    expect(completed.magazine.visible).toBe(false);
+  });
+
+  it('moves the rifle and support hand to the left-side reload guard', () => {
+    const guarded = resolveRifleReloadVisual(true, 0.5);
+    const support = RIFLE_VISUAL.supportPoint;
+    const cos = Math.cos(guarded.pose.rotation);
+    const sin = Math.sin(guarded.pose.rotation);
+
+    expect(guarded.pose.y).toBeLessThan(0);
+    expect(guarded.pose.rotation).toBeLessThan(-0.2);
+    expect(guarded.leftHand.y).toBeLessThan(0);
+    expect(guarded.leftHand.x).toBeCloseTo(
+      guarded.pose.x - RIFLE_VISUAL.readyPose.x
+        + support.x * cos - support.y * sin,
+    );
+    expect(guarded.leftHand.y).toBeCloseTo(
+      guarded.pose.y + support.x * sin + support.y * cos,
+    );
+  });
+
   it('uses the ready pose outside reload', () => {
     expect(resolveSidearmPose(false, 0.5)).toEqual(SIDEARM_VISUAL.readyPose);
   });

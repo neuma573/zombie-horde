@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHudLayout, createHudViewModel } from '../logic/hud';
+import {
+  createHudLayout,
+  createHudViewModel,
+  positionTooltip,
+} from '../logic/hud';
 
 describe('createHudViewModel', () => {
   it('projects all required playing state without mutating it', () => {
@@ -146,5 +150,33 @@ describe('createHudLayout', () => {
     expect(layout.waveBanner).toEqual({ x: 180, y: 64 });
     expect(layout.waveBanner.y - 24).toBeGreaterThanOrEqual(12);
     expect(layout.waveBanner.y + 24).toBeLessThanOrEqual(88);
+  });
+});
+
+describe('positionTooltip', () => {
+  it('places a weapon-slot tooltip below the top bar anchor', () => {
+    const position = positionTooltip(
+      { x: 180, y: 100 },
+      { width: 260, height: 110 },
+      { width: 360, height: 640 },
+      'below',
+    );
+
+    expect(position.x).toBe(180);
+    expect(position.y).toBe(173);
+    expect(position.y - 55).toBeGreaterThan(100);
+  });
+
+  it('keeps a field tooltip above its item and inside the viewport', () => {
+    const position = positionTooltip(
+      { x: 350, y: 620 },
+      { width: 260, height: 110 },
+      { width: 360, height: 640 },
+      'above',
+    );
+
+    expect(position.x).toBe(222);
+    expect(position.y).toBe(547);
+    expect(position.x + 130).toBeLessThanOrEqual(352);
   });
 });

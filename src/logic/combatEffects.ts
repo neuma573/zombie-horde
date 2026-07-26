@@ -31,17 +31,22 @@ export function constrainMuzzleToShotSegment(
 
   const directionX = rayX / rayLength;
   const directionY = rayY / rayLength;
-  const muzzleDistance =
-    (desiredMuzzle.x - shotOrigin.x) * directionX
-    + (desiredMuzzle.y - shotOrigin.y) * directionY;
+  const muzzleOffsetX = desiredMuzzle.x - shotOrigin.x;
+  const muzzleOffsetY = desiredMuzzle.y - shotOrigin.y;
+  const muzzleDistance = muzzleOffsetX * directionX + muzzleOffsetY * directionY;
+  const lateralX = muzzleOffsetX - directionX * muzzleDistance;
+  const lateralY = muzzleOffsetY - directionY * muzzleDistance;
   const maximumDistance = Math.max(0, rayLength - Math.max(0, endPadding));
   const constrainedDistance = Math.min(
     maximumDistance,
     Math.max(0, muzzleDistance),
   );
+  const lateralScale = muzzleDistance > MIN_RAY_LENGTH
+    ? constrainedDistance / muzzleDistance
+    : 0;
 
   return {
-    x: shotOrigin.x + directionX * constrainedDistance,
-    y: shotOrigin.y + directionY * constrainedDistance,
+    x: shotOrigin.x + directionX * constrainedDistance + lateralX * lateralScale,
+    y: shotOrigin.y + directionY * constrainedDistance + lateralY * lateralScale,
   };
 }

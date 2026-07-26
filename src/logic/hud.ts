@@ -1,5 +1,6 @@
 import type { SessionPhase } from './session';
 import type { WavePhase } from './wave';
+import type { WeaponId, WeaponRarity } from './weapon';
 
 export interface HudState {
   health: number;
@@ -16,6 +17,16 @@ export interface HudState {
   killCount: number;
   sessionPhase: SessionPhase;
   gameTimeText: string;
+  weaponSlots?: Array<{
+    id: WeaponId;
+    name: string;
+    description: string;
+    rarity: WeaponRarity;
+    fireRateText: string;
+    recoil: number;
+    magazineSize: number;
+  } | null>;
+  activeWeaponSlot?: 0 | 1;
 }
 
 export interface HudViewModel {
@@ -28,6 +39,52 @@ export interface HudViewModel {
   reloadPrompt: string | null;
   waveNumber: number;
   waveBannerText: string | null;
+  weaponSlots: Array<{
+    id: WeaponId;
+    name: string;
+    description: string;
+    rarity: WeaponRarity;
+    fireRateText: string;
+    recoil: number;
+    magazineSize: number;
+  } | null>;
+  activeWeaponSlot: 0 | 1;
+}
+
+export interface WeaponPickupViewModel {
+  name: string;
+  description: string;
+  rarity: WeaponRarity;
+  fireRateText: string;
+  recoil: number;
+  magazineSize: number;
+  interactionText: string;
+}
+
+export type TooltipPlacement = 'above' | 'below';
+
+export function positionTooltip(
+  anchor: { x: number; y: number },
+  panel: { width: number; height: number },
+  viewport: { width: number; height: number },
+  placement: TooltipPlacement,
+): { x: number; y: number } {
+  const edge = 8;
+  const gap = 18;
+  const desiredY = placement === 'above'
+    ? anchor.y - panel.height / 2 - gap
+    : anchor.y + panel.height / 2 + gap;
+
+  return {
+    x: Math.min(
+      Math.max(panel.width / 2 + edge, anchor.x),
+      Math.max(panel.width / 2 + edge, viewport.width - panel.width / 2 - edge),
+    ),
+    y: Math.min(
+      Math.max(panel.height / 2 + edge, desiredY),
+      Math.max(panel.height / 2 + edge, viewport.height - panel.height / 2 - edge),
+    ),
+  };
 }
 
 export interface SafeAreaInsets {
@@ -91,6 +148,8 @@ export function createHudViewModel(state: HudState): HudViewModel {
       : null,
     waveNumber: state.waveNumber,
     waveBannerText,
+    weaponSlots: state.weaponSlots ?? [null, null],
+    activeWeaponSlot: state.activeWeaponSlot ?? 0,
   };
 }
 

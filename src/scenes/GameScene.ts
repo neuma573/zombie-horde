@@ -9,7 +9,11 @@ import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
-import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
+import {
+  BURST_RIFLE_WEAPON,
+  PISTOL_WEAPON,
+  STARTING_AMMO_RESERVES,
+} from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
@@ -24,6 +28,9 @@ import {
 } from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
+import pistolIconUrl from '../assets/weapons/pistol.png';
+import rifleIconUrl from '../assets/weapons/rifle.png';
+import { WeaponPickup, WEAPON_PICKUP_RADIUS } from '../entities/WeaponPickup';
 import {
   resolveAimAssist,
   shouldReleaseAimLock,
@@ -73,7 +80,20 @@ import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import { muzzleLightExposure } from '../logic/playerVisual';
 import { resolveHitscan, type Vector2 } from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
-import { shouldAutoReload } from '../logic/weapon';
+import {
+  applyWeaponRecoil,
+  advanceFirstShotAccuracy,
+  consumeFirstShotAccuracy,
+  createFirstShotAccuracyState,
+  createOwnedWeapon,
+  shouldAutoPickupWeapon,
+  shouldAutoReload,
+  shouldShowFieldWeaponInfo,
+  WEAPON_RARITIES,
+  withWeaponRarity,
+  weaponSpreadDegrees,
+} from '../logic/weapon';
+import type { FirstShotAccuracyState, OwnedWeapon } from '../logic/weapon';
 import {
   claimMobilePointer,
   canStartPinchFromRole,
@@ -129,6 +149,8 @@ export class GameScene extends Phaser.Scene {
   private player!: Player;
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
+  private pickupKey?: Phaser.Input.Keyboard.Key;
+  private weaponSlotKeys?: [Phaser.Input.Keyboard.Key, Phaser.Input.Keyboard.Key];
   private restartKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private viewDirection: Vector2 = { x: 1, y: 0 };
@@ -154,6 +176,9 @@ export class GameScene extends Phaser.Scene {
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
   private killCount = 0;
+  private shotSequence = 0;
+  private recoilSeed = 0;
+  private firstShotAccuracy: FirstShotAccuracyState = createFirstShotAccuracyState();
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private simulationStepState: FixedStepState = createFixedStepState();
@@ -163,6 +188,8 @@ export class GameScene extends Phaser.Scene {
   private spawn!: SpawnSystem;
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
+  private weaponPickups: WeaponPickup[] = [];
+  private hoveredWeaponPickup?: WeaponPickup;
   private hud?: HudSystem;
   private effects?: CombatEffects;
   private aimAssistVisual?: AimAssistVisual;
@@ -177,6 +204,12 @@ export class GameScene extends Phaser.Scene {
   preload(): void {
     if (!this.textures.exists(PEDESTRIAN_ARROW_TEXTURE_KEY)) {
       this.load.image(PEDESTRIAN_ARROW_TEXTURE_KEY, pedestrianArrowUrl);
+    }
+    if (!this.textures.exists('weapon-pistol')) {
+      this.load.image('weapon-pistol', pistolIconUrl);
+    }
+    if (!this.textures.exists('weapon-rifle')) {
+      this.load.image('weapon-rifle', rifleIconUrl);
     }
   }
 
@@ -204,7 +237,7 @@ export class GameScene extends Phaser.Scene {
     this.mobileRestartArmed = true;
     this.spawn = new SpawnSystem(SPAWN_CONFIG, ZOMBIE_CONFIG.radius);
     this.wave = new WaveSystem(WAVE_CONFIG);
-    this.weapon = new WeaponSystem(BASIC_WEAPON_CONFIG);
+    this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
     this.viewport = { width: this.scale.width, height: this.scale.height };
     this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
     this.worldBackdrop = new WorldBackdrop(this);
@@ -225,10 +258,27 @@ export class GameScene extends Phaser.Scene {
       SPAWN_CONFIG.playerPosition.x,
       SPAWN_CONFIG.playerPosition.y,
     );
+    this.weaponPickups = [];
+    const fieldWeapons = WEAPON_RARITIES.flatMap((rarity) => [
+      withWeaponRarity(PISTOL_WEAPON, rarity),
+      withWeaponRarity(BURST_RIFLE_WEAPON, rarity),
+    ]);
+    fieldWeapons.forEach((definition, index) => {
+      const angle = index / fieldWeapons.length * Math.PI * 2;
+      const radius = index % 2 === 0 ? 145 : 215;
+      this.createWeaponPickup(
+        this.player.x + Math.cos(angle) * radius,
+        this.player.y + Math.sin(angle) * radius,
+        createOwnedWeapon(definition),
+      );
+    });
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
     this.killCount = 0;
+    this.shotSequence = 0;
+    this.recoilSeed = Math.floor(Math.random() * 0x1_0000_0000);
+    this.firstShotAccuracy = createFirstShotAccuracyState();
     this.resizePlayArea(this.scale.gameSize);
     this.updateTimeBasedLighting();
     this.hud = new HudSystem(this);
@@ -256,6 +306,11 @@ export class GameScene extends Phaser.Scene {
       right: Phaser.Input.Keyboard.KeyCodes.D,
     }) as MovementKeys | undefined;
     this.reloadKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+    this.pickupKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.weaponSlotKeys = this.input.keyboard ? [
+      this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+      this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+    ] : undefined;
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
@@ -297,6 +352,9 @@ export class GameScene extends Phaser.Scene {
       this.timeBasedLighting = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
+      this.weaponPickups.forEach((pickup) => pickup.destroy());
+      this.weaponPickups = [];
+      this.hoveredWeaponPickup = undefined;
       this.uiCamera = undefined;
     });
   }
@@ -320,6 +378,15 @@ export class GameScene extends Phaser.Scene {
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
       this.playerInput = requestReload(this.playerInput);
+    }
+    if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
+      if (!this.hasEmptyWeaponSlot()) this.tryPickupWeapon();
+    }
+    if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
+      this.weapon.selectSlot(0);
+    }
+    if (this.weaponSlotKeys?.[1] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[1])) {
+      this.weapon.selectSlot(1);
     }
 
     const keyboardMovement = this.movementKeys ? {
@@ -384,12 +451,21 @@ export class GameScene extends Phaser.Scene {
     this.updateTimeBasedLighting(deltaMs);
 
     this.updateHud();
+    this.updateWeaponPickupInfo();
     this.playPlayerHitEffects(playerDamageEventCount);
   }
 
   private advanceSimulationStep(deltaMs: number): { died: boolean; damageEventCount: number } {
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
-    this.weapon.update(deltaMs);
+    this.firstShotAccuracy = advanceFirstShotAccuracy(
+      this.firstShotAccuracy,
+      deltaMs,
+    );
+    this.advanceWeaponPickupLifetimes(deltaMs);
+    const burstShots = this.weapon.update(deltaMs);
+    for (let index = 0; index < burstShots; index += 1) {
+      this.resolveHitscanShot();
+    }
     this.startMobileAutoReloadIfNeeded();
 
     const playerStart = { x: this.player.x, y: this.player.y };
@@ -416,6 +492,10 @@ export class GameScene extends Phaser.Scene {
       },
     );
     this.player.setPosition(nextPlayerPosition.x, nextPlayerPosition.y);
+    const nearbyPickup = this.nearestWeaponPickupInRange();
+    if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
+      this.tryPickupWeapon(nearbyPickup);
+    }
     const playerMovementEnd = { x: nextPlayerPosition.x, y: nextPlayerPosition.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
     const zombieSpatialEntries = this.zombies.map((zombie) => ({
@@ -525,25 +605,42 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const shotDirection = this.refreshAimAssist();
-
     if (!this.weapon.fire()) {
       this.startMobileAutoReloadIfNeeded();
       this.updateHud();
       return;
     }
+    this.resolveHitscanShot();
+  }
 
+  private resolveHitscanShot(): void {
+    const aimDirection = this.refreshAimAssist();
+    const weaponDefinition = this.weapon.getDefinition();
+    const weaponConfig = weaponDefinition.config;
+    const firstShot = consumeFirstShotAccuracy(this.firstShotAccuracy);
+    this.firstShotAccuracy = firstShot.state;
+    const shotDirection = applyWeaponRecoil(
+      aimDirection,
+      weaponSpreadDegrees(
+        weaponDefinition,
+        firstShot.consecutiveShotIndex,
+        firstShot.isAccurateFirstShot,
+      ),
+      this.shotSequence,
+      this.recoilSeed,
+    );
+    this.shotSequence += 1;
     const shotOrigin = { x: this.player.x, y: this.player.y };
     const result = resolveHitscan(
       shotOrigin,
       shotDirection,
-      BASIC_WEAPON_CONFIG.range,
+      weaponConfig.range,
       this.zombies.map((zombie) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
         radius: zombie.hitRadius,
       })),
-      BASIC_WEAPON_CONFIG.maxTargets,
+      weaponConfig.maxTargets,
       OBSTACLE_CONFIG,
     );
     const impactEvents: Array<{
@@ -561,7 +658,7 @@ export class GameScene extends Phaser.Scene {
       const zombie = this.zombies.find((candidate) => candidate.id === hit.targetId);
 
       if (zombie) {
-        const damage = this.damage.apply(zombie, BASIC_WEAPON_CONFIG.damage);
+        const damage = this.damage.apply(zombie, weaponConfig.damage);
         impactEvents.push({
           position: { x: zombie.x, y: zombie.y },
           radius: zombie.hitRadius,
@@ -616,6 +713,7 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.zoom,
     );
     this.player.triggerMuzzleReflection();
+    this.player.triggerWeaponRecoil(weaponDefinition.recoil);
     const flashReach = Math.min(
       TIME_BASED_LIGHTING_CONFIG.muzzleFlashForwardLength,
       Math.hypot(result.endPoint.x - effectOrigin.x, result.endPoint.y - effectOrigin.y),
@@ -648,7 +746,137 @@ export class GameScene extends Phaser.Scene {
 
   private updatePlayerWeaponVisual(): void {
     const reload = this.weapon.getReloadProgress();
+    this.player.setWeaponVisual(this.weapon.getDefinition().id);
     this.player.setReloadVisual(reload.isReloading, reload.normalized);
+  }
+
+  private createWeaponPickup(
+    x: number,
+    y: number,
+    ownedWeapon: OwnedWeapon,
+  ): void {
+    const definition = ownedWeapon.definition;
+    const textureKey = definition.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle';
+    const pickup = new WeaponPickup(this, x, y, ownedWeapon, textureKey);
+    pickup.on(Phaser.Input.Events.POINTER_OVER, () => {
+      this.hoveredWeaponPickup = pickup;
+      this.updateWeaponPickupInfo();
+    });
+    pickup.on(Phaser.Input.Events.POINTER_OUT, () => {
+      if (this.hoveredWeaponPickup === pickup) {
+        this.hoveredWeaponPickup = undefined;
+      }
+      this.updateWeaponPickupInfo();
+    });
+    pickup.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
+      if (pointer.wasTouch && this.isWeaponPickupInRange(pickup)) {
+        this.tryPickupWeapon(pickup);
+      }
+    });
+    this.weaponPickups.push(pickup);
+  }
+
+  private tryPickupWeapon(target?: WeaponPickup): void {
+    const pickup = target ?? this.nearestWeaponPickupInRange();
+    if (!pickup || !this.isWeaponPickupInRange(pickup)) return;
+
+    const position = { x: pickup.x, y: pickup.y };
+    const replaced = this.weapon.pickupOwned(pickup.ownedWeapon);
+    if (this.hoveredWeaponPickup === pickup) {
+      this.hoveredWeaponPickup = undefined;
+    }
+    this.weaponPickups = this.weaponPickups.filter((candidate) => candidate !== pickup);
+    pickup.destroy();
+    if (replaced) {
+      this.createWeaponPickup(position.x, position.y, replaced);
+    }
+    this.updateHud();
+    this.updateWeaponPickupInfo();
+  }
+
+  private isWeaponPickupInRange(pickup: WeaponPickup): boolean {
+    return Phaser.Math.Distance.Between(
+      this.player.x,
+      this.player.y,
+      pickup.x,
+      pickup.y,
+    ) <= WEAPON_PICKUP_RADIUS;
+  }
+
+  private nearestWeaponPickupInRange(): WeaponPickup | undefined {
+    return this.weaponPickups
+      .filter((pickup) => this.isWeaponPickupInRange(pickup))
+      .sort((left, right) => (
+        Phaser.Math.Distance.Squared(this.player.x, this.player.y, left.x, left.y)
+        - Phaser.Math.Distance.Squared(this.player.x, this.player.y, right.x, right.y)
+      ))[0];
+  }
+
+  private advanceWeaponPickupLifetimes(deltaMs: number): void {
+    const expired = this.weaponPickups.filter((pickup) => pickup.advanceLifetime(deltaMs));
+    if (expired.length === 0) return;
+    const expiredSet = new Set(expired);
+    if (this.hoveredWeaponPickup && expiredSet.has(this.hoveredWeaponPickup)) {
+      this.hoveredWeaponPickup = undefined;
+    }
+    expired.forEach((pickup) => pickup.destroy());
+    this.weaponPickups = this.weaponPickups.filter((pickup) => !expiredSet.has(pickup));
+    this.updateWeaponPickupInfo();
+  }
+
+  private hasEmptyWeaponSlot(): boolean {
+    return this.weapon.getInventory().slots.some((slot) => slot === null);
+  }
+
+  private hasTwoWeapons(): boolean {
+    return this.weapon.getInventory().slots.every((slot) => slot !== null);
+  }
+
+  private updateWeaponPickupInfo(): void {
+    if (this.hud?.isWeaponSlotHovered()) return;
+    const pickup = this.mobileControlsEnabled
+      ? this.nearestWeaponPickupInRange()
+      : this.hoveredWeaponPickup;
+    const isInPickupRange = !!pickup && this.isWeaponPickupInRange(pickup);
+    const shouldShow = !!pickup && shouldShowFieldWeaponInfo(
+      this.hasTwoWeapons(),
+      this.mobileControlsEnabled,
+      isInPickupRange,
+      this.hoveredWeaponPickup === pickup,
+    );
+    if (!pickup || !shouldShow) {
+      this.hud?.showWeaponPickup(null);
+      return;
+    }
+    const config = pickup.definition.config;
+    const screenPosition = cameraScreenPoint(
+      pickup,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
+      this.viewport,
+      this.cameras.main.zoom,
+    );
+    this.hud?.showWeaponPickup({
+      name: pickup.definition.name,
+      description: pickup.definition.description,
+      rarity: pickup.definition.rarity,
+      fireRateText: config.burstSize === 3
+        ? `3-RND / ${config.fireIntervalMs}ms`
+        : `SEMI / ${config.fireIntervalMs}ms`,
+      recoil: pickup.definition.recoil,
+      magazineSize: config.magazineSize,
+      interactionText: this.mobileControlsEnabled
+        ? this.hasEmptyWeaponSlot()
+          ? 'Move onto the weapon to pick up'
+          : 'Tap the weapon to replace current'
+        : isInPickupRange
+          ? this.hasEmptyWeaponSlot()
+            ? 'Move onto the weapon to pick up'
+            : 'Press E to replace current'
+          : 'Move closer to pick up',
+    }, screenPosition);
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer, source: AimSource): void {
@@ -812,7 +1040,10 @@ export class GameScene extends Phaser.Scene {
     this.uiCamera.ignore(worldObjects);
   }
 
-  private handlePointerDown(pointer: Phaser.Input.Pointer): void {
+  private handlePointerDown(
+    pointer: Phaser.Input.Pointer,
+    currentlyOver: Phaser.GameObjects.GameObject[] = [],
+  ): void {
     if (!isPlaying(this.sessionState)) {
       if (!pointer.wasTouch && isPrimaryFireInput(pointer)) {
         this.restartSession();
@@ -824,6 +1055,8 @@ export class GameScene extends Phaser.Scene {
       }
       return;
     }
+
+    if (currentlyOver.some((gameObject) => gameObject instanceof WeaponPickup)) return;
 
     if (!pointer.wasTouch) {
       if (!isPrimaryFireInput(pointer)) return;
@@ -1007,6 +1240,7 @@ export class GameScene extends Phaser.Scene {
 
   private updateHud(): void {
     const weapon = this.weapon.getState();
+    const inventory = this.weapon.getInventory();
     const reload = this.weapon.getReloadProgress();
     const wave = this.wave.getState();
 
@@ -1025,6 +1259,18 @@ export class GameScene extends Phaser.Scene {
       killCount: this.killCount,
       sessionPhase: this.sessionState.phase,
       gameTimeText: formatGameTime(this.gameTime),
+      weaponSlots: inventory.slots.map((owned) => owned ? ({
+        id: owned.definition.id,
+        name: owned.definition.name,
+        description: owned.definition.description,
+        rarity: owned.definition.rarity,
+        fireRateText: owned.definition.config.burstSize === 3
+          ? `3-RND / ${owned.definition.config.fireIntervalMs}ms`
+          : `SEMI / ${owned.definition.config.fireIntervalMs}ms`,
+        recoil: owned.definition.recoil,
+        magazineSize: owned.definition.config.magazineSize,
+      }) : null),
+      activeWeaponSlot: inventory.activeSlot,
     });
     this.hud?.update(viewModel);
   }
@@ -1103,7 +1349,7 @@ export class GameScene extends Phaser.Scene {
         active: zombie.active,
       })),
       worldView,
-      hitscanRange: BASIC_WEAPON_CONFIG.range,
+      hitscanRange: this.weapon.getDefinition().config.range,
       hitscanBlockers: OBSTACLE_CONFIG,
       config: MOBILE_AIM_ASSIST_CONFIG,
     });
