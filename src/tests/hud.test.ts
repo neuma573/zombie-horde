@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createHudLayout,
   createHudViewModel,
+  handleWeaponSlotPress,
   positionTooltip,
 } from '../logic/hud';
 
@@ -178,5 +179,21 @@ describe('positionTooltip', () => {
     expect(position.x).toBe(222);
     expect(position.y).toBe(547);
     expect(position.x + 130).toBeLessThanOrEqual(352);
+  });
+});
+
+describe('handleWeaponSlotPress', () => {
+  it('selects the tapped weapon slot without propagating into world input', () => {
+    let propagationStopped = false;
+    let selectedSlot: 0 | 1 | null = null;
+
+    handleWeaponSlotPress(
+      1,
+      () => { propagationStopped = true; },
+      (slot) => { selectedSlot = slot; },
+    );
+
+    expect(propagationStopped).toBe(true);
+    expect(selectedSlot).toBe(1);
   });
 });

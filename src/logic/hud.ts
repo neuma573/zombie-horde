@@ -62,6 +62,16 @@ export interface WeaponPickupViewModel {
 }
 
 export type TooltipPlacement = 'above' | 'below';
+export type WeaponSlotIndex = 0 | 1;
+
+export function handleWeaponSlotPress(
+  slot: WeaponSlotIndex,
+  stopPropagation: () => void,
+  selectSlot: (slot: WeaponSlotIndex) => void,
+): void {
+  stopPropagation();
+  selectSlot(slot);
+}
 
 export function positionTooltip(
   anchor: { x: number; y: number },

@@ -2,10 +2,12 @@ import Phaser from 'phaser';
 
 import {
   createHudLayout,
+  handleWeaponSlotPress,
   positionTooltip,
   type HudViewModel,
   type SafeAreaInsets,
   type TooltipPlacement,
+  type WeaponSlotIndex,
   type WeaponPickupViewModel,
 } from '../logic/hud';
 import {
@@ -58,7 +60,10 @@ export class HudSystem {
   private viewportHeight = 0;
   private pickupPanelDefaultPosition = { x: 0, y: 0 };
 
-  constructor(private readonly scene: Phaser.Scene) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly selectWeaponSlot: (slot: WeaponSlotIndex) => void,
+  ) {
     this.statusText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
       fontSize: '14px',
@@ -124,7 +129,11 @@ export class HudSystem {
           _localX: number,
           _localY: number,
           event: Phaser.Types.Input.EventData,
-        ) => event.stopPropagation(),
+        ) => handleWeaponSlotPress(
+          index as WeaponSlotIndex,
+          () => event.stopPropagation(),
+          this.selectWeaponSlot,
+        ),
       );
     });
     this.pickupPanelGraphics = scene.add.graphics();

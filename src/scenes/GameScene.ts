@@ -281,7 +281,7 @@ export class GameScene extends Phaser.Scene {
     this.firstShotAccuracy = createFirstShotAccuracyState();
     this.resizePlayArea(this.scale.gameSize);
     this.updateTimeBasedLighting();
-    this.hud = new HudSystem(this);
+    this.hud = new HudSystem(this, (slot) => this.weapon.selectSlot(slot));
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
     this.mobileControls = new MobileControls(this);
