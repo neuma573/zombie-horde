@@ -54,6 +54,25 @@ describe('player visual pose', () => {
     );
   });
 
+  it('keeps the pistol arm straight from a widened shoulder pose', () => {
+    const shoulder = { x: 2, y: 14.5 };
+    const pose = resolveSidearmHandPose(SIDEARM_VISUAL.readyPose, {
+      leftY: -14.5,
+      rightY: shoulder.y,
+    });
+    const fullArm = {
+      x: pose.rightHand.x - shoulder.x,
+      y: pose.rightHand.y - shoulder.y,
+    };
+    const upperArm = {
+      x: pose.rightElbow.x - shoulder.x,
+      y: pose.rightElbow.y - shoulder.y,
+    };
+
+    expect(fullArm.x * upperArm.y - fullArm.y * upperArm.x)
+      .toBeCloseTo(0);
+  });
+
   it('places the rifle support hand ahead of the trigger hand', () => {
     expect(RIFLE_VISUAL.leftHand.x).toBeGreaterThan(RIFLE_VISUAL.rightHand.x);
     expect(RIFLE_VISUAL.rightHand.x).toBeLessThan(RIFLE_VISUAL.readyPose.x);
