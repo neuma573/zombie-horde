@@ -58,6 +58,7 @@ import {
   cameraScrollForPlayer,
   cameraWorldPoint,
   cameraWorldView,
+  clientPointToViewport,
   createWorldSize,
   type Size,
 } from '../logic/camera';
@@ -232,6 +233,7 @@ export class GameScene extends Phaser.Scene {
     this.aimSource = 'none';
     this.aimTargetId = null;
     this.lockAcquiredManualDirection = null;
+    this.lastMouseScreenPoint = null;
     this.mobileControlsEnabled = false;
     this.mobileMovement = { x: 0, y: 0 };
     this.mobileOwnership = createMobilePointerOwnership();
@@ -961,12 +963,41 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const screenPoint = this.lastMouseScreenPoint ?? {
-      x: this.input.activePointer.x,
-      y: this.input.activePointer.y,
-    };
+    const screenPoint = this.lastMouseScreenPoint
+      ?? this.sampleActiveMouseScreenPoint();
+    if (screenPoint === null) return;
+
     this.lastMouseScreenPoint = screenPoint;
     this.updateAimDirectionAtScreenPoint(screenPoint, 'mouse');
+  }
+
+  private sampleActiveMouseScreenPoint(): Vector2 | null {
+    const pointer = this.input.activePointer;
+    if (pointer.wasTouch) return null;
+
+    const pointerEvent = pointer.event as PointerEvent | MouseEvent | null;
+    if (
+      pointerEvent
+      && Number.isFinite(pointerEvent.clientX)
+      && Number.isFinite(pointerEvent.clientY)
+    ) {
+      const bounds = this.game.canvas.getBoundingClientRect();
+      const sampled = clientPointToViewport(
+        { x: pointerEvent.clientX, y: pointerEvent.clientY },
+        {
+          x: bounds.left,
+          y: bounds.top,
+          width: bounds.width,
+          height: bounds.height,
+        },
+        this.viewport,
+      );
+      if (sampled !== null) return sampled;
+    }
+
+    return Number.isFinite(pointer.x) && Number.isFinite(pointer.y)
+      ? { x: pointer.x, y: pointer.y }
+      : null;
   }
 
   private setTargetZoom(nextZoom: number): void {
@@ -1170,12 +1201,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePointerMove(pointer: Phaser.Input.Pointer): void {
-    if (!isPlaying(this.sessionState)) return;
-
     if (!pointer.wasTouch) {
+      this.lastMouseScreenPoint = { x: pointer.x, y: pointer.y };
+      if (!isPlaying(this.sessionState)) return;
       this.updateAimDirection(pointer, 'mouse');
       return;
     }
+
+    if (!isPlaying(this.sessionState)) return;
 
     this.mobilePointerPositions.set(pointer.id, { x: pointer.x, y: pointer.y });
     this.updatePinchGesture();
@@ -1263,6 +1296,7 @@ export class GameScene extends Phaser.Scene {
       width: gameSize.width,
       height: gameSize.height,
     };
+    this.lastMouseScreenPoint = null;
     this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);

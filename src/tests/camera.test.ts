@@ -5,6 +5,7 @@ import {
   cameraScrollForPlayer,
   cameraWorldPoint,
   cameraWorldView,
+  clientPointToViewport,
   createWorldSize,
 } from '../logic/camera';
 
@@ -126,6 +127,29 @@ describe('responsive world and camera', () => {
     const screenPoint = cameraScreenPoint(worldPoint, scroll, viewport, zoom);
     expect(cameraWorldPoint(screenPoint, scroll, viewport, zoom))
       .toEqual(worldPoint);
+  });
+
+  it('resamples a stationary DOM pointer after the canvas coordinate space changes', () => {
+    const clientPoint = { x: 450, y: 250 };
+
+    expect(clientPointToViewport(
+      clientPoint,
+      { x: 50, y: 50, width: 800, height: 400 },
+      { width: 1_600, height: 800 },
+    )).toEqual({ x: 800, y: 400 });
+    expect(clientPointToViewport(
+      clientPoint,
+      { x: 50, y: 50, width: 400, height: 200 },
+      { width: 1_200, height: 600 },
+    )).toEqual({ x: 1_200, y: 600 });
+  });
+
+  it('rejects an unusable canvas coordinate space', () => {
+    expect(clientPointToViewport(
+      { x: 100, y: 100 },
+      { x: 0, y: 0, width: 0, height: 600 },
+      { width: 800, height: 600 },
+    )).toBeNull();
   });
 
   it('clamps delayed or look-ahead camera targets beyond world edges', () => {
