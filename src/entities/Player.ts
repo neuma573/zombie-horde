@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { decayTransientLight } from '../logic/timeBasedLighting';
 import {
@@ -175,7 +176,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.muzzleReflection = muzzleReflection;
 
     scene.add.existing(this);
-    this.setDepth(20);
+    this.setDepth(WORLD_RENDER_DEPTH.player);
     this.drawFemaleAppearance();
     this.drawArms(readyPose);
   }
