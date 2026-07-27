@@ -8,6 +8,7 @@ import {
   type CharacterClassId,
 } from '../config/menuConfig';
 import {
+  clampClassStatusY,
   createMenuActionLayout,
   selectCharacterClass,
   toggleSound,
@@ -239,19 +240,21 @@ export class MainMenuScene extends Phaser.Scene {
       stageWidth,
       stageHeight,
       isMobileLayout,
+      actionY,
+      !this.gameStartPending,
     );
 
     this.addButton(actionLayout.back.x, actionY, 'BACK', () => {
       this.view = 'main';
       this.render();
-    }, actionLayout.back.width);
+    }, actionLayout.back.width, !this.gameStartPending);
     this.addButton(
       actionLayout.deploy.x,
       actionY,
-      'DEPLOY',
+      this.gameStartPending ? 'LOADING...' : 'DEPLOY',
       () => this.startGame(),
       actionLayout.deploy.width,
-      this.selectedClassId !== null,
+      this.selectedClassId !== null && !this.gameStartPending,
     );
   }
 
@@ -261,6 +264,8 @@ export class MainMenuScene extends Phaser.Scene {
     width: number,
     height: number,
     isMobileLayout: boolean,
+    actionY: number,
+    interactive: boolean,
   ): void {
     const left = x - width / 2;
     const right = x + width / 2;
@@ -314,15 +319,27 @@ export class MainMenuScene extends Phaser.Scene {
         coordinate - (pointIndex % 2 === 0 ? left : top)
       )));
       const hitArea = this.add.zone(left, top, width, height)
-        .setOrigin(0)
-        .setInteractive(polygon, Phaser.Geom.Polygon.Contains)
-        .on('pointerup', () => {
+        .setOrigin(0);
+      if (interactive) {
+        hitArea
+          .setInteractive(polygon, Phaser.Geom.Polygon.Contains)
+          .on('pointerup', () => {
           this.selectedClassId = selectCharacterClass(this.selectedClassId, option.id);
           this.render();
         });
-      hitArea.input!.cursor = 'pointer';
+        hitArea.input!.cursor = 'pointer';
+      }
       this.ui?.add(hitArea);
-      this.addStagePortrait(option, index, x, y, width, height, isMobileLayout);
+      this.addStagePortrait(
+        option,
+        index,
+        x,
+        y,
+        width,
+        height,
+        isMobileLayout,
+        actionY,
+      );
     });
 
     const divider = this.add.graphics();
@@ -346,6 +363,7 @@ export class MainMenuScene extends Phaser.Scene {
     width: number,
     height: number,
     isMobileLayout: boolean,
+    actionY: number,
   ): void {
     const selected = this.selectedClassId === option.id;
     const direction = index === 0 ? -1 : 1;
@@ -427,9 +445,12 @@ export class MainMenuScene extends Phaser.Scene {
       role.setAlpha(0.55);
     }
     if (selected) {
+      const preferredStatusY = nameY + (isMobileLayout ? 47 : -34);
       this.addText(
         nameX,
-        nameY + (isMobileLayout ? 47 : -34),
+        isMobileLayout
+          ? clampClassStatusY(preferredStatusY, nameY, actionY)
+          : preferredStatusY,
         'READY',
         11,
         true,
@@ -522,16 +543,28 @@ export class MainMenuScene extends Phaser.Scene {
 
   private async startGame(): Promise<void> {
     if (this.selectedClassId === null || this.gameStartPending) return;
+    const requestedClassId = this.selectedClassId;
     this.gameStartPending = true;
-    this.registry.set(GAME_REGISTRY_KEYS.characterClassId, this.selectedClassId);
+    this.render();
     try {
       if (!this.scene.manager.keys.GameScene) {
         const { GameScene } = await import('./GameScene');
         this.scene.add('GameScene', GameScene, false);
       }
+      if (
+        !this.scene.isActive()
+        || this.view !== 'classSelect'
+        || this.selectedClassId !== requestedClassId
+      ) {
+        this.gameStartPending = false;
+        if (this.scene.isActive()) this.render();
+        return;
+      }
+      this.registry.set(GAME_REGISTRY_KEYS.characterClassId, requestedClassId);
       this.scene.start('GameScene');
     } catch (error) {
       this.gameStartPending = false;
+      if (this.scene.isActive()) this.render();
       console.error('Failed to load the game scene.', error);
     }
   }

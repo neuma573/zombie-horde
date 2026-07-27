@@ -37,6 +37,10 @@ describe('browser entry point', () => {
     expect(menuScene).toContain('new ResizeObserver');
     expect(menuScene).toContain("window.visualViewport?.addEventListener(\n      'resize'");
     expect(menuScene).toContain('this.scale.resize(width, height)');
+    expect(menuScene).toContain('this.selectedClassId !== requestedClassId');
+    expect(menuScene).toContain(
+      'this.registry.set(GAME_REGISTRY_KEYS.characterClassId, requestedClassId)',
+    );
     expect(entry).not.toMatch(/width:\s*960/);
     expect(entry).not.toMatch(/height:\s*540/);
   });

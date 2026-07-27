@@ -5,6 +5,7 @@ import {
   DEFAULT_GAME_SETTINGS,
 } from '../config/menuConfig';
 import {
+  clampClassStatusY,
   createMobileClassCardLayout,
   createMenuActionLayout,
   selectCharacterClass,
@@ -91,5 +92,18 @@ describe('main menu state', () => {
     expect(firstTop).toBe(cardTop);
     expect(secondBottom).toBe(layout.cardBottom);
     expect(secondBottom).toBeLessThan(actionTop);
+  });
+
+  it('keeps READY above the action row on a short mobile landscape viewport', () => {
+    const actionY = 351 - 26;
+    const actionTop = actionY - 23;
+    const statusY = clampClassStatusY(315, 268, actionY);
+
+    expect(statusY).toBe(250);
+    expect(statusY + 6).toBeLessThan(actionTop);
+  });
+
+  it('keeps READY below class details when the action row leaves enough room', () => {
+    expect(clampClassStatusY(747, 700, 906)).toBe(747);
   });
 });
