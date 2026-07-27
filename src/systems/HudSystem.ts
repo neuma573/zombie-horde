@@ -59,6 +59,7 @@ export class HudSystem {
   private hoveredWeaponSlot: number | null = null;
   private viewportWidth = 0;
   private viewportHeight = 0;
+  private safeArea: SafeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 };
   private pickupPanelDefaultPosition = { x: 0, y: 0 };
 
   constructor(
@@ -196,6 +197,7 @@ export class HudSystem {
   resize(width: number, height: number, safeArea: SafeAreaInsets): void {
     this.viewportWidth = width;
     this.viewportHeight = height;
+    this.safeArea = { ...safeArea };
     const layout = createHudLayout(width, height, safeArea);
 
     this.statusText.setPosition(layout.status.x, layout.status.y);
@@ -248,7 +250,7 @@ export class HudSystem {
       return;
     }
 
-    const tooltipWidths = constrainTooltipWidths(this.viewportWidth);
+    const tooltipWidths = constrainTooltipWidths(this.viewportWidth, this.safeArea);
     this.pickupText.setWordWrapWidth(tooltipWidths.textWrapWidth);
     const rarity = viewModel.rarity.toUpperCase();
     this.pickupText.setText([
@@ -270,6 +272,7 @@ export class HudSystem {
         { width, height },
         { width: this.viewportWidth, height: this.viewportHeight },
         placement,
+        this.safeArea,
       )
       : this.pickupPanelDefaultPosition;
     this.pickupPanel.setPosition(position.x, position.y);

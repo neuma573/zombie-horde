@@ -68,11 +68,17 @@ const TOOLTIP_EDGE_MARGIN = 8;
 const TOOLTIP_HORIZONTAL_PADDING = 16;
 const TOOLTIP_PREFERRED_TEXT_WIDTH = 260;
 
-export function constrainTooltipWidths(viewportWidth: number): {
+export function constrainTooltipWidths(
+  viewportWidth: number,
+  safeArea: Pick<SafeAreaInsets, 'left' | 'right'> = { left: 0, right: 0 },
+): {
   panelMaxWidth: number;
   textWrapWidth: number;
 } {
-  const safeViewportWidth = Math.max(0, viewportWidth);
+  const safeViewportWidth = Math.max(
+    0,
+    viewportWidth - Math.max(0, safeArea.left) - Math.max(0, safeArea.right),
+  );
   const panelMaxWidth = Math.max(
     0,
     safeViewportWidth - TOOLTIP_EDGE_MARGIN * 2,
@@ -102,21 +108,34 @@ export function positionTooltip(
   panel: { width: number; height: number },
   viewport: { width: number; height: number },
   placement: TooltipPlacement,
+  safeArea: SafeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 },
 ): { x: number; y: number } {
   const edge = TOOLTIP_EDGE_MARGIN;
   const gap = 18;
+  const safeLeft = Math.max(0, safeArea.left);
+  const safeRight = Math.max(0, safeArea.right);
+  const safeTop = Math.max(0, safeArea.top);
+  const safeBottom = Math.max(0, safeArea.bottom);
   const desiredY = placement === 'above'
     ? anchor.y - panel.height / 2 - gap
     : anchor.y + panel.height / 2 + gap;
+  const minimumX = panel.width / 2 + safeLeft + edge;
+  const minimumY = panel.height / 2 + safeTop + edge;
 
   return {
     x: Math.min(
-      Math.max(panel.width / 2 + edge, anchor.x),
-      Math.max(panel.width / 2 + edge, viewport.width - panel.width / 2 - edge),
+      Math.max(minimumX, anchor.x),
+      Math.max(
+        minimumX,
+        viewport.width - safeRight - panel.width / 2 - edge,
+      ),
     ),
     y: Math.min(
-      Math.max(panel.height / 2 + edge, desiredY),
-      Math.max(panel.height / 2 + edge, viewport.height - panel.height / 2 - edge),
+      Math.max(minimumY, desiredY),
+      Math.max(
+        minimumY,
+        viewport.height - safeBottom - panel.height / 2 - edge,
+      ),
     ),
   };
 }

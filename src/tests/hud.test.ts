@@ -181,6 +181,20 @@ describe('positionTooltip', () => {
     expect(position.y).toBe(547);
     expect(position.x + 130).toBeLessThanOrEqual(352);
   });
+
+  it('keeps a field tooltip inside landscape safe-area insets', () => {
+    const position = positionTooltip(
+      { x: 0, y: 239 },
+      { width: 260, height: 110 },
+      { width: 360, height: 240 },
+      'below',
+      { top: 0, right: 0, bottom: 21, left: 44 },
+    );
+
+    expect(position).toEqual({ x: 182, y: 156 });
+    expect(position.x - 130).toBeGreaterThanOrEqual(52);
+    expect(position.y + 55).toBeLessThanOrEqual(211);
+  });
 });
 
 describe('constrainTooltipWidths', () => {
@@ -199,6 +213,18 @@ describe('constrainTooltipWidths', () => {
     expect(widths).toEqual({
       panelMaxWidth: 344,
       textWrapWidth: 260,
+    });
+  });
+
+  it('subtracts horizontal safe-area insets from a narrow viewport', () => {
+    const widths = constrainTooltipWidths(
+      240,
+      { left: 30, right: 20 },
+    );
+
+    expect(widths).toEqual({
+      panelMaxWidth: 174,
+      textWrapWidth: 142,
     });
   });
 });
