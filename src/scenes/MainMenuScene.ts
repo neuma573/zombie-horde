@@ -45,6 +45,14 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    const debugUrl = new URL(window.location.href);
+    if (debugUrl.searchParams.has('playerAppearanceDebug')) {
+      debugUrl.searchParams.delete('playerAppearanceDebug');
+      window.history.replaceState({}, '', debugUrl);
+      this.scene.start('PlayerAppearanceDebugScene');
+      return;
+    }
+
     if (!this.registry.has(GAME_REGISTRY_KEYS.soundEnabled)) {
       this.registry.set(
         GAME_REGISTRY_KEYS.soundEnabled,
