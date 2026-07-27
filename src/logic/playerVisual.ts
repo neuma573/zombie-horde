@@ -11,6 +11,11 @@ export interface SidearmHandPose {
   leftElbow: { x: number; y: number };
 }
 
+export interface SidearmShoulderPose {
+  leftY: number;
+  rightY: number;
+}
+
 export const SIDEARM_VISUAL = {
   length: 18,
   width: 5,
@@ -118,7 +123,10 @@ export function resolveRifleReloadVisual(
   };
 }
 
-export function resolveSidearmHandPose(pose: SidearmPose): SidearmHandPose {
+export function resolveSidearmHandPose(
+  pose: SidearmPose,
+  shoulders: SidearmShoulderPose = { leftY: -9, rightY: 10 },
+): SidearmHandPose {
   const direction = {
     x: Math.cos(pose.rotation),
     y: Math.sin(pose.rotation),
@@ -136,7 +144,7 @@ export function resolveSidearmHandPose(pose: SidearmPose): SidearmHandPose {
     x: grip.x - normal.x * 2,
     y: grip.y - normal.y * 2,
   };
-  const rightShoulder = { x: 2, y: 10 };
+  const rightShoulder = { x: 2, y: shoulders.rightY };
 
   return {
     rightHand,
@@ -147,7 +155,7 @@ export function resolveSidearmHandPose(pose: SidearmPose): SidearmHandPose {
     },
     leftElbow: {
       x: lerp(2, leftHand.x, 0.42),
-      y: lerp(-9, leftHand.y, 0.35) - 5,
+      y: lerp(shoulders.leftY, leftHand.y, 0.35) - 5,
     },
   };
 }

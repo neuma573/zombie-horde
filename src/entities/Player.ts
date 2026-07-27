@@ -62,8 +62,8 @@ export class Player extends Phaser.GameObjects.Container {
   private readonly femaleBody?: Phaser.GameObjects.Graphics;
   private readonly femaleHead?: Phaser.GameObjects.Graphics;
   private readonly ponytail?: Phaser.GameObjects.Graphics;
-  private readonly torso: Phaser.GameObjects.Ellipse;
-  private readonly head: Phaser.GameObjects.Arc;
+  private readonly torso: Phaser.GameObjects.Graphics;
+  private readonly head: Phaser.GameObjects.Graphics;
   private readonly sidearm: Phaser.GameObjects.Rectangle;
   private readonly rifle: Phaser.GameObjects.Graphics;
   private readonly rifleReload: Phaser.GameObjects.Graphics;
@@ -106,24 +106,10 @@ export class Player extends Phaser.GameObjects.Container {
     const femaleHead = appearance === 'female-swat'
       ? new Phaser.GameObjects.Graphics(scene)
       : undefined;
-    const torso = new Phaser.GameObjects.Ellipse(
-      scene,
-      -3,
-      0,
-      PLAYER_RADIUS * 1.55,
-      PLAYER_RADIUS * 1.9,
-      PLAYER_VISUAL_COLORS.torso,
-    ).setStrokeStyle(3, 0x05080b).setVisible(appearance === 'male-swat');
-    const head = new Phaser.GameObjects.Arc(
-      scene,
-      -2,
-      0,
-      PLAYER_RADIUS * 0.62,
-      0,
-      360,
-      false,
-      PLAYER_VISUAL_COLORS.head,
-    ).setStrokeStyle(2, 0x05080b).setVisible(appearance === 'male-swat');
+    const torso = new Phaser.GameObjects.Graphics(scene)
+      .setVisible(appearance === 'male-swat');
+    const head = new Phaser.GameObjects.Graphics(scene)
+      .setVisible(appearance === 'male-swat');
     const readyPose = SIDEARM_VISUAL.readyPose;
     const sidearm = new Phaser.GameObjects.Rectangle(
       scene,
@@ -143,9 +129,9 @@ export class Player extends Phaser.GameObjects.Container {
         femaleBody!,
         ponytail!,
         rifleUnderArm,
+        rifle,
         arms,
         femaleHead!,
-        rifle,
         muzzleReflection,
         rifleReload,
         sidearm,
@@ -177,6 +163,7 @@ export class Player extends Phaser.GameObjects.Container {
 
     scene.add.existing(this);
     this.setDepth(WORLD_RENDER_DEPTH.player);
+    this.drawMaleAppearance();
     this.drawFemaleAppearance();
     this.drawArms(readyPose);
   }
@@ -189,6 +176,15 @@ export class Player extends Phaser.GameObjects.Container {
     this.currentPose = pose;
     const recoilOffset = this.weaponRecoilIntensity * this.weaponRecoilDistance;
     this.sidearm.setPosition(pose.x - recoilOffset, pose.y).setRotation(pose.rotation);
+    const headVisual = this.femaleHead ?? this.head;
+    if (this.weaponId === 'pistol' && isReloading) {
+      const headIndex = this.getIndex(headVisual);
+      if (this.getIndex(this.sidearm) > headIndex) {
+        this.moveTo(this.sidearm, headIndex);
+      }
+    } else {
+      this.bringToTop(this.sidearm);
+    }
     this.rifle
       .setPosition(
         pose.x - RIFLE_VISUAL.readyPose.x - recoilOffset,
@@ -272,13 +268,16 @@ export class Player extends Phaser.GameObjects.Container {
     }
 
     this.rifleUnderArm.clear();
-    const handPose = resolveSidearmHandPose(pose);
     const armOutlineWidth = this.appearance === 'female-swat' ? 6 : 9;
     const armWidth = this.appearance === 'female-swat' ? 5 : 6;
 
     this.arms.clear();
-    const leftShoulderY = this.appearance === 'female-swat' ? -8 : -9;
-    const rightShoulderY = this.appearance === 'female-swat' ? 9 : 10;
+    const leftShoulderY = this.appearance === 'female-swat' ? -8 : -14.5;
+    const rightShoulderY = this.appearance === 'female-swat' ? 9 : 14.5;
+    const handPose = resolveSidearmHandPose(pose, {
+      leftY: leftShoulderY,
+      rightY: rightShoulderY,
+    });
     this.drawArmPath(
       armOutlineWidth,
       0x05080b,
@@ -331,8 +330,8 @@ export class Player extends Phaser.GameObjects.Container {
       y: -13 - reloadAmount * 5,
     };
     const rightElbow = { x: -1, y: 13 };
-    const leftShoulderY = this.appearance === 'female-swat' ? -8 : -9;
-    const rightShoulderY = this.appearance === 'female-swat' ? 9 : 10;
+    const leftShoulderY = this.appearance === 'female-swat' ? -8 : -14.5;
+    const rightShoulderY = this.appearance === 'female-swat' ? 9 : 14.5;
     const armOutlineWidth = this.appearance === 'female-swat' ? 6 : 9;
     const armWidth = this.appearance === 'female-swat' ? 5 : 6;
 
@@ -384,8 +383,6 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private applyMuzzleReflection(): void {
-    this.torso.setFillStyle(PLAYER_VISUAL_COLORS.torso);
-    this.head.setFillStyle(PLAYER_VISUAL_COLORS.head);
     this.sidearm.setFillStyle(blendVisualColor(
       PLAYER_VISUAL_COLORS.sidearm,
       PLAYER_VISUAL_COLORS.sidearmReflection,
@@ -394,6 +391,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.drawRifle();
     this.drawRifleReload();
     this.drawArms(this.currentPose);
+    this.drawMaleAppearance();
     this.drawFemaleAppearance();
     this.drawMuzzleReflection(this.currentPose);
   }
@@ -458,6 +456,52 @@ export class Player extends Phaser.GameObjects.Container {
     this.ponytail.setRotation(
       relativeLag + sway + shotSway,
     );
+  }
+
+  private drawMaleAppearance(): void {
+    if (this.appearance !== 'male-swat') return;
+
+    const torsoColor = blendVisualColor(
+      PLAYER_VISUAL_COLORS.torso,
+      PLAYER_VISUAL_COLORS.torsoReflection,
+      this.muzzleReflectionIntensity * 0.45,
+    );
+    const headColor = blendVisualColor(
+      PLAYER_VISUAL_COLORS.head,
+      PLAYER_VISUAL_COLORS.headReflection,
+      this.muzzleReflectionIntensity * 0.55,
+    );
+
+    this.torso
+      .clear()
+      // The vest wraps around both sides of the helmet and extends rearward.
+      .fillStyle(0x05080b, 1)
+      .fillRoundedRect(-14, -17, 27, 34, 8)
+      .fillRoundedRect(-20, -12, 12, 24, 6)
+      .fillStyle(torsoColor, 1)
+      .fillRoundedRect(-12, -14, 23, 28, 6)
+      .fillStyle(0x080b0f, 1)
+      .fillRoundedRect(-18, -10, 10, 20, 5)
+      .fillStyle(0x394755, 0.7)
+      .fillRect(-8, -13, 1.5, 26);
+
+    this.torso
+      .fillStyle(0x05080b, 1)
+      .fillCircle(2, -14.5, 4.5)
+      .fillCircle(2, 14.5, 4.5)
+      .fillStyle(PLAYER_VISUAL_COLORS.upperArm, 1)
+      .fillCircle(2, -14.5, 3)
+      .fillStyle(PLAYER_VISUAL_COLORS.lowerArm, 1)
+      .fillCircle(2, 14.5, 3);
+
+    this.head
+      .clear()
+      .fillStyle(0x05080b, 1)
+      .fillEllipse(0, 0, 24, 25)
+      .fillStyle(headColor, 1)
+      .fillEllipse(1, 0, 20, 21)
+      .fillStyle(0x394550, 0.45)
+      .fillEllipse(4, -3, 7, 12);
   }
 
   private drawFemaleAppearance(): void {
