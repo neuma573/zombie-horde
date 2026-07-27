@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  constrainTooltipWidths,
   createHudLayout,
   createHudViewModel,
   handleWeaponSlotPress,
@@ -179,6 +180,26 @@ describe('positionTooltip', () => {
     expect(position.x).toBe(222);
     expect(position.y).toBe(547);
     expect(position.x + 130).toBeLessThanOrEqual(352);
+  });
+});
+
+describe('constrainTooltipWidths', () => {
+  it('fits the panel and text wrapping inside a narrow viewport', () => {
+    const widths = constrainTooltipWidths(240);
+
+    expect(widths).toEqual({
+      panelMaxWidth: 224,
+      textWrapWidth: 192,
+    });
+  });
+
+  it('preserves the preferred text width when the viewport has room', () => {
+    const widths = constrainTooltipWidths(360);
+
+    expect(widths).toEqual({
+      panelMaxWidth: 344,
+      textWrapWidth: 260,
+    });
   });
 });
 

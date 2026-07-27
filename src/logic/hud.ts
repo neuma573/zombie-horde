@@ -64,6 +64,30 @@ export interface WeaponPickupViewModel {
 export type TooltipPlacement = 'above' | 'below';
 export type WeaponSlotIndex = 0 | 1;
 
+const TOOLTIP_EDGE_MARGIN = 8;
+const TOOLTIP_HORIZONTAL_PADDING = 16;
+const TOOLTIP_PREFERRED_TEXT_WIDTH = 260;
+
+export function constrainTooltipWidths(viewportWidth: number): {
+  panelMaxWidth: number;
+  textWrapWidth: number;
+} {
+  const safeViewportWidth = Math.max(0, viewportWidth);
+  const panelMaxWidth = Math.max(
+    0,
+    safeViewportWidth - TOOLTIP_EDGE_MARGIN * 2,
+  );
+  const textWrapWidth = Math.max(
+    0,
+    Math.min(
+      TOOLTIP_PREFERRED_TEXT_WIDTH,
+      panelMaxWidth - TOOLTIP_HORIZONTAL_PADDING * 2,
+    ),
+  );
+
+  return { panelMaxWidth, textWrapWidth };
+}
+
 export function handleWeaponSlotPress(
   slot: WeaponSlotIndex,
   stopPropagation: () => void,
@@ -79,7 +103,7 @@ export function positionTooltip(
   viewport: { width: number; height: number },
   placement: TooltipPlacement,
 ): { x: number; y: number } {
-  const edge = 8;
+  const edge = TOOLTIP_EDGE_MARGIN;
   const gap = 18;
   const desiredY = placement === 'above'
     ? anchor.y - panel.height / 2 - gap

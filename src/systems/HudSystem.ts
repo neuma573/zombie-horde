@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import {
+  constrainTooltipWidths,
   createHudLayout,
   handleWeaponSlotPress,
   positionTooltip,
@@ -247,6 +248,8 @@ export class HudSystem {
       return;
     }
 
+    const tooltipWidths = constrainTooltipWidths(this.viewportWidth);
+    this.pickupText.setWordWrapWidth(tooltipWidths.textWrapWidth);
     const rarity = viewModel.rarity.toUpperCase();
     this.pickupText.setText([
       `${viewModel.name}  ·  ${rarity}`,
@@ -256,7 +259,10 @@ export class HudSystem {
       viewModel.interactionText,
     ]);
     const bounds = this.pickupText.getBounds();
-    const width = Math.max(260, bounds.width + 32);
+    const width = Math.min(
+      tooltipWidths.panelMaxWidth,
+      Math.max(260, bounds.width + 32),
+    );
     const height = bounds.height + 26;
     const position = fieldPosition
       ? positionTooltip(
