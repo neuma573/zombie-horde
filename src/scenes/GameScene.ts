@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
 import { CAMERA_FOLLOW_CONFIG, CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
+import { GAME_REGISTRY_KEYS } from '../config/menuConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
@@ -17,7 +18,12 @@ import {
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
-import { Player, PLAYER_RADIUS, PLAYER_SPEED } from '../entities/Player';
+import {
+  Player,
+  PLAYER_RADIUS,
+  PLAYER_SPEED,
+  type PlayerAppearance,
+} from '../entities/Player';
 import { BuildingVisual } from '../effects/BuildingVisual';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
@@ -253,10 +259,16 @@ export class GameScene extends Phaser.Scene {
     for (const obstacle of OBSTACLE_CONFIG) {
       new BuildingVisual(this, obstacle);
     }
+    const appearance: PlayerAppearance = this.registry.get(
+      GAME_REGISTRY_KEYS.characterClassId,
+    ) === 'female-survivor'
+      ? 'female-swat'
+      : 'male-swat';
     this.player = new Player(
       this,
       SPAWN_CONFIG.playerPosition.x,
       SPAWN_CONFIG.playerPosition.y,
+      appearance,
     );
     this.weaponPickups = [];
     const fieldWeapons = WEAPON_RARITIES.flatMap((rarity) => [
@@ -361,7 +373,10 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, deltaMs: number): void {
     this.updateCameraZoom(deltaMs);
-    this.player.updateMuzzleReflection(deltaMs);
+    this.player.updateVisual(
+      deltaMs,
+      Math.hypot(this.playerInput.movement.x, this.playerInput.movement.y) > 0.01,
+    );
     for (const zombie of this.zombies) {
       zombie.updateMuzzleReflection(deltaMs);
     }
