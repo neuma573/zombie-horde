@@ -7,6 +7,8 @@ export interface Size {
 
 export interface ViewRectangle extends Size, Position {}
 
+export interface ScreenRectangle extends Size, Position {}
+
 function positive(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
@@ -72,5 +74,47 @@ export function cameraScreenPoint(
   return {
     x: centerX + (worldPoint.x - scroll.x - centerX) * safeZoom,
     y: centerY + (worldPoint.y - scroll.y - centerY) * safeZoom,
+  };
+}
+
+export function cameraWorldPoint(
+  screenPoint: Position,
+  scroll: Position,
+  viewport: Size,
+  zoom: number,
+): Position {
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  const centerX = positive(viewport.width) / 2;
+  const centerY = positive(viewport.height) / 2;
+
+  return {
+    x: scroll.x + centerX + (screenPoint.x - centerX) / safeZoom,
+    y: scroll.y + centerY + (screenPoint.y - centerY) / safeZoom,
+  };
+}
+
+export function clientPointToViewport(
+  clientPoint: Position,
+  canvasBounds: ScreenRectangle,
+  viewport: Size,
+): Position | null {
+  if (
+    !Number.isFinite(clientPoint.x)
+    || !Number.isFinite(clientPoint.y)
+    || !Number.isFinite(canvasBounds.x)
+    || !Number.isFinite(canvasBounds.y)
+    || !Number.isFinite(canvasBounds.width)
+    || !Number.isFinite(canvasBounds.height)
+    || canvasBounds.width <= 0
+    || canvasBounds.height <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    x: (clientPoint.x - canvasBounds.x)
+      * positive(viewport.width) / canvasBounds.width,
+    y: (clientPoint.y - canvasBounds.y)
+      * positive(viewport.height) / canvasBounds.height,
   };
 }
