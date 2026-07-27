@@ -386,4 +386,23 @@ describe('weapon logic', () => {
     expect(system.getState().magazineAmmo).toBe(27);
     expect(system.update(1_000)).toBe(0);
   });
+
+  it('advances cooldown after overdue burst rounds independently of delta chunking', () => {
+    const singleUpdate = new WeaponSystem(BURST_RIFLE_WEAPON);
+    const splitUpdates = new WeaponSystem(BURST_RIFLE_WEAPON);
+
+    expect(singleUpdate.fire()).toBe(true);
+    expect(splitUpdates.fire()).toBe(true);
+
+    expect(singleUpdate.update(1_000)).toBe(2);
+    expect(splitUpdates.update(65)).toBe(1);
+    expect(splitUpdates.update(65)).toBe(1);
+    expect(splitUpdates.update(870)).toBe(0);
+
+    expect(singleUpdate.getState()).toEqual(splitUpdates.getState());
+    expect(singleUpdate.getState()).toMatchObject({
+      magazineAmmo: 27,
+      cooldownRemainingMs: 0,
+    });
+  });
 });

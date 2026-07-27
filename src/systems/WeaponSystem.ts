@@ -38,50 +38,32 @@ export class WeaponSystem {
   }
 
   update(deltaMs: number): number {
-    const elapsedMs = Math.max(0, deltaMs);
-    this.inventory = {
-      ...this.inventory,
-      slots: this.inventory.slots.map((owned, slot) => {
-        if (!owned) return null;
-        if (slot === this.inventory.activeSlot) {
-          return {
-            ...owned,
-            state: advanceWeapon(owned.state, owned.definition.config, elapsedMs),
-          };
-        }
-
-        const cooldownOnlyState = advanceWeapon(
-          { ...owned.state, reloadRemainingMs: null },
-          owned.definition.config,
-          elapsedMs,
-        );
-        return {
-          ...owned,
-          state: {
-            ...cooldownOnlyState,
-            reserveAmmo: 0,
-            reloadRemainingMs: null,
-          },
-        };
-      }) as WeaponInventoryState['slots'],
-    };
-    const active = this.getOwnedWeapon();
-    this.ammoReserves[active.definition.ammoType] = active.state.reserveAmmo;
-
-    if (this.burstShotsRemaining <= 0) return 0;
-    this.burstTimerMs -= elapsedMs;
+    let remainingMs = Math.max(0, deltaMs);
     let fired = 0;
     const interval = this.getDefinition().config.burstIntervalMs ?? 0;
 
-    while (this.burstShotsRemaining > 0 && this.burstTimerMs <= 0) {
+    while (
+      this.burstShotsRemaining > 0
+      && remainingMs >= this.burstTimerMs
+    ) {
+      const elapsedBeforeShot = Math.max(0, this.burstTimerMs);
+      this.advanceWeaponsBy(elapsedBeforeShot);
+      remainingMs -= elapsedBeforeShot;
+      this.burstTimerMs = 0;
+
       if (!this.fireRound(true)) {
         this.cancelBurst();
         break;
       }
       fired += 1;
       this.burstShotsRemaining -= 1;
-      this.burstTimerMs += interval;
+      this.burstTimerMs = interval;
     }
+
+    this.advanceWeaponsBy(remainingMs);
+    this.burstTimerMs = Math.max(0, this.burstTimerMs - remainingMs);
+    const active = this.getOwnedWeapon();
+    this.ammoReserves[active.definition.ammoType] = active.state.reserveAmmo;
     return fired;
   }
 
@@ -186,6 +168,35 @@ export class WeaponSystem {
     };
     this.inventory = { ...this.inventory, slots };
     this.ammoReserves[this.getDefinition().ammoType] = state.reserveAmmo;
+  }
+
+  private advanceWeaponsBy(elapsedMs: number): void {
+    this.inventory = {
+      ...this.inventory,
+      slots: this.inventory.slots.map((owned, slot) => {
+        if (!owned) return null;
+        if (slot === this.inventory.activeSlot) {
+          return {
+            ...owned,
+            state: advanceWeapon(owned.state, owned.definition.config, elapsedMs),
+          };
+        }
+
+        const cooldownOnlyState = advanceWeapon(
+          { ...owned.state, reloadRemainingMs: null },
+          owned.definition.config,
+          elapsedMs,
+        );
+        return {
+          ...owned,
+          state: {
+            ...cooldownOnlyState,
+            reserveAmmo: 0,
+            reloadRemainingMs: null,
+          },
+        };
+      }) as WeaponInventoryState['slots'],
+    };
   }
 
   private cancelActiveReload(): void {
