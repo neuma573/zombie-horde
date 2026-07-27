@@ -1,5 +1,6 @@
 import type { SessionPhase } from './session';
 import type { WavePhase } from './wave';
+import type { WeaponId, WeaponRarity } from './weapon';
 
 export interface HudState {
   health: number;
@@ -16,6 +17,16 @@ export interface HudState {
   killCount: number;
   sessionPhase: SessionPhase;
   gameTimeText: string;
+  weaponSlots?: Array<{
+    id: WeaponId;
+    name: string;
+    description: string;
+    rarity: WeaponRarity;
+    fireRateText: string;
+    recoil: number;
+    magazineSize: number;
+  } | null>;
+  activeWeaponSlot?: 0 | 1;
 }
 
 export interface HudViewModel {
@@ -28,6 +39,105 @@ export interface HudViewModel {
   reloadPrompt: string | null;
   waveNumber: number;
   waveBannerText: string | null;
+  weaponSlots: Array<{
+    id: WeaponId;
+    name: string;
+    description: string;
+    rarity: WeaponRarity;
+    fireRateText: string;
+    recoil: number;
+    magazineSize: number;
+  } | null>;
+  activeWeaponSlot: 0 | 1;
+}
+
+export interface WeaponPickupViewModel {
+  name: string;
+  description: string;
+  rarity: WeaponRarity;
+  fireRateText: string;
+  recoil: number;
+  magazineSize: number;
+  interactionText: string;
+}
+
+export type TooltipPlacement = 'above' | 'below';
+export type WeaponSlotIndex = 0 | 1;
+
+const TOOLTIP_EDGE_MARGIN = 8;
+const TOOLTIP_HORIZONTAL_PADDING = 16;
+const TOOLTIP_PREFERRED_TEXT_WIDTH = 260;
+
+export function constrainTooltipWidths(
+  viewportWidth: number,
+  safeArea: Pick<SafeAreaInsets, 'left' | 'right'> = { left: 0, right: 0 },
+): {
+  panelMaxWidth: number;
+  textWrapWidth: number;
+} {
+  const safeViewportWidth = Math.max(
+    0,
+    viewportWidth - Math.max(0, safeArea.left) - Math.max(0, safeArea.right),
+  );
+  const panelMaxWidth = Math.max(
+    0,
+    safeViewportWidth - TOOLTIP_EDGE_MARGIN * 2,
+  );
+  const textWrapWidth = Math.max(
+    0,
+    Math.min(
+      TOOLTIP_PREFERRED_TEXT_WIDTH,
+      panelMaxWidth - TOOLTIP_HORIZONTAL_PADDING * 2,
+    ),
+  );
+
+  return { panelMaxWidth, textWrapWidth };
+}
+
+export function handleWeaponSlotPress(
+  slot: WeaponSlotIndex,
+  stopPropagation: () => void,
+  selectSlot: (slot: WeaponSlotIndex) => void,
+): void {
+  stopPropagation();
+  selectSlot(slot);
+}
+
+export function positionTooltip(
+  anchor: { x: number; y: number },
+  panel: { width: number; height: number },
+  viewport: { width: number; height: number },
+  placement: TooltipPlacement,
+  safeArea: SafeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 },
+): { x: number; y: number } {
+  const edge = TOOLTIP_EDGE_MARGIN;
+  const gap = 18;
+  const safeLeft = Math.max(0, safeArea.left);
+  const safeRight = Math.max(0, safeArea.right);
+  const safeTop = Math.max(0, safeArea.top);
+  const safeBottom = Math.max(0, safeArea.bottom);
+  const desiredY = placement === 'above'
+    ? anchor.y - panel.height / 2 - gap
+    : anchor.y + panel.height / 2 + gap;
+  const minimumX = panel.width / 2 + safeLeft + edge;
+  const minimumY = panel.height / 2 + safeTop + edge;
+
+  return {
+    x: Math.min(
+      Math.max(minimumX, anchor.x),
+      Math.max(
+        minimumX,
+        viewport.width - safeRight - panel.width / 2 - edge,
+      ),
+    ),
+    y: Math.min(
+      Math.max(minimumY, desiredY),
+      Math.max(
+        minimumY,
+        viewport.height - safeBottom - panel.height / 2 - edge,
+      ),
+    ),
+  };
 }
 
 export interface SafeAreaInsets {
@@ -91,6 +201,8 @@ export function createHudViewModel(state: HudState): HudViewModel {
       : null,
     waveNumber: state.waveNumber,
     waveBannerText,
+    weaponSlots: state.weaponSlots ?? [null, null],
+    activeWeaponSlot: state.activeWeaponSlot ?? 0,
   };
 }
 
