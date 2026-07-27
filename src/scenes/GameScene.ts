@@ -109,6 +109,7 @@ import {
   createMobilePointerOwnership,
   didViewportOrientationChange,
   getViewportOrientation,
+  isMobileControlPointerRole,
   joystickMovement,
   lateClaimMobilePointerRole,
   releaseMobilePointer,
@@ -784,7 +785,14 @@ export class GameScene extends Phaser.Scene {
       this.updateWeaponPickupInfo();
     });
     pickup.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
-      if (pointer.wasTouch && this.isWeaponPickupInRange(pickup)) {
+      const mobileRole = this.mobileControlsEnabled && this.mobileLayout
+        ? classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout)
+        : null;
+      if (
+        pointer.wasTouch
+        && !isMobileControlPointerRole(mobileRole)
+        && this.isWeaponPickupInRange(pickup)
+      ) {
         this.tryPickupWeapon(pickup);
       }
     });
@@ -1071,9 +1079,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (currentlyOver.some((gameObject) => gameObject instanceof WeaponPickup)) return;
+    const isOverWeaponPickup = currentlyOver.some(
+      (gameObject) => gameObject instanceof WeaponPickup,
+    );
 
     if (!pointer.wasTouch) {
+      if (isOverWeaponPickup) return;
       if (!isPrimaryFireInput(pointer)) return;
       this.updateAimDirection(pointer, 'mouse');
       this.playerInput = requestFire(this.playerInput);
@@ -1085,6 +1096,7 @@ export class GameScene extends Phaser.Scene {
 
     const pointerId = pointer.id;
     const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
+    if (isOverWeaponPickup && !isMobileControlPointerRole(role)) return;
     this.activeMobilePointers.add(pointerId);
     this.mobilePointerPositions.set(pointerId, { x: pointer.x, y: pointer.y });
     if (canStartPinchFromRole(role)) {
