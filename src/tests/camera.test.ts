@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cameraScreenPoint,
   cameraScrollForPlayer,
+  cameraWorldPoint,
   cameraWorldView,
   createWorldSize,
 } from '../logic/camera';
@@ -84,6 +85,27 @@ describe('responsive world and camera', () => {
         y: 270,
       });
     }
+  });
+
+  it('reprojects a stationary screen pointer after the camera moves', () => {
+    const pointer = { x: 720, y: 270 };
+    const viewport = { width: 960, height: 540 };
+
+    expect(cameraWorldPoint(pointer, { x: 720, y: 530 }, viewport, 1))
+      .toEqual({ x: 1_440, y: 800 });
+    expect(cameraWorldPoint(pointer, { x: 760, y: 530 }, viewport, 1))
+      .toEqual({ x: 1_480, y: 800 });
+  });
+
+  it('round-trips screen and world points at the current zoom', () => {
+    const worldPoint = { x: 1_310, y: 745 };
+    const scroll = { x: 720, y: 530 };
+    const viewport = { width: 960, height: 540 };
+    const zoom = 1.5;
+
+    const screenPoint = cameraScreenPoint(worldPoint, scroll, viewport, zoom);
+    expect(cameraWorldPoint(screenPoint, scroll, viewport, zoom))
+      .toEqual(worldPoint);
   });
 
   it('clamps delayed or look-ahead camera targets beyond world edges', () => {

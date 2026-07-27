@@ -56,6 +56,7 @@ import { separatePlayerFromZombies } from '../logic/entityCollision';
 import {
   cameraScreenPoint,
   cameraScrollForPlayer,
+  cameraWorldPoint,
   cameraWorldView,
   createWorldSize,
   type Size,
@@ -165,6 +166,7 @@ export class GameScene extends Phaser.Scene {
   private aimSource: AimSource = 'none';
   private aimTargetId: string | null = null;
   private lockAcquiredManualDirection: Vector2 | null = null;
+  private lastMouseScreenPoint: Vector2 | null = null;
   private mobileMovement = { x: 0, y: 0 };
   private mobileOwnership: MobilePointerOwnership = createMobilePointerOwnership();
   private mobileLayout?: MobileControlLayout;
@@ -442,6 +444,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updatePlayerWeaponVisual();
     this.updateCameraPosition();
+    this.refreshStationaryMouseAim();
     for (const zombie of this.zombies) {
       zombie.faceToward(this.player);
       zombie.updateAttackVisual();
@@ -903,12 +906,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateAimDirection(pointer: Phaser.Input.Pointer, source: AimSource): void {
+    const screenPoint = { x: pointer.x, y: pointer.y };
+    if (source === 'mouse') {
+      this.lastMouseScreenPoint = screenPoint;
+    }
+    this.updateAimDirectionAtScreenPoint(screenPoint, source);
+  }
+
+  private updateAimDirectionAtScreenPoint(
+    screenPoint: Vector2,
+    source: AimSource,
+  ): void {
     if (this.aimSource !== source) {
       this.aimSource = source;
       this.clearAimAssist();
     }
 
-    const worldPoint = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
+    const worldPoint = cameraWorldPoint(
+      screenPoint,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
+      this.viewport,
+      this.cameras.main.zoom,
+    );
     const nextInput = withAimCandidate(
       this.playerInput,
       { x: worldPoint.x - this.player.x, y: worldPoint.y - this.player.y },
@@ -928,6 +950,18 @@ export class GameScene extends Phaser.Scene {
       this.viewDirection = { ...this.playerInput.manualAimDirection };
     }
     this.refreshAimAssist();
+  }
+
+  private refreshStationaryMouseAim(): void {
+    if (
+      this.mobileControlsEnabled
+      || this.aimSource !== 'mouse'
+      || this.lastMouseScreenPoint === null
+    ) {
+      return;
+    }
+
+    this.updateAimDirectionAtScreenPoint(this.lastMouseScreenPoint, 'mouse');
   }
 
   private setTargetZoom(nextZoom: number): void {

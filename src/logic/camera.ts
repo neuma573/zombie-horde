@@ -74,3 +74,19 @@ export function cameraScreenPoint(
     y: centerY + (worldPoint.y - scroll.y - centerY) * safeZoom,
   };
 }
+
+export function cameraWorldPoint(
+  screenPoint: Position,
+  scroll: Position,
+  viewport: Size,
+  zoom: number,
+): Position {
+  const safeZoom = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+  const centerX = positive(viewport.width) / 2;
+  const centerY = positive(viewport.height) / 2;
+
+  return {
+    x: scroll.x + centerX + (screenPoint.x - centerX) / safeZoom,
+    y: scroll.y + centerY + (screenPoint.y - centerY) / safeZoom,
+  };
+}
