@@ -38,6 +38,9 @@ const FEMALE_VISUAL_COLORS = {
   hair: 0x2b1b18,
   hairHighlight: 0x4a2c25,
   skin: 0xc98f72,
+  topReflection: 0x777d87,
+  hairReflection: 0x8a5845,
+  skinReflection: 0xf2c6a0,
 } as const;
 const MUZZLE_REFLECTION_DECAY_RATE = 22;
 const WEAPON_RECOIL_DECAY_RATE = 15;
@@ -488,6 +491,11 @@ export class Player extends Phaser.GameObjects.Container {
     this.muzzleReflection.clear().setVisible(intensity > 0.001);
     if (intensity <= 0.001) return;
 
+    if (this.appearance === 'female-swat') {
+      this.drawFemaleMuzzleReflection(pose, intensity);
+      return;
+    }
+
     // Local +X is always the character's forward direction.
     this.muzzleReflection.fillStyle(PLAYER_VISUAL_COLORS.torsoReflection, intensity * 0.62);
     this.muzzleReflection.fillEllipse(5, 0, 11, 24);
@@ -506,6 +514,33 @@ export class Player extends Phaser.GameObjects.Container {
     this.muzzleReflection.moveTo(gripX * 0.55, gripY - 8);
     this.muzzleReflection.lineTo(gripX, gripY - 2);
     this.muzzleReflection.strokePath();
+  }
+
+  private drawFemaleMuzzleReflection(
+    pose: SidearmPose,
+    intensity: number,
+  ): void {
+    // Keep the reflection inside the female torso and hair silhouettes.
+    this.muzzleReflection
+      .fillStyle(FEMALE_VISUAL_COLORS.topReflection, intensity * 0.5)
+      .fillTriangle(2, -8, 2, 8, 12, 6)
+      .fillTriangle(2, -8, 12, -6, 12, 6)
+      .fillStyle(FEMALE_VISUAL_COLORS.hairReflection, intensity * 0.58)
+      .fillEllipse(2, 0, 6, 12);
+
+    const gripX = pose.x - Math.cos(pose.rotation) * this.weaponLength() / 2;
+    const gripY = pose.y - Math.sin(pose.rotation) * SIDEARM_VISUAL.length / 2;
+    this.muzzleReflection
+      .lineStyle(2, FEMALE_VISUAL_COLORS.skinReflection, intensity * 0.72)
+      .beginPath()
+      .moveTo(gripX * 0.58, gripY + 7)
+      .lineTo(gripX, gripY + 2)
+      .strokePath()
+      .lineStyle(2, FEMALE_VISUAL_COLORS.skinReflection, intensity * 0.66)
+      .beginPath()
+      .moveTo(gripX * 0.55, gripY - 8)
+      .lineTo(gripX, gripY - 2)
+      .strokePath();
   }
 
   private weaponLength(): number {

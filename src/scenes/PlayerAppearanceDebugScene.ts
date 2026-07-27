@@ -12,6 +12,7 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
   private moving = false;
   private automaticAim = false;
   private automaticAimElapsedMs = 0;
+  private persistentMuzzleReflection = false;
   private statusText!: Phaser.GameObjects.Text;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
 
@@ -27,6 +28,7 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     );
     if (requestedAngleIndex >= 0) this.angleIndex = requestedAngleIndex;
     this.moving = debugParameters.get('debugMoving') === '1';
+    this.persistentMuzzleReflection = debugParameters.get('debugMuzzle') === '1';
 
     this.cameras.main.setBackgroundColor(0x30383c);
     this.male = new Player(this, 0, 0, 'male-swat');
@@ -46,7 +48,8 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
       next: Phaser.Input.Keyboard.KeyCodes.E,
       movement: Phaser.Input.Keyboard.KeyCodes.M,
       autoAim: Phaser.Input.Keyboard.KeyCodes.A,
-      recoil: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      muzzle: Phaser.Input.Keyboard.KeyCodes.SPACE,
+      recoil: Phaser.Input.Keyboard.KeyCodes.R,
       minimumZoom: Phaser.Input.Keyboard.KeyCodes.ONE,
       defaultZoom: Phaser.Input.Keyboard.KeyCodes.TWO,
       maximumZoom: Phaser.Input.Keyboard.KeyCodes.THREE,
@@ -73,6 +76,10 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
 
   update(_time: number, deltaMs: number): void {
     this.handleInput(deltaMs);
+    if (this.persistentMuzzleReflection) {
+      this.male.triggerMuzzleReflection();
+      this.female.triggerMuzzleReflection();
+    }
     this.male.setReloadVisual(false, 0);
     this.female.setReloadVisual(false, 0);
     this.male.updateVisual(deltaMs, this.moving);
@@ -88,6 +95,10 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.autoAim)) {
       this.automaticAim = !this.automaticAim;
       this.automaticAimElapsedMs = 0;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.muzzle)) {
+      this.male.triggerMuzzleReflection();
+      this.female.triggerMuzzleReflection();
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.recoil)) {
       this.male.triggerWeaponRecoil(7);
@@ -152,7 +163,7 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     this.statusText.setText([
       `PLAYER APPEARANCE DEBUG  angle ${DEBUG_ANGLES[this.angleIndex]}°`,
       `state ${this.moving ? 'MOVING' : 'IDLE'}  auto aim ${this.automaticAim ? 'ON' : 'OFF'}  zoom ${this.cameras.main.zoom.toFixed(2)}`,
-      'Q/E direction  M movement  A auto aim  SPACE recoil',
+      'Q/E direction  M movement  A auto aim  SPACE muzzle  R recoil',
       '1 min zoom  2 default zoom  3 max zoom  ESC menu',
       'male-swat                              female-swat',
     ]);
