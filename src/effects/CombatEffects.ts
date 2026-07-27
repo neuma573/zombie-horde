@@ -4,13 +4,12 @@ import {
   ZOMBIE_DEATH_EFFECT_CONFIG,
   ZOMBIE_HIT_EFFECT_CONFIG,
 } from '../config/hitFeedbackConfig';
+import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
 import type { ImpactEffectEvent, ShotEffectEvent } from '../logic/combatEffects';
 import {
   resolveHumanoidDeathPose,
   type HumanoidPartTransform,
 } from '../logic/humanoidDeathPose';
-
-const EFFECT_DEPTH = 50;
 
 export class CombatEffects {
   private readonly active = new Set<Phaser.GameObjects.GameObject>();
@@ -25,7 +24,7 @@ export class CombatEffects {
       return;
     }
 
-    const tracer = this.scene.add.graphics().setDepth(EFFECT_DEPTH);
+    const tracer = this.scene.add.graphics().setDepth(WORLD_RENDER_DEPTH.combatEffect);
     tracer.lineStyle(2, 0xffe08a, 0.9);
     tracer.beginPath();
     tracer.moveTo(event.origin.x, event.origin.y);
@@ -39,7 +38,7 @@ export class CombatEffects {
       6,
       0xfff1a8,
       0.95,
-    ).setDepth(EFFECT_DEPTH);
+    ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
     this.fadeAndDestroy(muzzle, 70, { scale: 1.8 });
   }
 
@@ -62,7 +61,7 @@ export class CombatEffects {
       3.2,
       0xffc8aa,
       0.9,
-    ).setDepth(EFFECT_DEPTH);
+    ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
     this.fadeAndDestroy(impact, ZOMBIE_HIT_EFFECT_CONFIG.burstDurationMs, { scale: 0.35 });
 
     const lateralOffsets = [-0.14, 0.05, 0.22];
@@ -83,7 +82,7 @@ export class CombatEffects {
         radii[index] ?? 1.2,
         index === 1 ? 0x8f2027 : 0x65171c,
         0.82,
-      ).setDepth(EFFECT_DEPTH);
+      ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
       this.fadeAndDestroy(
         particle,
         ZOMBIE_HIT_EFFECT_CONFIG.particleDurationMs,
@@ -112,7 +111,7 @@ export class CombatEffects {
     corpse.container
       .setPosition(event.position.x, event.position.y)
       .setRotation(Number.isFinite(event.rotation) ? event.rotation! : 0)
-      .setDepth(EFFECT_DEPTH - 1);
+      .setDepth(WORLD_RENDER_DEPTH.zombieCorpse);
     const localImpactY = direction.x * Math.sin(-corpse.container.rotation)
       + direction.y * Math.cos(-corpse.container.rotation);
     const fallSide = localImpactY >= 0 ? 1 : -1;
@@ -128,7 +127,7 @@ export class CombatEffects {
       .setRotation(corpse.container.rotation + fallSide * 0.18)
       .setScale(0.24)
       .setAlpha(0)
-      .setDepth(EFFECT_DEPTH - 2);
+      .setDepth(WORLD_RENDER_DEPTH.bloodPool);
     this.active.add(corpse.container);
     this.active.add(bloodPool);
     this.scene.tweens.add({
@@ -191,7 +190,7 @@ export class CombatEffects {
       event.radius,
       0xff4d4d,
       0.65,
-    ).setDepth(EFFECT_DEPTH);
+    ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
     this.fadeAndDestroy(flash, 140, { scale: 1.35 });
   }
 
