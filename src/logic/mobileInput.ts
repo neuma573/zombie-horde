@@ -224,6 +224,15 @@ export function classifyMobilePointer(
   return point.y >= layout.aimTop ? 'aim' : null;
 }
 
+export function isMobileControlPointerRole(
+  role: MobilePointerClassification,
+): boolean {
+  return role === 'movement'
+    || role === 'fire'
+    || role === 'reload'
+    || role === 'controlGuard';
+}
+
 export function lateClaimMobilePointerRole(
   role: MobilePointerClassification,
 ): 'aim' | null {

@@ -9,6 +9,7 @@ import {
   createMobilePointerOwnership,
   didViewportOrientationChange,
   joystickMovement,
+  isMobileControlPointerRole,
   lateClaimMobilePointerRole,
   releaseMobilePointer,
   releasePinchPointerOwnership,
@@ -83,6 +84,15 @@ describe('mobile input', () => {
     const insetLayout = createMobileControlLayout(360, 640, { ...noInsets, top: 30 });
     expect(classifyMobilePointer({ x: 180, y: 29 }, insetLayout)).toBeNull();
     expect(classifyMobilePointer({ x: 180, y: 30 }, insetLayout)).toBe('aim');
+  });
+
+  it('distinguishes mobile controls from world interaction touches', () => {
+    expect(isMobileControlPointerRole('movement')).toBe(true);
+    expect(isMobileControlPointerRole('fire')).toBe(true);
+    expect(isMobileControlPointerRole('reload')).toBe(true);
+    expect(isMobileControlPointerRole('controlGuard')).toBe(true);
+    expect(isMobileControlPointerRole('aim')).toBe(false);
+    expect(isMobileControlPointerRole(null)).toBe(false);
   });
 
   it('uses larger action targets and neutral guard bands around right-side controls', () => {
