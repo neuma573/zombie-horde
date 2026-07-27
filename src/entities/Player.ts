@@ -4,6 +4,7 @@ import { PLAYER_CONFIG } from '../config/playerConfig';
 import { decayTransientLight } from '../logic/timeBasedLighting';
 import {
   blendVisualColor,
+  clampPonytailRelativeRotation,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
   resolveSidearmHandPose,
@@ -16,6 +17,7 @@ import type { WeaponId } from '../logic/weapon';
 
 export const PLAYER_RADIUS = PLAYER_CONFIG.radius;
 export const PLAYER_SPEED = PLAYER_CONFIG.speed;
+export type PlayerAppearance = 'male-swat' | 'female-swat';
 
 const PLAYER_VISUAL_COLORS = {
   torso: 0x0d1218,
@@ -29,8 +31,25 @@ const PLAYER_VISUAL_COLORS = {
   sidearm: 0x727a84,
   sidearmReflection: 0xf4f0db,
 } as const;
+const FEMALE_VISUAL_COLORS = {
+  top: 0x111318,
+  bottom: 0x16191f,
+  equipment: 0x090b0f,
+  equipmentHighlight: 0x252a32,
+  hair: 0x2b1b18,
+  hairHighlight: 0x4a2c25,
+  skin: 0xc98f72,
+  topReflection: 0x777d87,
+  hairReflection: 0x8a5845,
+  skinReflection: 0xf2c6a0,
+} as const;
 const MUZZLE_REFLECTION_DECAY_RATE = 22;
 const WEAPON_RECOIL_DECAY_RATE = 15;
+const PONYTAIL_FOLLOW_RATE = 10;
+const PONYTAIL_SWAY_SPEED = 0.012;
+const PONYTAIL_MAX_LAG_RADIANS = Math.PI * 0.4;
+const PONYTAIL_SHOT_SWAY_RADIANS = 0.065;
+const PONYTAIL_SHOT_SWAY_DECAY_RATE = 18;
 
 export class Player extends Phaser.GameObjects.Container {
   health = PLAYER_CONFIG.health;
@@ -39,6 +58,9 @@ export class Player extends Phaser.GameObjects.Container {
   isAlive = true;
   private readonly arms: Phaser.GameObjects.Graphics;
   private readonly rifleUnderArm: Phaser.GameObjects.Graphics;
+  private readonly femaleBody?: Phaser.GameObjects.Graphics;
+  private readonly femaleHead?: Phaser.GameObjects.Graphics;
+  private readonly ponytail?: Phaser.GameObjects.Graphics;
   private readonly torso: Phaser.GameObjects.Ellipse;
   private readonly head: Phaser.GameObjects.Arc;
   private readonly sidearm: Phaser.GameObjects.Rectangle;
@@ -51,8 +73,18 @@ export class Player extends Phaser.GameObjects.Container {
   private muzzleReflectionIntensity = 0;
   private weaponRecoilIntensity = 0;
   private weaponRecoilDistance = 0;
+  private ponytailWorldRotation = 0;
+  private ponytailSwayTimeMs = 0;
+  private movementAmount = 0;
+  private ponytailShotSwayIntensity = 0;
+  private ponytailShotSwayDirection = 1;
 
-  constructor(scene: Phaser.Scene, x: number, y: number) {
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    readonly appearance: PlayerAppearance = 'male-swat',
+  ) {
     const shadow = new Phaser.GameObjects.Ellipse(
       scene,
       -2,
@@ -64,6 +96,15 @@ export class Player extends Phaser.GameObjects.Container {
     );
     const arms = new Phaser.GameObjects.Graphics(scene);
     const rifleUnderArm = new Phaser.GameObjects.Graphics(scene);
+    const ponytail = appearance === 'female-swat'
+      ? new Phaser.GameObjects.Graphics(scene)
+      : undefined;
+    const femaleBody = appearance === 'female-swat'
+      ? new Phaser.GameObjects.Graphics(scene)
+      : undefined;
+    const femaleHead = appearance === 'female-swat'
+      ? new Phaser.GameObjects.Graphics(scene)
+      : undefined;
     const torso = new Phaser.GameObjects.Ellipse(
       scene,
       -3,
@@ -71,7 +112,7 @@ export class Player extends Phaser.GameObjects.Container {
       PLAYER_RADIUS * 1.55,
       PLAYER_RADIUS * 1.9,
       PLAYER_VISUAL_COLORS.torso,
-    ).setStrokeStyle(3, 0x05080b);
+    ).setStrokeStyle(3, 0x05080b).setVisible(appearance === 'male-swat');
     const head = new Phaser.GameObjects.Arc(
       scene,
       -2,
@@ -81,7 +122,7 @@ export class Player extends Phaser.GameObjects.Container {
       360,
       false,
       PLAYER_VISUAL_COLORS.head,
-    ).setStrokeStyle(2, 0x05080b);
+    ).setStrokeStyle(2, 0x05080b).setVisible(appearance === 'male-swat');
     const readyPose = SIDEARM_VISUAL.readyPose;
     const sidearm = new Phaser.GameObjects.Rectangle(
       scene,
@@ -95,19 +136,37 @@ export class Player extends Phaser.GameObjects.Container {
     const rifleReload = new Phaser.GameObjects.Graphics(scene).setVisible(false);
     const muzzleReflection = new Phaser.GameObjects.Graphics(scene).setVisible(false);
 
-    super(scene, x, y, [
-      shadow,
-      rifleUnderArm,
-      rifle,
-      arms,
-      torso,
-      head,
-      muzzleReflection,
-      rifleReload,
-      sidearm,
-    ]);
+    const layers = appearance === 'female-swat'
+      ? [
+        shadow,
+        femaleBody!,
+        ponytail!,
+        rifleUnderArm,
+        arms,
+        femaleHead!,
+        rifle,
+        muzzleReflection,
+        rifleReload,
+        sidearm,
+      ]
+      : [
+        shadow,
+        rifleUnderArm,
+        rifle,
+        arms,
+        torso,
+        head,
+        muzzleReflection,
+        rifleReload,
+        sidearm,
+      ];
+
+    super(scene, x, y, layers);
     this.arms = arms;
     this.rifleUnderArm = rifleUnderArm;
+    this.femaleBody = femaleBody;
+    this.femaleHead = femaleHead;
+    this.ponytail = ponytail;
     this.torso = torso;
     this.head = head;
     this.sidearm = sidearm;
@@ -117,6 +176,7 @@ export class Player extends Phaser.GameObjects.Container {
 
     scene.add.existing(this);
     this.setDepth(20);
+    this.drawFemaleAppearance();
     this.drawArms(readyPose);
   }
 
@@ -152,8 +212,12 @@ export class Player extends Phaser.GameObjects.Container {
     this.drawRifleReload();
   }
 
-  triggerMuzzleReflection(): void {
+  triggerMuzzleReflection(triggerPonytailSway = true): void {
     this.muzzleReflectionIntensity = 1;
+    if (triggerPonytailSway && this.appearance === 'female-swat') {
+      this.ponytailShotSwayDirection *= -1;
+      this.ponytailShotSwayIntensity = 1;
+    }
     this.applyMuzzleReflection();
   }
 
@@ -162,7 +226,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.weaponRecoilIntensity = 1;
   }
 
-  updateMuzzleReflection(deltaMs: number): void {
+  updateVisual(deltaMs: number, isMoving = false): void {
     this.muzzleReflectionIntensity = decayTransientLight(
       this.muzzleReflectionIntensity,
       deltaMs,
@@ -173,7 +237,17 @@ export class Player extends Phaser.GameObjects.Container {
       deltaMs,
       WEAPON_RECOIL_DECAY_RATE,
     );
+    this.ponytailShotSwayIntensity = decayTransientLight(
+      this.ponytailShotSwayIntensity,
+      deltaMs,
+      PONYTAIL_SHOT_SWAY_DECAY_RATE,
+    );
+    this.updateFemaleMovement(deltaMs, isMoving);
     this.applyMuzzleReflection();
+  }
+
+  updateMuzzleReflection(deltaMs: number): void {
+    this.updateVisual(deltaMs);
   }
 
   getMuzzlePosition(): { x: number; y: number } {
@@ -198,23 +272,46 @@ export class Player extends Phaser.GameObjects.Container {
 
     this.rifleUnderArm.clear();
     const handPose = resolveSidearmHandPose(pose);
+    const armOutlineWidth = this.appearance === 'female-swat' ? 6 : 9;
+    const armWidth = this.appearance === 'female-swat' ? 5 : 6;
 
     this.arms.clear();
-    this.drawArmPath(9, 0x05080b, handPose.leftElbow, handPose.leftHand, -9);
-    this.drawArmPath(9, 0x05080b, handPose.rightElbow, handPose.rightHand, 10);
+    const leftShoulderY = this.appearance === 'female-swat' ? -8 : -9;
+    const rightShoulderY = this.appearance === 'female-swat' ? 9 : 10;
     this.drawArmPath(
-      6,
-      PLAYER_VISUAL_COLORS.upperArm,
+      armOutlineWidth,
+      0x05080b,
       handPose.leftElbow,
       handPose.leftHand,
-      -9,
+      leftShoulderY,
     );
     this.drawArmPath(
-      6,
-      PLAYER_VISUAL_COLORS.lowerArm,
+      armOutlineWidth,
+      0x05080b,
       handPose.rightElbow,
       handPose.rightHand,
-      10,
+      rightShoulderY,
+    );
+    this.drawArmPath(
+      armWidth,
+      this.armColor('upper'),
+      handPose.leftElbow,
+      handPose.leftHand,
+      leftShoulderY,
+    );
+    this.drawArmPath(
+      armWidth,
+      this.armColor('lower'),
+      handPose.rightElbow,
+      handPose.rightHand,
+      rightShoulderY,
+    );
+    this.drawFemaleShoulderCaps(
+      this.arms,
+      leftShoulderY,
+      rightShoulderY,
+      armOutlineWidth,
+      armWidth,
     );
     this.arms.fillStyle(0x05080b, 1);
     this.arms.fillCircle(handPose.leftHand.x, handPose.leftHand.y, 3.5);
@@ -233,42 +330,53 @@ export class Player extends Phaser.GameObjects.Container {
       y: -13 - reloadAmount * 5,
     };
     const rightElbow = { x: -1, y: 13 };
+    const leftShoulderY = this.appearance === 'female-swat' ? -8 : -9;
+    const rightShoulderY = this.appearance === 'female-swat' ? 9 : 10;
+    const armOutlineWidth = this.appearance === 'female-swat' ? 6 : 9;
+    const armWidth = this.appearance === 'female-swat' ? 5 : 6;
 
     this.arms.clear();
     this.rifleUnderArm.clear();
     this.drawArmPathOn(
       this.rifleUnderArm,
-      9,
+      armOutlineWidth,
       0x05080b,
       rightElbow,
       rightHand,
-      10,
+      rightShoulderY,
     );
     this.drawArmPathOn(
       this.rifleUnderArm,
-      6,
-      PLAYER_VISUAL_COLORS.lowerArm,
+      armWidth,
+      this.armColor('lower'),
       rightElbow,
       rightHand,
-      10,
+      rightShoulderY,
     );
     this.rifleUnderArm.fillStyle(0x05080b, 1);
     this.rifleUnderArm.fillCircle(rightHand.x, rightHand.y, 3.5);
     this.drawArmPathOn(
       this.rifleUnderArm,
-      9,
+      armOutlineWidth,
       0x05080b,
       leftElbow,
       leftHand,
-      -9,
+      leftShoulderY,
     );
     this.drawArmPathOn(
       this.rifleUnderArm,
-      6,
-      PLAYER_VISUAL_COLORS.upperArm,
+      armWidth,
+      this.armColor('upper'),
       leftElbow,
       leftHand,
-      -9,
+      leftShoulderY,
+    );
+    this.drawFemaleShoulderCaps(
+      this.rifleUnderArm,
+      leftShoulderY,
+      rightShoulderY,
+      armOutlineWidth,
+      armWidth,
     );
     this.rifleUnderArm.fillStyle(0x05080b, 1);
     this.rifleUnderArm.fillCircle(leftHand.x, leftHand.y, 3.5);
@@ -285,13 +393,134 @@ export class Player extends Phaser.GameObjects.Container {
     this.drawRifle();
     this.drawRifleReload();
     this.drawArms(this.currentPose);
+    this.drawFemaleAppearance();
     this.drawMuzzleReflection(this.currentPose);
+  }
+
+  private armColor(side: 'upper' | 'lower'): number {
+    if (this.appearance === 'female-swat') return FEMALE_VISUAL_COLORS.skin;
+    return side === 'upper'
+      ? PLAYER_VISUAL_COLORS.upperArm
+      : PLAYER_VISUAL_COLORS.lowerArm;
+  }
+
+  private drawFemaleShoulderCaps(
+    graphics: Phaser.GameObjects.Graphics,
+    leftShoulderY: number,
+    rightShoulderY: number,
+    outlineWidth: number,
+    armWidth: number,
+  ): void {
+    if (this.appearance !== 'female-swat') return;
+
+    const outlineRadius = outlineWidth / 2;
+    const armRadius = armWidth / 2;
+    graphics
+      .fillStyle(0x05080b, 1)
+      .fillCircle(2, leftShoulderY, outlineRadius)
+      .fillCircle(2, rightShoulderY, outlineRadius)
+      .fillStyle(FEMALE_VISUAL_COLORS.skin, 1)
+      .fillCircle(2, leftShoulderY, armRadius)
+      .fillCircle(2, rightShoulderY, armRadius);
+  }
+
+  private updateFemaleMovement(deltaMs: number, isMoving: boolean): void {
+    if (!this.ponytail) return;
+
+    const safeDeltaMs = Number.isFinite(deltaMs) ? Math.max(0, deltaMs) : 0;
+    const targetMovement = isMoving ? 1 : 0;
+    const movementBlend = 1 - Math.exp(-safeDeltaMs * 0.012);
+    this.movementAmount += (targetMovement - this.movementAmount) * movementBlend;
+    this.ponytailSwayTimeMs += safeDeltaMs * this.movementAmount;
+
+    const angleDifference = Phaser.Math.Angle.Wrap(
+      this.rotation - this.ponytailWorldRotation,
+    );
+    const followBlend = 1 - Math.exp(-safeDeltaMs / 1000 * PONYTAIL_FOLLOW_RATE);
+    this.ponytailWorldRotation = Phaser.Math.Angle.Wrap(
+      this.ponytailWorldRotation + angleDifference * followBlend,
+    );
+    const relativeLag = clampPonytailRelativeRotation(
+      this.rotation,
+      this.ponytailWorldRotation,
+      PONYTAIL_MAX_LAG_RADIANS,
+    );
+    this.ponytailWorldRotation = Phaser.Math.Angle.Wrap(
+      this.rotation + relativeLag,
+    );
+    const sway = Math.sin(this.ponytailSwayTimeMs * PONYTAIL_SWAY_SPEED)
+      * 0.045
+      * this.movementAmount;
+    const shotSway = this.ponytailShotSwayDirection
+      * this.ponytailShotSwayIntensity
+      * PONYTAIL_SHOT_SWAY_RADIANS;
+    this.ponytail.setRotation(
+      relativeLag + sway + shotSway,
+    );
+  }
+
+  private drawFemaleAppearance(): void {
+    if (!this.femaleBody || !this.femaleHead || !this.ponytail) return;
+
+    const stride = Math.sin(this.ponytailSwayTimeMs * PONYTAIL_SWAY_SPEED)
+      * this.movementAmount;
+    this.ponytail
+      .clear()
+      .fillStyle(0x120c0b, 0.8)
+      .fillEllipse(-15, 0, 22, 13)
+      .fillStyle(FEMALE_VISUAL_COLORS.hair, 1)
+      .fillEllipse(-14, -2, 19, 9)
+      .fillEllipse(-21, 1, 14, 8)
+      .fillStyle(FEMALE_VISUAL_COLORS.hairHighlight, 0.72)
+      .fillEllipse(-17, -3, 13, 3);
+
+    this.femaleBody
+      .clear()
+      // Short thigh hints stay within the unchanged collision radius.
+      .fillStyle(FEMALE_VISUAL_COLORS.skin, 1)
+      .fillEllipse(-9 + stride, -7, 12, 7)
+      .fillEllipse(-9 - stride, 7, 12, 7)
+      // One-sided holster: local lower side only.
+      .fillStyle(FEMALE_VISUAL_COLORS.equipment, 1)
+      .fillRoundedRect(-15 - stride, 7, 10, 6, 2)
+      .fillStyle(FEMALE_VISUAL_COLORS.equipmentHighlight, 1)
+      .fillRect(-12 - stride, 8, 5, 1)
+      // Dark lower body, distinct from the tactical top.
+      .fillStyle(0x07090c, 1)
+      .fillEllipse(-5, 0, 27, 24)
+      .fillStyle(FEMALE_VISUAL_COLORS.bottom, 1)
+      .fillEllipse(-4, 0, 24, 21)
+      // A short curved waist glimpse avoids a straight cut across the torso.
+      .fillStyle(FEMALE_VISUAL_COLORS.skin, 1)
+      .fillEllipse(0, 0, 8, 17)
+      // Tapered torso: narrower waist, shoulders about 10% narrower than male.
+      .fillStyle(0x05080b, 1)
+      .fillTriangle(-2, -14, -2, 14, 14, 10)
+      .fillTriangle(-2, -14, 14, -10, 14, 10)
+      .fillStyle(FEMALE_VISUAL_COLORS.top, 1)
+      .fillTriangle(-1, -12, -1, 12, 13, 8.5)
+      .fillTriangle(-1, -12, 13, -8.5, 13, 8.5);
+
+    // The head covers the shoulder roots, while arms remain below the weapon.
+    this.femaleHead
+      .clear()
+      .fillStyle(0x120c0b, 1)
+      .fillCircle(-2, 0, PLAYER_RADIUS * 0.68)
+      .fillStyle(FEMALE_VISUAL_COLORS.hair, 1)
+      .fillEllipse(-2, 0, PLAYER_RADIUS * 1.13, PLAYER_RADIUS * 1.2)
+      .fillStyle(FEMALE_VISUAL_COLORS.hairHighlight, 0.75)
+      .fillEllipse(0, -4, 8, 5);
   }
 
   private drawMuzzleReflection(pose: SidearmPose): void {
     const intensity = this.muzzleReflectionIntensity;
     this.muzzleReflection.clear().setVisible(intensity > 0.001);
     if (intensity <= 0.001) return;
+
+    if (this.appearance === 'female-swat') {
+      this.drawFemaleMuzzleReflection(pose, intensity);
+      return;
+    }
 
     // Local +X is always the character's forward direction.
     this.muzzleReflection.fillStyle(PLAYER_VISUAL_COLORS.torsoReflection, intensity * 0.62);
@@ -311,6 +540,33 @@ export class Player extends Phaser.GameObjects.Container {
     this.muzzleReflection.moveTo(gripX * 0.55, gripY - 8);
     this.muzzleReflection.lineTo(gripX, gripY - 2);
     this.muzzleReflection.strokePath();
+  }
+
+  private drawFemaleMuzzleReflection(
+    pose: SidearmPose,
+    intensity: number,
+  ): void {
+    // Keep the reflection inside the female torso and hair silhouettes.
+    this.muzzleReflection
+      .fillStyle(FEMALE_VISUAL_COLORS.topReflection, intensity * 0.5)
+      .fillTriangle(2, -8, 2, 8, 12, 6)
+      .fillTriangle(2, -8, 12, -6, 12, 6)
+      .fillStyle(FEMALE_VISUAL_COLORS.hairReflection, intensity * 0.58)
+      .fillEllipse(2, 0, 6, 12);
+
+    const gripX = pose.x - Math.cos(pose.rotation) * this.weaponLength() / 2;
+    const gripY = pose.y - Math.sin(pose.rotation) * SIDEARM_VISUAL.length / 2;
+    this.muzzleReflection
+      .lineStyle(2, FEMALE_VISUAL_COLORS.skinReflection, intensity * 0.72)
+      .beginPath()
+      .moveTo(gripX * 0.58, gripY + 7)
+      .lineTo(gripX, gripY + 2)
+      .strokePath()
+      .lineStyle(2, FEMALE_VISUAL_COLORS.skinReflection, intensity * 0.66)
+      .beginPath()
+      .moveTo(gripX * 0.55, gripY - 8)
+      .lineTo(gripX, gripY - 2)
+      .strokePath();
   }
 
   private weaponLength(): number {
