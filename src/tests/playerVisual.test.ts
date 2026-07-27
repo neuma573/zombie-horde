@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   blendVisualColor,
+  clampPonytailRelativeRotation,
   muzzleLightExposure,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
@@ -9,6 +10,26 @@ import {
   resolveSidearmPose,
   SIDEARM_VISUAL,
 } from '../logic/playerVisual';
+
+describe('ponytail rotation', () => {
+  it('keeps rapid aim reversals inside the rear hemisphere', () => {
+    const maximumLag = Math.PI * 0.4;
+
+    expect(clampPonytailRelativeRotation(Math.PI, 0, maximumLag))
+      .toBeCloseTo(-maximumLag);
+    expect(clampPonytailRelativeRotation(0, Math.PI, maximumLag))
+      .toBeCloseTo(maximumLag);
+  });
+
+  it('preserves small lag and clamps invalid inputs safely', () => {
+    expect(clampPonytailRelativeRotation(0.5, 0.7, Math.PI * 0.4))
+      .toBeCloseTo(0.2);
+    expect(clampPonytailRelativeRotation(Number.NaN, 0, Math.PI * 0.4))
+      .toBe(0);
+    expect(clampPonytailRelativeRotation(0, Math.PI, Number.NaN))
+      .toBe(0);
+  });
+});
 
 describe('player visual pose', () => {
   it('extends the right arm toward the pistol while the left hand supports it', () => {

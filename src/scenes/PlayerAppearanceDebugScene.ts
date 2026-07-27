@@ -77,8 +77,8 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
   update(_time: number, deltaMs: number): void {
     this.handleInput(deltaMs);
     if (this.persistentMuzzleReflection) {
-      this.male.triggerMuzzleReflection();
-      this.female.triggerMuzzleReflection();
+      this.male.triggerMuzzleReflection(false);
+      this.female.triggerMuzzleReflection(false);
     }
     this.male.setReloadVisual(false, 0);
     this.female.setReloadVisual(false, 0);

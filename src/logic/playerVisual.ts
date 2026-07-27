@@ -166,6 +166,27 @@ export function blendVisualColor(
   return (blendChannel(16) << 16) | (blendChannel(8) << 8) | blendChannel(0);
 }
 
+export function clampPonytailRelativeRotation(
+  characterRotation: number,
+  ponytailWorldRotation: number,
+  maximumLagRadians: number,
+): number {
+  if (
+    !Number.isFinite(characterRotation)
+    || !Number.isFinite(ponytailWorldRotation)
+  ) {
+    return 0;
+  }
+
+  const safeMaximum = Number.isFinite(maximumLagRadians)
+    ? Math.max(0, Math.min(Math.PI / 2, maximumLagRadians))
+    : 0;
+  const relativeRotation = wrapAngle(
+    ponytailWorldRotation - characterRotation,
+  );
+  return Math.max(-safeMaximum, Math.min(safeMaximum, relativeRotation));
+}
+
 export function muzzleLightExposure(
   origin: { x: number; y: number },
   direction: { x: number; y: number },
@@ -203,6 +224,10 @@ export function muzzleLightExposure(
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+function wrapAngle(angle: number): number {
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
 
 function lerp(start: number, end: number, amount: number): number {

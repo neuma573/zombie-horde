@@ -4,6 +4,7 @@ import { PLAYER_CONFIG } from '../config/playerConfig';
 import { decayTransientLight } from '../logic/timeBasedLighting';
 import {
   blendVisualColor,
+  clampPonytailRelativeRotation,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
   resolveSidearmHandPose,
@@ -46,6 +47,9 @@ const MUZZLE_REFLECTION_DECAY_RATE = 22;
 const WEAPON_RECOIL_DECAY_RATE = 15;
 const PONYTAIL_FOLLOW_RATE = 10;
 const PONYTAIL_SWAY_SPEED = 0.012;
+const PONYTAIL_MAX_LAG_RADIANS = Math.PI * 0.4;
+const PONYTAIL_SHOT_SWAY_RADIANS = 0.065;
+const PONYTAIL_SHOT_SWAY_DECAY_RATE = 18;
 
 export class Player extends Phaser.GameObjects.Container {
   health = PLAYER_CONFIG.health;
@@ -72,6 +76,8 @@ export class Player extends Phaser.GameObjects.Container {
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
   private movementAmount = 0;
+  private ponytailShotSwayIntensity = 0;
+  private ponytailShotSwayDirection = 1;
 
   constructor(
     scene: Phaser.Scene,
@@ -206,8 +212,12 @@ export class Player extends Phaser.GameObjects.Container {
     this.drawRifleReload();
   }
 
-  triggerMuzzleReflection(): void {
+  triggerMuzzleReflection(triggerPonytailSway = true): void {
     this.muzzleReflectionIntensity = 1;
+    if (triggerPonytailSway && this.appearance === 'female-swat') {
+      this.ponytailShotSwayDirection *= -1;
+      this.ponytailShotSwayIntensity = 1;
+    }
     this.applyMuzzleReflection();
   }
 
@@ -226,6 +236,11 @@ export class Player extends Phaser.GameObjects.Container {
       this.weaponRecoilIntensity,
       deltaMs,
       WEAPON_RECOIL_DECAY_RATE,
+    );
+    this.ponytailShotSwayIntensity = decayTransientLight(
+      this.ponytailShotSwayIntensity,
+      deltaMs,
+      PONYTAIL_SHOT_SWAY_DECAY_RATE,
     );
     this.updateFemaleMovement(deltaMs, isMoving);
     this.applyMuzzleReflection();
@@ -425,11 +440,22 @@ export class Player extends Phaser.GameObjects.Container {
     this.ponytailWorldRotation = Phaser.Math.Angle.Wrap(
       this.ponytailWorldRotation + angleDifference * followBlend,
     );
+    const relativeLag = clampPonytailRelativeRotation(
+      this.rotation,
+      this.ponytailWorldRotation,
+      PONYTAIL_MAX_LAG_RADIANS,
+    );
+    this.ponytailWorldRotation = Phaser.Math.Angle.Wrap(
+      this.rotation + relativeLag,
+    );
     const sway = Math.sin(this.ponytailSwayTimeMs * PONYTAIL_SWAY_SPEED)
       * 0.045
       * this.movementAmount;
+    const shotSway = this.ponytailShotSwayDirection
+      * this.ponytailShotSwayIntensity
+      * PONYTAIL_SHOT_SWAY_RADIANS;
     this.ponytail.setRotation(
-      Phaser.Math.Angle.Wrap(this.ponytailWorldRotation - this.rotation) + sway,
+      relativeLag + sway + shotSway,
     );
   }
 
