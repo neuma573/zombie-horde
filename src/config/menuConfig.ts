@@ -1,5 +1,5 @@
-import femalePortraitUrl from '../assets/characters/female.png?url';
-import malePortraitUrl from '../assets/characters/male.png?url';
+import femalePortraitUrl from '../assets/characters/female.webp?url';
+import malePortraitUrl from '../assets/characters/male.webp?url';
 
 export const GAME_REGISTRY_KEYS = {
   soundEnabled: 'settings.soundEnabled',

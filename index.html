@@ -22,6 +22,10 @@
       }
 
       #game {
+        position: fixed;
+        inset: 0;
+        min-width: 0;
+        min-height: 0;
         height: 100dvh;
         --safe-area-top: env(safe-area-inset-top, 0px);
         --safe-area-right: env(safe-area-inset-right, 0px);
@@ -37,9 +41,22 @@
         -webkit-touch-callout: none;
       }
 
+      #boot-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        color: #9aabb5;
+        background: #11161c;
+        font: 700 14px Arial, sans-serif;
+        letter-spacing: 0.14em;
+      }
+
     </style>
   </head>
   <body>
+    <div id="boot-loading" role="status" aria-live="polite">LOADING...</div>
     <div id="game"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

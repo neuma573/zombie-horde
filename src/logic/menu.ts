@@ -21,6 +21,9 @@ export interface MobileClassCardLayout {
 const MENU_ACTION_GAP = 12;
 const BACK_BUTTON_MAX_WIDTH = 140;
 const DEPLOY_BUTTON_MAX_WIDTH = 160;
+const MENU_ACTION_HEIGHT = 46;
+const CLASS_STATUS_GAP = 9;
+const CLASS_STATUS_HALF_HEIGHT = 6;
 
 export function toggleSound(settings: GameSettings): GameSettings {
   return {
@@ -54,6 +57,18 @@ export function createMenuActionLayout(left: number, right: number): MenuActionL
       width: deployWidth,
     },
   };
+}
+
+export function clampClassStatusY(
+  preferredY: number,
+  nameY: number,
+  actionY: number,
+): number {
+  const actionTop = actionY - MENU_ACTION_HEIGHT / 2;
+  const maximumY = actionTop - CLASS_STATUS_GAP - CLASS_STATUS_HALF_HEIGHT;
+  return preferredY <= maximumY
+    ? preferredY
+    : Math.min(nameY - 18, maximumY);
 }
 
 export function createMobileClassCardLayout(
