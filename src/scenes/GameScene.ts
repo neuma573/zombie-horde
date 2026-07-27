@@ -56,12 +56,12 @@ import { separatePlayerFromZombies } from '../logic/entityCollision';
 import {
   cameraScreenPoint,
   cameraScrollForPlayer,
-  cameraWorldPoint,
   cameraWorldView,
   clientPointToViewport,
   createWorldSize,
   type Size,
 } from '../logic/camera';
+import { screenAimCandidate } from '../logic/aim';
 import {
   snapCameraFollow,
   updateCameraFollow,
@@ -377,7 +377,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
-    this.updateCameraZoom(deltaMs);
     this.player.updateVisual(
       deltaMs,
       Math.hypot(this.playerInput.movement.x, this.playerInput.movement.y) > 0.01,
@@ -387,6 +386,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!isPlaying(this.sessionState)) {
+      this.updateCameraZoom(deltaMs);
       this.clearAimAssist();
       this.resetMobileInput();
       this.updateHud();
@@ -435,6 +435,7 @@ export class GameScene extends Phaser.Scene {
     let playerDied = false;
 
     for (let step = 0; step < fixedSteps.stepCount; step += 1) {
+      this.updateCameraZoom(SIMULATION_CONFIG.fixedStepMs);
       this.refreshStationaryMouseAim();
       const simulation = this.advanceSimulationStep(SIMULATION_CONFIG.fixedStepMs);
       playerDamageEventCount += simulation.damageEventCount;
@@ -925,18 +926,16 @@ export class GameScene extends Phaser.Scene {
       this.clearAimAssist();
     }
 
-    const worldPoint = cameraWorldPoint(
-      screenPoint,
-      {
-        x: this.cameras.main.scrollX,
-        y: this.cameras.main.scrollY,
-      },
-      this.viewport,
-      this.cameras.main.zoom,
-    );
     const nextInput = withAimCandidate(
       this.playerInput,
-      { x: worldPoint.x - this.player.x, y: worldPoint.y - this.player.y },
+      screenAimCandidate({
+        screenPoint,
+        playerPosition: this.player,
+        cameraTargetPosition: this.cameraFollowState.targetPosition,
+        world: this.playArea,
+        viewport: this.viewport,
+        zoom: this.cameras.main.zoom,
+      }),
     );
     const releasesLock = source === 'mobile'
       && this.aimTargetId !== null
