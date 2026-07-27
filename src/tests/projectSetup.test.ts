@@ -8,6 +8,8 @@ describe('browser entry point', () => {
     const html = await readFile(htmlPath, 'utf8');
 
     expect(html).toContain('<div id="game"></div>');
+    expect(html).toContain('id="boot-loading"');
+    expect(html).toContain('role="status"');
     expect(html).toContain('viewport-fit=cover');
     expect(html).toContain('env(safe-area-inset-top, 0px)');
     expect(html).toContain('touch-action: none');
@@ -18,12 +20,23 @@ describe('browser entry point', () => {
 
   it('uses responsive Phaser scaling without fixed dimensions', async () => {
     const entryPath = new URL('../main.ts', import.meta.url);
-    const entry = await readFile(entryPath, 'utf8');
+    const menuScenePath = new URL('../scenes/MainMenuScene.ts', import.meta.url);
+    const [entry, menuScene] = await Promise.all([
+      readFile(entryPath, 'utf8'),
+      readFile(menuScenePath, 'utf8'),
+    ]);
 
     expect(entry).toContain('mode: Phaser.Scale.RESIZE');
     expect(entry).toContain("width: '100%'");
     expect(entry).toContain("height: '100%'");
     expect(entry).toContain('activePointers: INPUT_CONFIG.activePointers');
+    expect(entry).toContain('scene: [MainMenuScene]');
+    expect(entry).not.toContain("from './scenes/GameScene'");
+    expect(menuScene).toContain("await import('./GameScene')");
+    expect(menuScene).not.toMatch(/preload\(\): void[\s\S]*this\.load\.image/);
+    expect(menuScene).toContain('new ResizeObserver');
+    expect(menuScene).toContain("window.visualViewport?.addEventListener(\n      'resize'");
+    expect(menuScene).toContain('this.scale.resize(width, height)');
     expect(entry).not.toMatch(/width:\s*960/);
     expect(entry).not.toMatch(/height:\s*540/);
   });

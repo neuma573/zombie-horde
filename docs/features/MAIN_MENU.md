@@ -5,7 +5,7 @@
 - 게임 실행 직후 전투를 시작하지 않고 메인 메뉴를 표시한다.
 - 설정 화면에서 전역 음소거 상태만 변경한다.
 - 게임 시작 전에 두 외형 클래스 중 정확히 하나를 선택한다.
-- `src/assets/characters/male.png`, `src/assets/characters/female.png`를 선택 카드에
+- `src/assets/characters/male.webp`, `src/assets/characters/female.webp`를 선택 카드에
   표시한다.
 
 ## 화면 흐름
@@ -35,11 +35,11 @@ Phaser 게임 전역 Registry에 다음 상태를 저장한다.
 - `male-survivor`
 - `female-survivor`
 
-두 클래스는 현재 능력치와 게임 판정이 같다. 선택 화면만 서로 다른 크로키 이미지의
-전신에 가까운 crop을 사용한다. 모바일은 전폭 가로 카드 두 장을 세로로 배치해 인물과
-이름에 충분한 폭을 제공하고, 넓은 화면에서만 두 패널을 좌우에 배치한다. 하체를 포함한
-전신 구도는 선택 전후에 유지한다. 선택한 패널은 `John Doe` 또는 `Jane Doe` 이름과 함께
-전신 크기, 강조 색상 및 짧은 이동 효과를 키운다. 각 옵션은 `portraitTextureKey`,
+두 클래스는 현재 능력치와 게임 판정이 같다. 선택 화면은 서로 다른 크로키 이미지의
+전신에 가까운 crop을 사용한다. PC에서는 중앙의 큰 패널을 대각선으로 나눠 두 생존자를
+한 장면에서 비교하고, 모바일에서는 같은 분할 구도를 세로 화면에 맞춰 압축한다.
+하체를 포함한 전신 구도는 선택 전후에 유지한다. 선택한 영역은 `John Doe` 또는
+`Jane Doe` 이름과 함께 전신 크기, 강조 색상 및 짧은 이동 효과를 키운다. 각 옵션은 `portraitTextureKey`,
 `portraitUrl`, `portraitCrop`을 가지며 Vite가 런타임 캐릭터 이미지를 빌드 에셋으로
 포함한다.
 URL이 없는 향후 옵션은 임시 실루엣으로 대체할 수 있다.

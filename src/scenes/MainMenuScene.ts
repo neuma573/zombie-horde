@@ -8,7 +8,6 @@ import {
   type CharacterClassId,
 } from '../config/menuConfig';
 import {
-  createMobileClassCardLayout,
   createMenuActionLayout,
   selectCharacterClass,
   toggleSound,
@@ -20,6 +19,10 @@ const COLORS = {
   background: 0x11161c,
   panel: 0x1b252e,
   panelSelected: 0x29475b,
+  malePanel: 0x123f70,
+  malePanelSelected: 0x176bb2,
+  femalePanel: 0x8e2355,
+  femalePanelSelected: 0xe12c80,
   border: 0x6f8798,
   accent: 0xd7b45a,
   text: '#eef4f7',
@@ -31,25 +34,21 @@ export class MainMenuScene extends Phaser.Scene {
   private view: MenuView = 'main';
   private selectedClassId: CharacterClassId | null = null;
   private ui?: Phaser.GameObjects.Container;
+  private portraitLoadStarted = false;
+  private portraitLoadFinished = false;
+  private gameStartPending = false;
+  private resizeObserver?: ResizeObserver;
+  private resizeFrame?: number;
 
   constructor() {
     super('MainMenuScene');
   }
 
-  preload(): void {
-    for (const option of CHARACTER_CLASS_OPTIONS) {
-      if (option.portraitUrl) {
-        this.load.image(option.portraitTextureKey, option.portraitUrl);
-      }
-    }
-  }
-
   create(): void {
+    document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
     if (debugUrl.searchParams.has('playerAppearanceDebug')) {
-      debugUrl.searchParams.delete('playerAppearanceDebug');
-      window.history.replaceState({}, '', debugUrl);
-      this.scene.start('PlayerAppearanceDebugScene');
+      void this.startAppearanceDebug(debugUrl);
       return;
     }
 
@@ -60,14 +59,62 @@ export class MainMenuScene extends Phaser.Scene {
       );
     }
 
-    this.scale.on(Phaser.Scale.Events.RESIZE, this.render, this);
+    this.scale.on(
+      Phaser.Scale.Events.RESIZE,
+      this.scheduleResponsiveRender,
+      this,
+    );
+    const parent = this.game.canvas.parentElement;
+    if (parent) {
+      this.resizeObserver = new ResizeObserver(
+        () => this.scheduleResponsiveRender(),
+      );
+      this.resizeObserver.observe(parent);
+    }
+    window.visualViewport?.addEventListener(
+      'resize',
+      this.scheduleResponsiveRender,
+    );
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.scale.off(Phaser.Scale.Events.RESIZE, this.render, this);
+      this.scale.off(
+        Phaser.Scale.Events.RESIZE,
+        this.scheduleResponsiveRender,
+        this,
+      );
+      this.resizeObserver?.disconnect();
+      this.resizeObserver = undefined;
+      window.visualViewport?.removeEventListener(
+        'resize',
+        this.scheduleResponsiveRender,
+      );
+      if (this.resizeFrame !== undefined) {
+        cancelAnimationFrame(this.resizeFrame);
+        this.resizeFrame = undefined;
+      }
       this.ui?.destroy(true);
       this.ui = undefined;
     });
     this.render();
   }
+
+  private scheduleResponsiveRender = (): void => {
+    if (this.resizeFrame !== undefined) cancelAnimationFrame(this.resizeFrame);
+    this.resizeFrame = requestAnimationFrame(() => {
+      this.resizeFrame = undefined;
+      const parent = this.game.canvas.parentElement;
+      if (!parent) {
+        this.render();
+        return;
+      }
+      const width = Math.max(1, parent.clientWidth);
+      const height = Math.max(1, parent.clientHeight);
+      if (this.scale.width !== width || this.scale.height !== height) {
+        this.scale.resize(width, height);
+        return;
+      }
+      this.render();
+    });
+  };
 
   private render(): void {
     this.ui?.destroy(true);
@@ -123,6 +170,7 @@ export class MainMenuScene extends Phaser.Scene {
     );
     this.addButton(centerX, centerY, 'START GAME', () => {
       this.view = 'classSelect';
+      this.startPortraitLoading();
       this.render();
     });
     this.addButton(centerX, centerY + 64, 'SETTINGS', () => {
@@ -165,46 +213,33 @@ export class MainMenuScene extends Phaser.Scene {
     const centerX = left + width / 2;
     const isMobileLayout = width < 620;
     this.addText(centerX, top + 20, 'SELECT CLASS', 30, true);
-    this.addText(centerX, top + 56, 'CHOOSE YOUR SURVIVOR', 13, false, COLORS.muted);
+    this.addText(
+      centerX,
+      top + 56,
+      this.portraitLoadStarted && !this.portraitLoadFinished
+        ? 'LOADING SURVIVORS...'
+        : 'CHOOSE YOUR SURVIVOR',
+      13,
+      false,
+      COLORS.muted,
+    );
 
-    const cardGap = Math.min(14, Math.max(8, width * 0.025));
-    const cardTop = top + 88;
+    const stageTop = top + 88;
     const actionY = bottom - 26;
     const actionLayout = createMenuActionLayout(left, right);
-    const cardBottom = actionY - 42;
-    const availableCardHeight = Math.max(0, cardBottom - cardTop);
-    const mobileCardLayout = createMobileClassCardLayout(
-      cardTop,
-      cardBottom,
-      cardGap,
+    const stageBottom = actionY - 42;
+    const stageWidth = isMobileLayout ? width : Math.min(930, width * 0.82);
+    const stageHeight = Math.max(
+      1,
+      Math.min(isMobileLayout ? 620 : 610, stageBottom - stageTop),
     );
-    const cardWidth = isMobileLayout
-      ? width
-      : Math.min(300, Math.max(1, (width - cardGap) / 2));
-    const cardHeight = isMobileLayout
-      ? Math.min(260, mobileCardLayout.cardHeight)
-      : Math.min(410, availableCardHeight);
-    const cardsCenterY = cardTop + availableCardHeight / 2;
-
-    CHARACTER_CLASS_OPTIONS.forEach((option, index) => {
-      const x = isMobileLayout
-        ? centerX
-        : centerX + (index === 0
-          ? -(cardWidth + cardGap) / 2
-          : (cardWidth + cardGap) / 2);
-      const y = isMobileLayout
-        ? mobileCardLayout.cardCenters[index]
-        : cardsCenterY;
-      this.addClassCard(
-        x,
-        y,
-        cardWidth,
-        cardHeight,
-        option,
-        index,
-        isMobileLayout,
-      );
-    });
+    this.addClassStage(
+      centerX,
+      stageTop + (stageBottom - stageTop) / 2,
+      stageWidth,
+      stageHeight,
+      isMobileLayout,
+    );
 
     this.addButton(actionLayout.back.x, actionY, 'BACK', () => {
       this.view = 'main';
@@ -220,65 +255,110 @@ export class MainMenuScene extends Phaser.Scene {
     );
   }
 
-  private addClassCard(
+  private addClassStage(
     x: number,
     y: number,
     width: number,
     height: number,
+    isMobileLayout: boolean,
+  ): void {
+    const left = x - width / 2;
+    const right = x + width / 2;
+    const top = y - height / 2;
+    const bottom = y + height / 2;
+    const diagonalTop = x + width * (isMobileLayout ? 0.27 : 0.11);
+    const diagonalBottom = x - width * (isMobileLayout ? 0.25 : 0.12);
+    const maleSelected = this.selectedClassId === 'male-survivor';
+    const femaleSelected = this.selectedClassId === 'female-survivor';
+    const malePoints = [left, top, diagonalTop, top, diagonalBottom, bottom, left, bottom];
+    const femalePoints = [diagonalTop, top, right, top, right, bottom, diagonalBottom, bottom];
+
+    const panels = this.add.graphics();
+    panels.fillStyle(maleSelected ? COLORS.malePanelSelected : COLORS.malePanel);
+    panels.fillPoints([
+      new Phaser.Geom.Point(left, top),
+      new Phaser.Geom.Point(diagonalTop, top),
+      new Phaser.Geom.Point(diagonalBottom, bottom),
+      new Phaser.Geom.Point(left, bottom),
+    ], true);
+    panels.fillStyle(femaleSelected ? COLORS.femalePanelSelected : COLORS.femalePanel);
+    panels.fillPoints([
+      new Phaser.Geom.Point(diagonalTop, top),
+      new Phaser.Geom.Point(right, top),
+      new Phaser.Geom.Point(right, bottom),
+      new Phaser.Geom.Point(diagonalBottom, bottom),
+    ], true);
+    this.ui?.add(panels);
+
+    const chrome = this.add.graphics();
+    chrome.lineStyle(4, 0x55bfff, maleSelected ? 1 : 0.55);
+    chrome.beginPath();
+    chrome.moveTo(left, top);
+    chrome.lineTo(diagonalTop, top);
+    chrome.moveTo(left, top);
+    chrome.lineTo(left, top + height * 0.12);
+    chrome.strokePath();
+    chrome.lineStyle(4, 0xff74b6, femaleSelected ? 1 : 0.55);
+    chrome.beginPath();
+    chrome.moveTo(diagonalTop, top);
+    chrome.lineTo(right, top);
+    chrome.moveTo(right, bottom - height * 0.12);
+    chrome.lineTo(right, bottom);
+    chrome.lineTo(diagonalBottom, bottom);
+    chrome.strokePath();
+    this.ui?.add(chrome);
+
+    CHARACTER_CLASS_OPTIONS.forEach((option, index) => {
+      const points = index === 0 ? malePoints : femalePoints;
+      const polygon = new Phaser.Geom.Polygon(points.map((coordinate, pointIndex) => (
+        coordinate - (pointIndex % 2 === 0 ? left : top)
+      )));
+      const hitArea = this.add.zone(left, top, width, height)
+        .setOrigin(0)
+        .setInteractive(polygon, Phaser.Geom.Polygon.Contains)
+        .on('pointerup', () => {
+          this.selectedClassId = selectCharacterClass(this.selectedClassId, option.id);
+          this.render();
+        });
+      hitArea.input!.cursor = 'pointer';
+      this.ui?.add(hitArea);
+      this.addStagePortrait(option, index, x, y, width, height, isMobileLayout);
+    });
+
+    const divider = this.add.graphics();
+    divider.lineStyle(
+      isMobileLayout ? 2 : 1,
+      isMobileLayout ? 0x10141b : 0xe8f3fa,
+      isMobileLayout ? 0.72 : 0.34,
+    );
+    divider.beginPath();
+    divider.moveTo(diagonalTop, top);
+    divider.lineTo(diagonalBottom, bottom);
+    divider.strokePath();
+    this.ui?.add(divider);
+  }
+
+  private addStagePortrait(
     option: CharacterClassOption,
-    optionIndex: number,
+    index: number,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
     isMobileLayout: boolean,
   ): void {
     const selected = this.selectedClassId === option.id;
-    const borderColor = selected ? COLORS.accent : COLORS.border;
-    const card = this.add.rectangle(
-      x,
-      y,
-      width,
-      height,
-      selected ? COLORS.panelSelected : COLORS.panel,
-      0.96,
-    ).setStrokeStyle(selected ? 4 : 1, borderColor);
-    card.setInteractive({ useHandCursor: true }).on('pointerup', () => {
-      this.selectedClassId = selectCharacterClass(this.selectedClassId, option.id);
-      this.render();
-    });
-    this.ui?.add(card);
-
-    const accent = this.add.graphics();
-    accent.fillStyle(selected ? COLORS.accent : 0x334756, selected ? 1 : 0.75);
-    if (optionIndex === 0) {
-      accent.fillTriangle(
-        x - width / 2,
-        y - height / 2,
-        x - width / 2 + Math.min(44, width * 0.28),
-        y - height / 2,
-        x - width / 2,
-        y - height / 2 + Math.min(80, height * 0.2),
-      );
-    } else {
-      accent.fillTriangle(
-        x + width / 2,
-        y - height / 2,
-        x + width / 2 - Math.min(44, width * 0.28),
-        y - height / 2,
-        x + width / 2,
-        y - height / 2 + Math.min(80, height * 0.2),
-      );
-    }
-    this.ui?.add(accent);
-
-    const direction = optionIndex === 0 ? -1 : 1;
-    const portraitX = isMobileLayout ? x + direction * width * 0.23 : x;
-    const labelX = isMobileLayout ? x - direction * width * 0.23 : x;
-    const portraitY = isMobileLayout ? y : y - 20;
-    const portraitHeight = isMobileLayout
-      ? Math.max(1, height - 12)
-      : Math.max(80, height - 66);
-    const portraitWidth = isMobileLayout
-      ? Math.max(1, width * 0.46)
-      : Math.max(1, width - 10);
+    const direction = index === 0 ? -1 : 1;
+    const portraitX = x + direction * width * (isMobileLayout ? 0.24 : 0.18);
+    const portraitY = y + height * (isMobileLayout
+      ? (index === 0 ? -0.18 : 0.1)
+      : (index === 0 ? -0.04 : 0.09));
+    const portraitHeight = height * (isMobileLayout
+      ? (index === 0 ? 0.64 : 0.66)
+      : (index === 0 ? 0.82 : 0.85));
+    const portraitWidth = width * (isMobileLayout ? 0.62 : 0.45);
     let portrait: Phaser.GameObjects.Image | undefined;
+
     if (option.portraitUrl && this.textures.exists(option.portraitTextureKey)) {
       portrait = this.add.image(portraitX, portraitY, option.portraitTextureKey);
       portrait.setCrop(
@@ -287,64 +367,74 @@ export class MainMenuScene extends Phaser.Scene {
         option.portraitCrop.width,
         option.portraitCrop.height,
       );
-      const portraitScale = Math.min(
+      portrait.setScale(Math.min(
         portraitWidth / option.portraitCrop.width,
         portraitHeight / option.portraitCrop.height,
-      );
-      portrait.setScale(portraitScale * (selected ? 1 : 0.86));
+      ) * (selected ? 1.06 : 1));
+      if (this.selectedClassId !== null && !selected) {
+        portrait.setAlpha(0.62);
+      }
       this.ui?.add(portrait);
     } else {
       const silhouette = this.add.graphics();
-      silhouette.fillStyle(0x71808a, 0.9);
-      silhouette.fillCircle(
-        portraitX,
-        portraitY - portraitHeight * 0.18,
-        Math.min(22, portraitHeight * 0.16),
-      );
+      silhouette.fillStyle(0x71808a, 0.75);
+      silhouette.fillCircle(portraitX, portraitY - portraitHeight * 0.24, 20);
       silhouette.fillRoundedRect(
-        portraitX - Math.min(38, portraitWidth * 0.28),
-        portraitY,
-        Math.min(76, width * 0.36),
-        Math.max(30, portraitHeight * 0.36),
+        portraitX - 36,
+        portraitY - portraitHeight * 0.12,
+        72,
+        portraitHeight * 0.46,
         12,
       );
       this.ui?.add(silhouette);
     }
-    const labelY = y + height / 2 - 24;
-    const mobileLabelOffset = Math.min(16, height * 0.2);
-    const mobileSelectedOffset = Math.min(48, height * 0.36);
-    this.addText(
-      labelX,
-      isMobileLayout ? y - mobileLabelOffset : labelY - 8,
+
+    if (selected && portrait) {
+      this.tweens.add({
+        targets: portrait,
+        y: portrait.y - 6,
+        duration: 180,
+        ease: 'Back.Out',
+      });
+    }
+    const nameX = isMobileLayout
+      ? x + direction * width * 0.26
+      : x + direction * width * 0.31;
+    const nameY = y + height * (isMobileLayout
+      ? (index === 0 ? 0.16 : 0.41)
+      : (index === 0 ? 0.39 : -0.39));
+    const name = this.addText(
+      nameX,
+      nameY,
       option.name,
-      isMobileLayout ? Math.min(22, Math.max(11, height * 0.28)) : width < 170 ? 13 : 16,
+      Math.min(isMobileLayout ? 22 : 52, Math.max(16, width * 0.055)),
       true,
     );
-    this.addText(
-      labelX,
-      isMobileLayout ? y + mobileLabelOffset : labelY + 13,
-      option.roleLabel,
-      isMobileLayout ? Math.min(11, Math.max(8, height * 0.16)) : 10,
+    name
+      .setStroke('#0b1118', isMobileLayout ? 3 : 2)
+      .setShadow(0, 2, '#000000', 4, true, true);
+    const role = this.addText(
+      nameX,
+      nameY + (isMobileLayout ? 25 : 30),
+      `${index === 0 ? '01' : '02'} // ${option.roleLabel}`,
+      isMobileLayout ? 10 : 12,
       false,
       COLORS.muted,
     );
+    role.setShadow(0, 1, '#000000', 3, true, true);
+    if (this.selectedClassId !== null && !selected) {
+      name.setAlpha(0.55);
+      role.setAlpha(0.55);
+    }
     if (selected) {
       this.addText(
-        labelX,
-        isMobileLayout ? y + mobileSelectedOffset : labelY - 38,
-        'SELECTED',
+        nameX,
+        nameY + (isMobileLayout ? 47 : -34),
+        'READY',
         11,
         true,
-        '#f4d675',
+        index === 0 ? '#76caff' : '#ff9ac9',
       );
-      if (portrait) {
-        this.tweens.add({
-          targets: portrait,
-          y: portrait.y - 6,
-          duration: 180,
-          ease: 'Back.Out',
-        });
-      }
     }
   }
 
@@ -390,10 +480,60 @@ export class MainMenuScene extends Phaser.Scene {
     return object;
   }
 
-  private startGame(): void {
-    if (this.selectedClassId === null) return;
+  private startPortraitLoading(): void {
+    if (this.portraitLoadStarted) return;
+
+    const unloadedOptions = CHARACTER_CLASS_OPTIONS.filter((option) => (
+      option.portraitUrl
+      && !this.textures.exists(option.portraitTextureKey)
+    ));
+    if (unloadedOptions.length === 0) {
+      this.portraitLoadStarted = true;
+      this.portraitLoadFinished = true;
+      return;
+    }
+
+    this.portraitLoadStarted = true;
+    for (const option of unloadedOptions) {
+      this.load.image(option.portraitTextureKey, option.portraitUrl!);
+    }
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      this.portraitLoadFinished = true;
+      if (this.scene.isActive()) this.render();
+    });
+    this.load.start();
+  }
+
+  private async startAppearanceDebug(debugUrl: URL): Promise<void> {
+    debugUrl.searchParams.delete('playerAppearanceDebug');
+    window.history.replaceState({}, '', debugUrl);
+    const { PlayerAppearanceDebugScene } = await import(
+      './PlayerAppearanceDebugScene'
+    );
+    if (!this.scene.manager.keys.PlayerAppearanceDebugScene) {
+      this.scene.add(
+        'PlayerAppearanceDebugScene',
+        PlayerAppearanceDebugScene,
+        false,
+      );
+    }
+    this.scene.start('PlayerAppearanceDebugScene');
+  }
+
+  private async startGame(): Promise<void> {
+    if (this.selectedClassId === null || this.gameStartPending) return;
+    this.gameStartPending = true;
     this.registry.set(GAME_REGISTRY_KEYS.characterClassId, this.selectedClassId);
-    this.scene.start('GameScene');
+    try {
+      if (!this.scene.manager.keys.GameScene) {
+        const { GameScene } = await import('./GameScene');
+        this.scene.add('GameScene', GameScene, false);
+      }
+      this.scene.start('GameScene');
+    } catch (error) {
+      this.gameStartPending = false;
+      console.error('Failed to load the game scene.', error);
+    }
   }
 
   private readSafeArea(): { top: number; right: number; bottom: number; left: number } {

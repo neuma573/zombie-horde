@@ -36,14 +36,18 @@ describe('main menu state', () => {
     ))).toBe(true);
     expect(CHARACTER_CLASS_OPTIONS.map(({ portraitUrl }) => portraitUrl)).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('male.png'),
-        expect.stringContaining('female.png'),
+        expect.stringContaining('male.webp'),
+        expect.stringContaining('female.webp'),
       ]),
     );
     expect(CHARACTER_CLASS_OPTIONS.map(({ name }) => name)).toEqual([
       'JOHN DOE',
       'JANE DOE',
     ]);
+    for (const { portraitCrop } of CHARACTER_CLASS_OPTIONS) {
+      expect(portraitCrop.x + portraitCrop.width).toBeLessThanOrEqual(1_024);
+      expect(portraitCrop.y + portraitCrop.height).toBeLessThanOrEqual(1_536);
+    }
   });
 
   it('keeps exactly one valid class selected at a time', () => {
