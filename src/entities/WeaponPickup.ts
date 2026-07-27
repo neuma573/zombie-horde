@@ -5,6 +5,7 @@ import {
   type OwnedWeapon,
   type WeaponDefinition,
 } from '../logic/weapon';
+import { weaponPickupWarningAlpha } from '../effects/weaponPickupWarning';
 
 export const WEAPON_PICKUP_RADIUS = 48;
 export const WEAPON_PICKUP_LIFETIME_MS = 30_000;
@@ -46,6 +47,7 @@ export class WeaponPickup extends Phaser.GameObjects.Container {
       this.remainingLifetimeMs,
       deltaMs,
     );
+    this.setAlpha(weaponPickupWarningAlpha(this.remainingLifetimeMs));
     return this.remainingLifetimeMs === 0;
   }
 }
