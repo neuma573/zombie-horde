@@ -97,6 +97,26 @@ describe('responsive world and camera', () => {
       .toEqual({ x: 1_480, y: 800 });
   });
 
+  it('changes stationary pointer aim after the player moves between fixed steps', () => {
+    const pointer = { x: 720, y: 170 };
+    const viewport = { width: 960, height: 540 };
+    const worldPoint = cameraWorldPoint(
+      pointer,
+      { x: 720, y: 530 },
+      viewport,
+      1,
+    );
+
+    expect({
+      x: worldPoint.x - 1_200,
+      y: worldPoint.y - 800,
+    }).toEqual({ x: 240, y: -100 });
+    expect({
+      x: worldPoint.x - 1_216,
+      y: worldPoint.y - 800,
+    }).toEqual({ x: 224, y: -100 });
+  });
+
   it('round-trips screen and world points at the current zoom', () => {
     const worldPoint = { x: 1_310, y: 745 };
     const scroll = { x: 720, y: 530 };

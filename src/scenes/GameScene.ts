@@ -433,6 +433,7 @@ export class GameScene extends Phaser.Scene {
     let playerDied = false;
 
     for (let step = 0; step < fixedSteps.stepCount; step += 1) {
+      this.refreshStationaryMouseAim();
       const simulation = this.advanceSimulationStep(SIMULATION_CONFIG.fixedStepMs);
       playerDamageEventCount += simulation.damageEventCount;
       if (simulation.died) {
@@ -956,12 +957,16 @@ export class GameScene extends Phaser.Scene {
     if (
       this.mobileControlsEnabled
       || this.aimSource !== 'mouse'
-      || this.lastMouseScreenPoint === null
     ) {
       return;
     }
 
-    this.updateAimDirectionAtScreenPoint(this.lastMouseScreenPoint, 'mouse');
+    const screenPoint = this.lastMouseScreenPoint ?? {
+      x: this.input.activePointer.x,
+      y: this.input.activePointer.y,
+    };
+    this.lastMouseScreenPoint = screenPoint;
+    this.updateAimDirectionAtScreenPoint(screenPoint, 'mouse');
   }
 
   private setTargetZoom(nextZoom: number): void {
