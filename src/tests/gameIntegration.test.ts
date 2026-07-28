@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
-import { BASIC_WEAPON_CONFIG } from '../config/weaponConfig';
+import {
+  BASIC_WEAPON_CONFIG,
+  BURST_RIFLE_WEAPON,
+  PISTOL_WEAPON,
+  STARTING_AMMO_RESERVES,
+} from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { resolveContactDamage } from '../logic/contactDamage';
@@ -20,6 +25,7 @@ import {
   startReload,
   tryFire,
 } from '../logic/weapon';
+import { WeaponSystem } from '../systems/WeaponSystem';
 
 describe('game integration', () => {
   it('completes ten deterministic waves with sufficient ammunition', () => {
@@ -124,6 +130,18 @@ describe('game integration', () => {
     );
 
     expect(availableShots).toBeLessThan(requiredShots);
+  });
+
+  it('keeps rifle ammunition unavailable until supply loot is collected', () => {
+    const weapons = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
+    weapons.pickup(BURST_RIFLE_WEAPON);
+
+    expect(weapons.getAmmoReserves()).toEqual({
+      pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
+      rifleAmmo: 0,
+    });
+    expect(weapons.getState().magazineAmmo).toBe(BURST_RIFLE_WEAPON.config.magazineSize);
+    expect(weapons.getState().reserveAmmo).toBe(0);
   });
 
   it('creates clean session, weapon, and wave state after game over', () => {

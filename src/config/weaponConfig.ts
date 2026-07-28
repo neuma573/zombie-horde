@@ -57,5 +57,5 @@ export const BASIC_WEAPON_CONFIG = PISTOL_WEAPON.config;
 
 export const STARTING_AMMO_RESERVES = {
   pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
-  rifleAmmo: BURST_RIFLE_WEAPON.config.reserveAmmo,
+  rifleAmmo: 0,
 } as const;

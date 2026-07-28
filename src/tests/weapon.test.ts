@@ -24,7 +24,11 @@ import {
   weaponSpreadDegrees,
   type WeaponConfig,
 } from '../logic/weapon';
-import { BURST_RIFLE_WEAPON, PISTOL_WEAPON } from '../config/weaponConfig';
+import {
+  BURST_RIFLE_WEAPON,
+  PISTOL_WEAPON,
+  STARTING_AMMO_RESERVES,
+} from '../config/weaponConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { applyDamage } from '../logic/damage';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -41,13 +45,14 @@ const config: WeaponConfig = {
 
 describe('weapon logic', () => {
   it('starts the service pistol with 17 loaded rounds and 100 reserve rounds', () => {
-    const system = new WeaponSystem(PISTOL_WEAPON);
+    const system = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
 
     expect(system.getState()).toMatchObject({
       magazineAmmo: 17,
       reserveAmmo: 100,
     });
     expect(system.getAmmoReserves().pistolAmmo).toBe(100);
+    expect(system.getAmmoReserves().rifleAmmo).toBe(0);
   });
 
   it('requires four pistol body shots to kill the base zombie', () => {
