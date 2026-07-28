@@ -176,6 +176,49 @@ describe('balanced zombie spawning', () => {
     expect(Math.hypot(position.x - 500, position.y - 350)).toBeGreaterThanOrEqual(160);
   });
 
+  it('excludes a landed supply crate from edge spawn candidates', () => {
+    const bounds = { width: 1_000, height: 700 };
+    const cameraView = { x: 300, y: 200, width: 400, height: 300 };
+    const firstCandidate = getOffscreenEdgeSpawnPosition(
+      0,
+      bounds,
+      20,
+      { x: 500, y: 350 },
+      160,
+      cameraView,
+      [],
+      42,
+    );
+    expect(firstCandidate).not.toBeNull();
+    if (!firstCandidate) throw new Error('Expected an initial edge candidate');
+
+    const crate = {
+      x: firstCandidate.x - 30,
+      y: firstCandidate.y - 30,
+      width: 60,
+      height: 60,
+    };
+    const position = getOffscreenEdgeSpawnPosition(
+      0,
+      bounds,
+      20,
+      { x: 500, y: 350 },
+      160,
+      cameraView,
+      [crate],
+      42,
+    );
+
+    expect(position).not.toBeNull();
+    if (!position) throw new Error('Expected an alternate edge candidate');
+    expect(
+      position.x >= crate.x - 20
+      && position.x <= crate.x + crate.width + 20
+      && position.y >= crate.y - 20
+      && position.y <= crate.y + crate.height + 20,
+    ).toBe(false);
+  });
+
   it('does not reuse look-ahead positions for consecutive offscreen spawns', () => {
     const positions = Array.from({ length: 12 }, (_, index) => (
       getOffscreenEdgeSpawnPosition(

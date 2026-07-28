@@ -701,7 +701,7 @@ export class GameScene extends Phaser.Scene {
             this.viewport,
             this.cameras.main.zoom,
           ),
-          OBSTACLE_CONFIG,
+          movementObstacles,
         );
         if (!zombie) break;
         this.zombies.push(zombie);
