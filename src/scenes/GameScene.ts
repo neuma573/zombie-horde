@@ -196,6 +196,7 @@ import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
 const SUPPLY_CRATE_TARGET_ID = 'supply-drop-crate';
+const SPAWN_OFFSCREEN_WORLD_MARGIN = ZOMBIE_CONFIG.radius * 4 + 1;
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -311,7 +312,12 @@ export class GameScene extends Phaser.Scene {
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
     this.viewport = { width: this.scale.width, height: this.scale.height };
-    this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
+    this.playArea = createWorldSize(
+      URBAN_MAP_CONFIG,
+      this.viewport,
+      CAMERA_ZOOM_CONFIG.min,
+      SPAWN_OFFSCREEN_WORLD_MARGIN,
+    );
     this.worldBackdrop = new WorldBackdrop(this);
     this.worldBackdrop.resize(
       this.playArea.width,
@@ -1414,7 +1420,12 @@ export class GameScene extends Phaser.Scene {
       height: gameSize.height,
     };
     this.lastMouseScreenPoint = null;
-    this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
+    this.playArea = createWorldSize(
+      URBAN_MAP_CONFIG,
+      this.viewport,
+      CAMERA_ZOOM_CONFIG.min,
+      SPAWN_OFFSCREEN_WORLD_MARGIN,
+    );
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);

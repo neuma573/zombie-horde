@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cameraWorldView,
+  createWorldSize,
+} from '../logic/camera';
+import {
   getEdgeSpawnPosition,
   getOffscreenEdgeSpawnPosition,
   zombieHealthForSpawn,
@@ -204,5 +208,36 @@ describe('balanced zombie spawning', () => {
     );
 
     expect(position).toBeNull();
+  });
+
+  it('retains an off-screen edge on a full-map high-resolution viewport', () => {
+    const viewport = { width: 4_000, height: 3_000 };
+    const zombieRadius = 20;
+    const world = createWorldSize(
+      { width: 4_000, height: 3_000 },
+      viewport,
+      0.75,
+      zombieRadius * 4 + 1,
+    );
+    const cameraView = cameraWorldView(
+      {
+        x: (world.width - viewport.width) / 2,
+        y: (world.height - viewport.height) / 2,
+      },
+      viewport,
+      0.75,
+    );
+    const position = getOffscreenEdgeSpawnPosition(
+      0,
+      world,
+      zombieRadius,
+      { x: world.width / 2, y: world.height / 2 },
+      160,
+      cameraView,
+      [],
+      42,
+    );
+
+    expect(position).not.toBeNull();
   });
 });

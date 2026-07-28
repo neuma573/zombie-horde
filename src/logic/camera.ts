@@ -13,10 +13,25 @@ function positive(value: number): number {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
-export function createWorldSize(baseMap: Size, viewport: Size): Size {
+export function createWorldSize(
+  baseMap: Size,
+  viewport: Size,
+  minimumZoom = 1,
+  offscreenMargin = 0,
+): Size {
+  const safeMinimumZoom = Number.isFinite(minimumZoom) && minimumZoom > 0
+    ? minimumZoom
+    : 1;
+  const safeOffscreenMargin = positive(offscreenMargin);
   return {
-    width: Math.max(positive(baseMap.width), positive(viewport.width)),
-    height: Math.max(positive(baseMap.height), positive(viewport.height)),
+    width: Math.max(
+      positive(baseMap.width),
+      positive(viewport.width) / safeMinimumZoom + safeOffscreenMargin,
+    ),
+    height: Math.max(
+      positive(baseMap.height),
+      positive(viewport.height) / safeMinimumZoom + safeOffscreenMargin,
+    ),
   };
 }
 
