@@ -6,10 +6,32 @@ export const ZOMBIE_SKIN_PALETTES = [
 ] as const;
 
 export const ZOMBIE_OUTFIT_PALETTES = {
-  casual: { base: 0x3e4b52, detail: 0x59676d },
-  hoodie: { base: 0x4c4448, detail: 0x696065 },
-  office: { base: 0x596269, detail: 0x858d90 },
-  worker: { base: 0x68543d, detail: 0x9a7950 },
+  casualMale: [
+    { base: 0x3e4b52, detail: 0x59676d },
+    { base: 0x51454a, detail: 0x6d5d63 },
+    { base: 0x4d503c, detail: 0x696d51 },
+  ],
+  casualFemale: [
+    { base: 0x55434f, detail: 0x765d6e },
+    { base: 0x3f5152, detail: 0x5d7171 },
+    { base: 0x575044, detail: 0x756c5a },
+  ],
+  office: [
+    { base: 0x596269, detail: 0x858d90 },
+    { base: 0x4d5663, detail: 0x798493 },
+  ],
+  worker: [
+    { base: 0x68543d, detail: 0x9a7950 },
+    { base: 0x4e5b62, detail: 0x89979b },
+  ],
+  athletic: [
+    { base: 0x354c55, detail: 0x6f8d94 },
+    { base: 0x533e48, detail: 0x8a6574 },
+  ],
+  medical: [
+    { base: 0x58706d, detail: 0x8ba19b },
+    { base: 0x697276, detail: 0xa3abad },
+  ],
 } as const;
 
 export const ZOMBIE_HAIR_COLORS = [

@@ -364,15 +364,32 @@ export class CombatEffects {
       .fillStyle(appearance.clothing.base, 1)
       .fillRoundedRect(-13, -halfHeight + 3, torsoWidth - 4, halfHeight * 2 - 6, 6);
 
-    if (appearance.outfit === 'worker') {
+    if (appearance.archetype === 'worker') {
       torso
         .fillStyle(appearance.clothing.detail, 0.85)
         .fillRect(-7, -halfHeight + 4, 4, halfHeight * 2 - 8);
-    } else if (appearance.outfit === 'office') {
+    } else if (appearance.archetype === 'office') {
       torso
         .fillStyle(appearance.clothing.detail, 0.9)
         .fillTriangle(7, -6, 7, 0, 1, -4)
         .fillTriangle(7, 6, 7, 0, 1, 4);
+    } else if (appearance.archetype === 'athletic') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.9)
+        .fillRect(-10, -halfHeight + 4, 3, halfHeight * 2 - 8)
+        .fillRect(3, -halfHeight + 5, 3, halfHeight * 2 - 10);
+    } else if (appearance.archetype === 'medical') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.82)
+        .fillTriangle(7, -5, 7, 5, 1, 0)
+        .lineStyle(1.5, appearance.clothing.detail, 0.9)
+        .strokeRoundedRect(-8, 5, 7, 6, 1);
+    } else if (appearance.archetype === 'casualFemale') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.72)
+        .fillTriangle(-10, -halfHeight + 4, -10, halfHeight - 4, 7, 0)
+        .fillStyle(appearance.clothing.base, 1)
+        .fillTriangle(-7, -halfHeight + 6, -7, halfHeight - 6, 8, 0);
     } else {
       torso
         .fillStyle(appearance.clothing.detail, 0.7)

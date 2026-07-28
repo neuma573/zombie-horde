@@ -13,15 +13,59 @@ describe('zombie appearance', () => {
 
   it('produces varied civilian combinations without runtime randomness', () => {
     const appearances = Array.from(
-      { length: 24 },
+      { length: 240 },
       (_, index) => createZombieAppearance(0x12345678, index),
     );
 
-    expect(new Set(appearances.map(({ outfit }) => outfit)).size).toBe(4);
+    expect(new Set(appearances.map(({ archetype }) => archetype))).toEqual(new Set([
+      'casualMale',
+      'casualFemale',
+      'office',
+      'worker',
+      'athletic',
+      'medical',
+    ]));
     expect(new Set(appearances.map(({ hair }) => hair)).size).toBe(4);
     expect(new Set(appearances.map(({ bodyType }) => bodyType)).size).toBe(3);
     expect(new Set(appearances.map(({ sleeves }) => sleeves)).size).toBe(2);
     expect(new Set(appearances.map(({ skin }) => skin.base)).size).toBeGreaterThan(2);
+  });
+
+  it('makes everyday civilian archetypes the majority of a stable crowd', () => {
+    const appearances = Array.from(
+      { length: 1_000 },
+      (_, index) => createZombieAppearance(0x87654321, index),
+    );
+    const everydayCount = appearances.filter(({ archetype }) => (
+      archetype === 'casualMale' || archetype === 'casualFemale'
+    )).length;
+
+    expect(everydayCount).toBeGreaterThan(550);
+    expect(everydayCount).toBeLessThan(650);
+  });
+
+  it('restricts hair, body type, and sleeves to each archetype preset', () => {
+    const appearances = Array.from(
+      { length: 500 },
+      (_, index) => createZombieAppearance(0xabcdef01, index),
+    );
+
+    for (const appearance of appearances) {
+      if (appearance.archetype === 'casualMale') {
+        expect(appearance.hair).not.toBe('ponytail');
+        expect(appearance.bodyType).not.toBe('slim');
+      }
+      if (appearance.archetype === 'worker') {
+        expect(appearance.sleeves).toBe('long');
+        expect(['bald', 'cropped']).toContain(appearance.hair);
+      }
+      if (appearance.archetype === 'athletic') {
+        expect(appearance.sleeves).toBe('short');
+      }
+      if (appearance.archetype === 'office') {
+        expect(appearance.sleeves).toBe('long');
+      }
+    }
   });
 
   it('derives a stable fallback seed from a zombie id', () => {

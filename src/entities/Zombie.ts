@@ -245,18 +245,18 @@ export class Zombie extends Phaser.GameObjects.Container {
       .fillStyle(this.appearance.clothing.base, 1)
       .fillRoundedRect(-13, -halfHeight + 3, torsoWidth - 4, halfHeight * 2 - 6, 6);
 
-    switch (this.appearance.outfit) {
-      case 'casual':
+    switch (this.appearance.archetype) {
+      case 'casualMale':
         this.torso
           .fillStyle(this.appearance.clothing.detail, 0.75)
           .fillRect(-8, -halfHeight + 5, 2, halfHeight * 2 - 10);
         break;
-      case 'hoodie':
+      case 'casualFemale':
         this.torso
-          .lineStyle(2, this.appearance.clothing.detail, 0.75)
-          .strokeEllipse(5, 0, 12, Math.max(15, halfHeight * 1.35))
-          .fillStyle(HUMANOID_VISUAL.outlineColor, 0.45)
-          .fillRect(-8, -1, 10, 2);
+          .fillStyle(this.appearance.clothing.detail, 0.72)
+          .fillTriangle(-10, -halfHeight + 4, -10, halfHeight - 4, 7, 0)
+          .fillStyle(this.appearance.clothing.base, 1)
+          .fillTriangle(-7, -halfHeight + 6, -7, halfHeight - 6, 8, 0);
         break;
       case 'office':
         this.torso
@@ -271,6 +271,19 @@ export class Zombie extends Phaser.GameObjects.Container {
           .fillStyle(this.appearance.clothing.detail, 0.85)
           .fillRect(-7, -halfHeight + 4, 4, halfHeight * 2 - 8)
           .fillRect(-11, -halfHeight + 7, 18, 3);
+        break;
+      case 'athletic':
+        this.torso
+          .fillStyle(this.appearance.clothing.detail, 0.9)
+          .fillRect(-10, -halfHeight + 4, 3, halfHeight * 2 - 8)
+          .fillRect(3, -halfHeight + 5, 3, halfHeight * 2 - 10);
+        break;
+      case 'medical':
+        this.torso
+          .fillStyle(this.appearance.clothing.detail, 0.82)
+          .fillTriangle(7, -5, 7, 5, 1, 0)
+          .lineStyle(1.5, this.appearance.clothing.detail, 0.9)
+          .strokeRoundedRect(-8, 5, 7, 6, 1);
         break;
     }
   }
