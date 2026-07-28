@@ -17,4 +17,13 @@ describe('world render depth', () => {
       WORLD_RENDER_DEPTH.player,
     );
   });
+
+  it('keeps the aircraft shadow below actors and supply smoke above them', () => {
+    expect(WORLD_RENDER_DEPTH.aircraftShadow).toBeLessThan(
+      WORLD_RENDER_DEPTH.player,
+    );
+    expect(WORLD_RENDER_DEPTH.supplySmoke).toBeGreaterThan(
+      WORLD_RENDER_DEPTH.player,
+    );
+  });
 });
