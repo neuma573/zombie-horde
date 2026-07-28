@@ -414,6 +414,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!isPlaying(this.sessionState)) {
+      for (const zombie of this.zombies) {
+        zombie.updateAttackVisual();
+      }
       this.updateCameraZoom(deltaMs);
       this.updateSupplyDropVisual();
       this.clearAimAssist();

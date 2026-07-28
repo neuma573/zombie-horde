@@ -123,6 +123,7 @@ export class ZombieAppearanceDebugScene extends Phaser.Scene {
       moving.zombie.x = moving.originX
         + Math.sin(this.elapsedMs * 0.0018 + moving.phase) * 18;
       moving.zombie.updateMuzzleReflection(deltaMs);
+      moving.zombie.updateAttackVisual();
     }
   }
 }

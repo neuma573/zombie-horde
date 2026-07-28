@@ -100,6 +100,7 @@ export class Zombie extends Phaser.GameObjects.Container {
     this.muzzleReflection = muzzleReflection;
 
     scene.add.existing(this);
+    this.drawStaticAppearance();
     this.updateAttackVisual();
   }
 
@@ -144,7 +145,6 @@ export class Zombie extends Phaser.GameObjects.Container {
       MUZZLE_REFLECTION_DECAY_RATE,
     );
     this.hitReaction = advanceZombieHitReaction(this.hitReaction, deltaMs);
-    this.updateAttackVisual();
   }
 
   private drawVisual(resolvedPose: ReturnType<typeof resolveZombieAttackPose>): void {
@@ -163,8 +163,10 @@ export class Zombie extends Phaser.GameObjects.Container {
     ]) {
       part.setPosition(hitPose.offset.x, hitPose.offset.y);
       part.setRotation(hitPose.rotation);
-      part.clear();
     }
+    this.upperArm.clear();
+    this.lowerArm.clear();
+    this.muzzleReflection.clear();
 
     const posture = this.appearance.posture;
     const upperElbow = this.shortenArmPoint(
@@ -209,10 +211,6 @@ export class Zombie extends Phaser.GameObjects.Container {
       lowerHand.y,
     );
 
-    this.drawTorso();
-    this.drawHead();
-    this.drawHair();
-
     if (this.muzzleReflectionIntensity > 0.001) {
       const alpha = this.muzzleReflectionIntensity;
       // Zombies face the player, so the muzzle-facing surface is their local front.
@@ -221,6 +219,16 @@ export class Zombie extends Phaser.GameObjects.Container {
       this.muzzleReflection.fillStyle(0xf0ddb0, alpha * 0.52);
       this.muzzleReflection.fillEllipse(6, 0, 6, 13);
     }
+  }
+
+  private drawStaticAppearance(): void {
+    this.hairBack.clear();
+    this.torso.clear();
+    this.head.clear();
+    this.hairFront.clear();
+    this.drawTorso();
+    this.drawHead();
+    this.drawHair();
   }
 
   private drawTorso(): void {
