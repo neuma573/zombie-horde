@@ -12,7 +12,6 @@ import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
 import { SUPPLY_DROP_CONFIG } from '../config/supplyDropConfig';
 import {
-  BURST_RIFLE_WEAPON,
   PISTOL_WEAPON,
   STARTING_AMMO_RESERVES,
 } from '../config/weaponConfig';
@@ -113,12 +112,9 @@ import {
   advanceFirstShotAccuracy,
   consumeFirstShotAccuracy,
   createFirstShotAccuracyState,
-  createOwnedWeapon,
   shouldAutoPickupWeapon,
   shouldAutoReload,
   shouldShowFieldWeaponInfo,
-  WEAPON_RARITIES,
-  withWeaponRarity,
   weaponSpreadDegrees,
 } from '../logic/weapon';
 import type { FirstShotAccuracyState, OwnedWeapon } from '../logic/weapon';
@@ -213,6 +209,7 @@ export class GameScene extends Phaser.Scene {
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private supplyDropState: SupplyDropState = createSupplyDropState();
+  private supplyDropActive = false;
   private simulationStepState: FixedStepState = createFixedStepState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
@@ -250,6 +247,7 @@ export class GameScene extends Phaser.Scene {
     this.sessionState = createSessionState();
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
     this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
+    this.supplyDropActive = false;
     this.simulationStepState = createFixedStepState();
     this.playerInput = createPlayerInputState();
     this.viewDirection = { ...this.playerInput.manualAimDirection };
@@ -300,19 +298,6 @@ export class GameScene extends Phaser.Scene {
       appearance,
     );
     this.weaponPickups = [];
-    const fieldWeapons = WEAPON_RARITIES.flatMap((rarity) => [
-      withWeaponRarity(PISTOL_WEAPON, rarity),
-      withWeaponRarity(BURST_RIFLE_WEAPON, rarity),
-    ]);
-    fieldWeapons.forEach((definition, index) => {
-      const angle = index / fieldWeapons.length * Math.PI * 2;
-      const radius = index % 2 === 0 ? 145 : 215;
-      this.createWeaponPickup(
-        this.player.x + Math.cos(angle) * radius,
-        this.player.y + Math.sin(angle) * radius,
-        createOwnedWeapon(definition),
-      );
-    });
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
@@ -517,7 +502,9 @@ export class GameScene extends Phaser.Scene {
 
   private advanceSimulationStep(deltaMs: number): { died: boolean; damageEventCount: number } {
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
-    this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
+    if (this.supplyDropActive) {
+      this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
+    }
     const movementObstacles = this.activeMovementObstacles();
     this.firstShotAccuracy = advanceFirstShotAccuracy(
       this.firstShotAccuracy,
@@ -1644,7 +1631,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSupplyDropVisual(): void {
-    if (!this.supplyDropVisual) return;
+    if (!this.supplyDropVisual || !this.supplyDropActive) {
+      this.mobileControls?.setInteractionVisible(false);
+      return;
+    }
 
     const snapshot = resolveSupplyDropSnapshot(
       this.supplyDropState,
@@ -1683,6 +1673,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private canOpenSupplyCrate(): boolean {
+    if (!this.supplyDropActive) return false;
     return canOpenSupplyDropCrate(
       resolveSupplyDropSnapshot(this.supplyDropState, SUPPLY_DROP_CONFIG),
       this.player,
@@ -1702,6 +1693,7 @@ export class GameScene extends Phaser.Scene {
     width: number;
     height: number;
   } | null {
+    if (!this.supplyDropActive) return null;
     const snapshot = resolveSupplyDropSnapshot(
       this.supplyDropState,
       SUPPLY_DROP_CONFIG,
@@ -1729,6 +1721,7 @@ export class GameScene extends Phaser.Scene {
     height: number;
     blocksHitscan: true;
   } | null {
+    if (!this.supplyDropActive) return null;
     const snapshot = resolveSupplyDropSnapshot(
       this.supplyDropState,
       SUPPLY_DROP_CONFIG,
