@@ -32,7 +32,7 @@ export class SpawnSystem {
     playerPosition: Position,
     cameraView: SpawnExclusionRectangle,
     obstacles: readonly RectangleObstacle[],
-  ): Zombie {
+  ): Zombie | null {
     const id = this.nextZombieId;
     const position = getOffscreenEdgeSpawnPosition(
       id - 1,
@@ -44,6 +44,8 @@ export class SpawnSystem {
       obstacles,
       this.seed,
     );
+    if (!position) return null;
+
     this.nextZombieId += 1;
 
     return new Zombie(

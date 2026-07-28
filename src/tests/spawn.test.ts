@@ -153,6 +153,8 @@ describe('balanced zombie spawning', () => {
       [obstacle],
       42,
     );
+    expect(position).not.toBeNull();
+    if (!position) throw new Error('Expected an off-screen spawn position');
 
     const insideCamera = (
       position.x >= cameraView.x - 20
@@ -184,7 +186,23 @@ describe('balanced zombie spawning', () => {
       )
     ));
 
-    expect(new Set(positions.map(({ x, y }) => `${x}:${y}`)).size)
+    expect(positions.every((position) => position !== null)).toBe(true);
+    expect(new Set(positions.map((position) => `${position?.x}:${position?.y}`)).size)
       .toBe(positions.length);
+  });
+
+  it('defers spawning when the camera covers every valid map edge', () => {
+    const position = getOffscreenEdgeSpawnPosition(
+      0,
+      { width: 1_000, height: 700 },
+      20,
+      { x: 500, y: 350 },
+      160,
+      { x: 0, y: 0, width: 1_000, height: 700 },
+      [],
+      42,
+    );
+
+    expect(position).toBeNull();
   });
 });

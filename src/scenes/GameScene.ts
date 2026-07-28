@@ -228,6 +228,7 @@ export class GameScene extends Phaser.Scene {
   private cameraFollowState: CameraFollowState = snapCameraFollow({ x: 0, y: 0 });
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
+  private pendingZombieSpawns = 0;
   private killCount = 0;
   private shotSequence = 0;
   private recoilSeed = 0;
@@ -305,6 +306,7 @@ export class GameScene extends Phaser.Scene {
     this.targetZoom = CAMERA_ZOOM_CONFIG.initial;
     this.cameras.main.setZoom(CAMERA_ZOOM_CONFIG.initial);
     this.mobileRestartArmed = true;
+    this.pendingZombieSpawns = 0;
     this.spawn = new SpawnSystem(SPAWN_CONFIG, ZOMBIE_CONFIG.radius);
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
@@ -678,9 +680,13 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (!contactDamage.died) {
-      const waveUpdate = this.wave.update(deltaMs, this.zombies.length);
-      for (let index = 0; index < waveUpdate.spawnCount; index += 1) {
-        this.zombies.push(this.spawn.spawn(
+      const waveUpdate = this.wave.update(
+        deltaMs,
+        this.zombies.length + this.pendingZombieSpawns,
+      );
+      this.pendingZombieSpawns += waveUpdate.spawnCount;
+      while (this.pendingZombieSpawns > 0) {
+        const zombie = this.spawn.spawn(
           this,
           this.playArea,
           this.player,
@@ -690,7 +696,10 @@ export class GameScene extends Phaser.Scene {
             this.cameras.main.zoom,
           ),
           OBSTACLE_CONFIG,
-        ));
+        );
+        if (!zombie) break;
+        this.zombies.push(zombie);
+        this.pendingZombieSpawns -= 1;
       }
       this.tryTriggerSupplyDrop(waveUpdate.waveCleared);
     }

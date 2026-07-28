@@ -142,7 +142,7 @@ export function getOffscreenEdgeSpawnPosition(
   cameraView: SpawnExclusionRectangle,
   obstacles: readonly RectangleObstacle[],
   seed = 0,
-): Position {
+): Position | null {
   const candidateBlockStart = Math.max(0, Math.floor(spawnIndex))
     * OFFSCREEN_CANDIDATES_PER_SPAWN;
   const candidates = Array.from({ length: OFFSCREEN_CANDIDATES_PER_SPAWN }, (_, offset) => (
@@ -171,14 +171,5 @@ export function getOffscreenEdgeSpawnPosition(
     outsideObstacles(position)
     && Math.hypot(position.x - player.x, position.y - player.y) >= minPlayerDistance
   ));
-  return valid.find(outsideCamera)
-    ?? valid[0]
-    ?? getEdgeSpawnPosition(
-      spawnIndex,
-      bounds,
-      padding,
-      player,
-      minPlayerDistance,
-      seed,
-    );
+  return valid.find(outsideCamera) ?? null;
 }
