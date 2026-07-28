@@ -14,6 +14,7 @@ import {
 import {
   createZombieAppearance,
   type ZombieAppearance,
+  type ZombieSleeves,
 } from '../logic/zombieAppearance';
 
 export class CombatEffects {
@@ -260,12 +261,19 @@ export class CombatEffects {
     this.drawCorpseTorso(torso, appearance);
     const head = this.scene.add.graphics();
     this.drawCorpseHead(head, appearance);
-    const armColor = appearance.sleeves === 'long'
-      ? appearance.clothing.base
-      : appearance.skin.base;
-    const upperArm = this.createCorpseArm(armColor, appearance.skin.shadow);
+    const upperArm = this.createCorpseArm(
+      appearance.clothing.base,
+      appearance.skin.base,
+      appearance.skin.shadow,
+      appearance.sleeves,
+    );
     upperArm.setPosition(0, -10);
-    const lowerArm = this.createCorpseArm(armColor, appearance.skin.shadow);
+    const lowerArm = this.createCorpseArm(
+      appearance.clothing.base,
+      appearance.skin.base,
+      appearance.skin.shadow,
+      appearance.sleeves,
+    );
     lowerArm.setPosition(0, 10);
     const upperLeg = this.createCorpseLeg(appearance.clothing.base);
     upperLeg.setPosition(-9, -6);
@@ -431,8 +439,10 @@ export class CombatEffects {
   }
 
   private createCorpseArm(
-    color: number,
+    clothingColor: number,
+    skinColor: number,
     handColor: number,
+    sleeves: ZombieSleeves,
   ): Phaser.GameObjects.Graphics {
     const arm = this.scene.add.graphics();
     arm.lineStyle(HUMANOID_VISUAL.outlineWidth, HUMANOID_VISUAL.outlineColor, 1);
@@ -441,12 +451,23 @@ export class CombatEffects {
     arm.lineTo(11, -3);
     arm.lineTo(22, 0);
     arm.strokePath();
-    arm.lineStyle(HUMANOID_VISUAL.armWidth, color, 1);
+    arm.lineStyle(
+      HUMANOID_VISUAL.armWidth,
+      sleeves === 'long' ? clothingColor : skinColor,
+      1,
+    );
     arm.beginPath();
     arm.moveTo(0, 0);
     arm.lineTo(11, -3);
     arm.lineTo(22, 0);
     arm.strokePath();
+    if (sleeves === 'short') {
+      arm.lineStyle(HUMANOID_VISUAL.armWidth, clothingColor, 1);
+      arm.beginPath();
+      arm.moveTo(0, 0);
+      arm.lineTo(11, -3);
+      arm.strokePath();
+    }
     arm
       .fillStyle(HUMANOID_VISUAL.outlineColor, 1)
       .fillCircle(22, 0, 3.5)
