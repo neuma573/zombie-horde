@@ -7,6 +7,7 @@ export const ITEM_BALANCE_CONFIG = {
   pickupRadius: 42,
   dropMinimumDistance: 72,
   dropMaximumDistance: 138,
+  dropMinimumSpacing: 68,
   dropClearance: 26,
   normalMedicalChance: 0.3,
   criticalHealthMedicalChanceBonus: 0.55,

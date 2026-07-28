@@ -19,6 +19,7 @@ export interface ItemBalanceConfig {
   pickupRadius: number;
   dropMinimumDistance: number;
   dropMaximumDistance: number;
+  dropMinimumSpacing: number;
   dropClearance: number;
   normalMedicalChance: number;
   criticalHealthMedicalChanceBonus: number;
@@ -79,11 +80,15 @@ export function spreadSupplyLootPositions(
   seed: number,
   config: Pick<
     ItemBalanceConfig,
-    'dropMinimumDistance' | 'dropMaximumDistance' | 'dropClearance'
+    | 'dropMinimumDistance'
+    | 'dropMaximumDistance'
+    | 'dropMinimumSpacing'
+    | 'dropClearance'
   >,
 ): Position[] {
   const positions: Position[] = [];
   const safeCount = Math.max(0, Math.floor(count));
+  const minimumSpacing = Math.max(0, config.dropMinimumSpacing);
   for (let index = 0; index < safeCount; index += 1) {
     const baseAngle = index / Math.max(1, safeCount) * Math.PI * 2;
     let selected: Position | null = null;
@@ -97,7 +102,14 @@ export function spreadSupplyLootPositions(
         x: center.x + Math.cos(angle) * dropDistance,
         y: center.y + Math.sin(angle) * dropDistance,
       };
-      if (isValidDropPosition(candidate, bounds, obstacles, config.dropClearance)) {
+      const clearsSelectedPositions = positions.every((position) => (
+        Math.hypot(candidate.x - position.x, candidate.y - position.y)
+          >= minimumSpacing
+      ));
+      if (
+        clearsSelectedPositions
+        && isValidDropPosition(candidate, bounds, obstacles, config.dropClearance)
+      ) {
         selected = candidate;
         break;
       }

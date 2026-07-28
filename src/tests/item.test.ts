@@ -84,6 +84,27 @@ describe('supply loot', () => {
       ).toBe(false);
     }
   });
+
+  it('keeps seed 223 loot centers farther apart than their rendered glows', () => {
+    const positions = spreadSupplyLootPositions(
+      3,
+      { x: 400, y: 300 },
+      { width: 800, height: 600 },
+      [],
+      223,
+      ITEM_BALANCE_CONFIG,
+    );
+
+    expect(positions).toHaveLength(3);
+    for (let left = 0; left < positions.length; left += 1) {
+      for (let right = left + 1; right < positions.length; right += 1) {
+        expect(Math.hypot(
+          positions[left].x - positions[right].x,
+          positions[left].y - positions[right].y,
+        )).toBeGreaterThanOrEqual(ITEM_BALANCE_CONFIG.dropMinimumSpacing);
+      }
+    }
+  });
 });
 
 describe('item effects', () => {
