@@ -40,6 +40,16 @@ const config: WeaponConfig = {
 };
 
 describe('weapon logic', () => {
+  it('starts the service pistol with 17 loaded rounds and 100 reserve rounds', () => {
+    const system = new WeaponSystem(PISTOL_WEAPON);
+
+    expect(system.getState()).toMatchObject({
+      magazineAmmo: 17,
+      reserveAmmo: 100,
+    });
+    expect(system.getAmmoReserves().pistolAmmo).toBe(100);
+  });
+
   it('requires four pistol body shots to kill the base zombie', () => {
     let health: number = ZOMBIE_CONFIG.health;
 
