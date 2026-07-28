@@ -1871,13 +1871,11 @@ export class GameScene extends Phaser.Scene {
         this.weapon.addReserveAmmo(
           'pistolAmmo',
           ITEM_BALANCE_CONFIG.pistolAmmoAmount,
-          PISTOL_WEAPON.config.reserveAmmo,
         );
       } else if (pickup.kind === 'rifleAmmo') {
         this.weapon.addReserveAmmo(
           'rifleAmmo',
           ITEM_BALANCE_CONFIG.rifleAmmoAmount,
-          BURST_RIFLE_WEAPON.config.reserveAmmo,
         );
       } else {
         this.player.health = addClamped(

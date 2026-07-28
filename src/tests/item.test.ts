@@ -89,9 +89,7 @@ describe('item effects', () => {
     expect(ITEM_BALANCE_CONFIG.pistolAmmoAmount).toBe(68);
   });
 
-  it('clamps ammunition and healing to configured maxima', () => {
-    expect(addClamped(90, ITEM_BALANCE_CONFIG.pistolAmmoAmount, 100)).toBe(100);
-    expect(addClamped(170, ITEM_BALANCE_CONFIG.rifleAmmoAmount, 180)).toBe(180);
+  it('clamps healing to the configured maximum health', () => {
     expect(addClamped(80, ITEM_BALANCE_CONFIG.medicalHealingAmount, 100)).toBe(100);
   });
 });

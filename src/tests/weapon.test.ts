@@ -191,12 +191,12 @@ describe('weapon logic', () => {
     expect(pickup.replaced).toBeNull();
   });
 
-  it('adds reserve ammunition without exceeding its configured maximum', () => {
+  it('stacks reserve ammunition without a maximum holding limit', () => {
     const system = new WeaponSystem(PISTOL_WEAPON, { pistolAmmo: 90 });
 
-    expect(system.addReserveAmmo('pistolAmmo', 34, 100)).toBe(10);
-    expect(system.getAmmoReserves().pistolAmmo).toBe(100);
-    expect(system.getState().reserveAmmo).toBe(100);
+    expect(system.addReserveAmmo('pistolAmmo', 68)).toBe(68);
+    expect(system.getAmmoReserves().pistolAmmo).toBe(158);
+    expect(system.getState().reserveAmmo).toBe(158);
   });
 
   it('replaces only the active weapon when both slots are occupied', () => {
