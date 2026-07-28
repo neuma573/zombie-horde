@@ -194,6 +194,40 @@ export class CombatEffects {
     this.fadeAndDestroy(flash, 140, { scale: 1.35 });
   }
 
+  playSupplyCrateHit(position: { x: number; y: number }, destroyed: boolean): void {
+    if (!this.enabled) return;
+
+    const flash = this.scene.add.circle(
+      position.x,
+      position.y,
+      destroyed ? 8 : 4,
+      destroyed ? 0xff8a4a : 0xd8c7a0,
+      0.9,
+    ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
+    this.fadeAndDestroy(flash, destroyed ? 180 : 90, {
+      scale: destroyed ? 2.2 : 0.45,
+    });
+
+    if (!destroyed) return;
+
+    for (let index = 0; index < 6; index += 1) {
+      const angle = index / 6 * Math.PI * 2;
+      const fragment = this.scene.add.rectangle(
+        position.x,
+        position.y,
+        5,
+        3,
+        index % 2 === 0 ? 0x69736f : 0x343f3b,
+        0.95,
+      ).setDepth(WORLD_RENDER_DEPTH.combatEffect).setRotation(angle);
+      this.fadeAndDestroy(fragment, 260, {
+        x: position.x + Math.cos(angle) * 28,
+        y: position.y + Math.sin(angle) * 28,
+        scale: 0.5,
+      });
+    }
+  }
+
   destroy(): void {
     for (const effect of this.active) {
       effect.destroy();

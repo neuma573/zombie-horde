@@ -10,6 +10,7 @@ import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
+import { SUPPLY_DROP_CONFIG } from '../config/supplyDropConfig';
 import {
   BURST_RIFLE_WEAPON,
   PISTOL_WEAPON,
@@ -33,6 +34,7 @@ import {
   WorldBackdrop,
 } from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
+import { SupplyDropVisual } from '../effects/SupplyDropVisual';
 import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
@@ -45,7 +47,10 @@ import {
 } from '../logic/aimAssist';
 import { isPrimaryFireInput } from '../logic/fireInput';
 import { consumeFixedSteps, createFixedStepState, type FixedStepState } from '../logic/fixedStep';
-import { moveCircleWithObstacles } from '../logic/obstacleCollision';
+import {
+  moveCircleWithObstacles,
+  type RectangleObstacle,
+} from '../logic/obstacleCollision';
 import {
   moveZombieWithCrowdSpacing,
   resolveZombieCrowdSpacing,
@@ -85,8 +90,22 @@ import {
   type GameTimeState,
 } from '../logic/gameTime';
 import { darknessAlphaForTime } from '../logic/timeBasedLighting';
+import {
+  advanceSupplyDrop,
+  canOpenSupplyDropCrate,
+  createSupplyDropState,
+  damageSupplyDropCrate,
+  openSupplyDropCrate,
+  resolveSupplyDropCrateBounds,
+  resolveSupplyDropSnapshot,
+  type SupplyDropState,
+} from '../logic/supplyDrop';
 import { muzzleLightExposure } from '../logic/playerVisual';
-import { resolveHitscan, type Vector2 } from '../logic/hitscan';
+import {
+  resolveHitscan,
+  type HitscanBlocker,
+  type Vector2,
+} from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import {
   applyWeaponRecoil,
@@ -153,6 +172,7 @@ import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
+const SUPPLY_CRATE_TARGET_ID = 'supply-drop-crate';
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -191,6 +211,7 @@ export class GameScene extends Phaser.Scene {
   private firstShotAccuracy: FirstShotAccuracyState = createFirstShotAccuracyState();
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
+  private supplyDropState: SupplyDropState = createSupplyDropState();
   private simulationStepState: FixedStepState = createFixedStepState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
@@ -205,6 +226,7 @@ export class GameScene extends Phaser.Scene {
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
+  private supplyDropVisual?: SupplyDropVisual;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
@@ -226,6 +248,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.sessionState = createSessionState();
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
+    this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
     this.simulationStepState = createFixedStepState();
     this.playerInput = createPlayerInputState();
     this.viewDirection = { ...this.playerInput.manualAimDirection };
@@ -302,6 +325,7 @@ export class GameScene extends Phaser.Scene {
     this.effects = new CombatEffects(this);
     this.aimAssistVisual = new AimAssistVisual(this);
     this.mobileControls = new MobileControls(this);
+    this.supplyDropVisual = new SupplyDropVisual(this);
     this.uiCamera = this.cameras.add(
       0,
       0,
@@ -315,6 +339,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshInputMode();
     this.resizeHud();
     this.updateHud();
+    this.updateSupplyDropVisual();
 
     this.movementKeys = this.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -369,6 +394,8 @@ export class GameScene extends Phaser.Scene {
       this.timeBasedLighting = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
+      this.supplyDropVisual?.destroy();
+      this.supplyDropVisual = undefined;
       this.weaponPickups.forEach((pickup) => pickup.destroy());
       this.weaponPickups = [];
       this.hoveredWeaponPickup = undefined;
@@ -387,6 +414,7 @@ export class GameScene extends Phaser.Scene {
 
     if (!isPlaying(this.sessionState)) {
       this.updateCameraZoom(deltaMs);
+      this.updateSupplyDropVisual();
       this.clearAimAssist();
       this.resetMobileInput();
       this.updateHud();
@@ -400,7 +428,11 @@ export class GameScene extends Phaser.Scene {
       this.playerInput = requestReload(this.playerInput);
     }
     if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
-      if (!this.hasEmptyWeaponSlot()) this.tryPickupWeapon();
+      if (this.canOpenSupplyCrate()) {
+        this.tryOpenSupplyCrate();
+      } else if (!this.hasEmptyWeaponSlot()) {
+        this.tryPickupWeapon();
+      }
     }
     if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
       this.weapon.selectSlot(0);
@@ -448,6 +480,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updatePlayerWeaponVisual();
     this.updateCameraPosition();
+    this.updateSupplyDropVisual();
     this.refreshStationaryMouseAim();
     for (const zombie of this.zombies) {
       zombie.faceToward(this.player);
@@ -480,6 +513,8 @@ export class GameScene extends Phaser.Scene {
 
   private advanceSimulationStep(deltaMs: number): { died: boolean; damageEventCount: number } {
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
+    this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
+    const movementObstacles = this.activeMovementObstacles();
     this.firstShotAccuracy = advanceFirstShotAccuracy(
       this.firstShotAccuracy,
       deltaMs,
@@ -507,7 +542,7 @@ export class GameScene extends Phaser.Scene {
       this.player,
       desiredPosition,
       PLAYER_RADIUS,
-      OBSTACLE_CONFIG,
+      movementObstacles,
       {
         width: this.playArea.width,
         height: this.playArea.height,
@@ -554,7 +589,7 @@ export class GameScene extends Phaser.Scene {
         zombie,
         desiredZombiePosition,
         zombie.hitRadius,
-        OBSTACLE_CONFIG,
+        movementObstacles,
         {
           width: this.playArea.width,
           height: this.playArea.height,
@@ -591,7 +626,7 @@ export class GameScene extends Phaser.Scene {
         previousPosition: zombieStarts[index],
         radius: zombie.hitRadius,
       })),
-      OBSTACLE_CONFIG,
+      movementObstacles,
       this.playArea,
     );
     this.player.setPosition(separation.playerPosition.x, separation.playerPosition.y);
@@ -654,17 +689,21 @@ export class GameScene extends Phaser.Scene {
     );
     this.shotSequence += 1;
     const shotOrigin = { x: this.player.x, y: this.player.y };
+    const supplyCrateTarget = this.activeSupplyCrateTarget();
     const result = resolveHitscan(
       shotOrigin,
       shotDirection,
       weaponConfig.range,
-      this.zombies.map((zombie) => ({
-        id: zombie.id,
-        position: { x: zombie.x, y: zombie.y },
-        radius: zombie.hitRadius,
-      })),
+      [
+        ...this.zombies.map((zombie) => ({
+          id: zombie.id,
+          position: { x: zombie.x, y: zombie.y },
+          radius: zombie.hitRadius,
+        })),
+        ...(supplyCrateTarget ? [supplyCrateTarget] : []),
+      ],
       weaponConfig.maxTargets,
-      OBSTACLE_CONFIG,
+      this.activeHitscanBlockers(),
     );
     const impactEvents: Array<{
       position: Vector2;
@@ -678,6 +717,16 @@ export class GameScene extends Phaser.Scene {
     const deadIds = new Set<string>();
 
     for (const hit of result.hits) {
+      if (hit.targetId === SUPPLY_CRATE_TARGET_ID) {
+        const damage = damageSupplyDropCrate(
+          this.supplyDropState,
+          weaponConfig.damage,
+        );
+        this.supplyDropState = damage.state;
+        this.effects?.playSupplyCrateHit(hit.point, damage.died);
+        continue;
+      }
+
       const zombie = this.zombies.find((candidate) => candidate.id === hit.targetId);
 
       if (zombie) {
@@ -1164,7 +1213,11 @@ export class GameScene extends Phaser.Scene {
     if (!this.mobileControlsEnabled || !this.mobileLayout) return;
 
     const pointerId = pointer.id;
-    const role = classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout);
+    const role = classifyMobilePointer(
+      { x: pointer.x, y: pointer.y },
+      this.mobileLayout,
+      this.canOpenSupplyCrate(),
+    );
     if (isOverWeaponPickup && !isMobileControlPointerRole(role)) return;
     this.activeMobilePointers.add(pointerId);
     this.mobilePointerPositions.set(pointerId, { x: pointer.x, y: pointer.y });
@@ -1181,7 +1234,12 @@ export class GameScene extends Phaser.Scene {
     this.mobileOwnership = claimMobilePointer(this.mobileOwnership, pointerId, role);
 
     if (roleForPointer(this.mobileOwnership, pointerId) !== role) {
-      if (role === 'movement' || role === 'fire' || role === 'reload') {
+      if (
+        role === 'movement'
+        || role === 'fire'
+        || role === 'reload'
+        || role === 'interaction'
+      ) {
         this.guardedMobilePointers.add(pointerId);
       }
       return;
@@ -1196,6 +1254,8 @@ export class GameScene extends Phaser.Scene {
       this.resolveFireRequest();
     } else if (role === 'reload') {
       this.playerInput = requestReload(this.playerInput);
+    } else if (role === 'interaction') {
+      this.tryOpenSupplyCrate();
     }
   }
 
@@ -1385,6 +1445,11 @@ export class GameScene extends Phaser.Scene {
       this.coarsePointerQuery?.matches ?? window.matchMedia('(pointer: coarse)').matches,
     );
     this.mobileControls?.setVisible(this.mobileControlsEnabled);
+    this.mobileControls?.setInteractionVisible(
+      isPlaying(this.sessionState)
+        && this.mobileControlsEnabled
+        && this.canOpenSupplyCrate(),
+    );
 
     if (this.mobileControlsEnabled) {
       if (!wasEnabled) this.aimSource = 'mobile';
@@ -1449,7 +1514,7 @@ export class GameScene extends Phaser.Scene {
       })),
       worldView,
       hitscanRange: this.weapon.getDefinition().config.range,
-      hitscanBlockers: OBSTACLE_CONFIG,
+      hitscanBlockers: this.activeHitscanBlockers(),
       config: MOBILE_AIM_ASSIST_CONFIG,
     });
 
@@ -1570,6 +1635,115 @@ export class GameScene extends Phaser.Scene {
       deltaMs,
       this.cameras.main.zoom,
     );
+  }
+
+  private updateSupplyDropVisual(): void {
+    if (!this.supplyDropVisual) return;
+
+    const snapshot = resolveSupplyDropSnapshot(
+      this.supplyDropState,
+      SUPPLY_DROP_CONFIG,
+    );
+    const targetScreen = cameraScreenPoint(
+      snapshot.target,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
+      this.viewport,
+      this.cameras.main.zoom,
+    );
+    const planeScreen = cameraScreenPoint(
+      snapshot.planePosition,
+      {
+        x: this.cameras.main.scrollX,
+        y: this.cameras.main.scrollY,
+      },
+      this.viewport,
+      this.cameras.main.zoom,
+    );
+    this.supplyDropVisual.update(
+      snapshot,
+      planeScreen,
+      targetScreen,
+      this.viewport,
+      SUPPLY_DROP_CONFIG.indicatorMargin,
+    );
+    this.mobileControls?.setInteractionVisible(
+      isPlaying(this.sessionState)
+        && this.mobileControlsEnabled
+        && this.canOpenSupplyCrate(),
+    );
+  }
+
+  private canOpenSupplyCrate(): boolean {
+    return canOpenSupplyDropCrate(
+      resolveSupplyDropSnapshot(this.supplyDropState, SUPPLY_DROP_CONFIG),
+      this.player,
+      SUPPLY_DROP_CONFIG,
+    );
+  }
+
+  private tryOpenSupplyCrate(): void {
+    if (!this.canOpenSupplyCrate()) return;
+    this.supplyDropState = openSupplyDropCrate(this.supplyDropState);
+    this.updateSupplyDropVisual();
+  }
+
+  private activeSupplyCrateTarget(): {
+    id: string;
+    position: Vector2;
+    width: number;
+    height: number;
+  } | null {
+    const snapshot = resolveSupplyDropSnapshot(
+      this.supplyDropState,
+      SUPPLY_DROP_CONFIG,
+    );
+    if (
+      snapshot.crateDestroyed
+      || snapshot.crateOpened
+      || snapshot.phase !== 'landed'
+    ) {
+      return null;
+    }
+
+    return {
+      id: SUPPLY_CRATE_TARGET_ID,
+      position: { ...snapshot.cratePosition },
+      width: SUPPLY_DROP_CONFIG.crateSize.width,
+      height: SUPPLY_DROP_CONFIG.crateSize.height,
+    };
+  }
+
+  private activeSupplyCrateObstacle(): {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    blocksHitscan: true;
+  } | null {
+    const snapshot = resolveSupplyDropSnapshot(
+      this.supplyDropState,
+      SUPPLY_DROP_CONFIG,
+    );
+    const bounds = resolveSupplyDropCrateBounds(snapshot, SUPPLY_DROP_CONFIG);
+    if (!bounds) return null;
+
+    return {
+      ...bounds,
+      blocksHitscan: true,
+    };
+  }
+
+  private activeMovementObstacles(): readonly RectangleObstacle[] {
+    const crate = this.activeSupplyCrateObstacle();
+    return crate ? [...OBSTACLE_CONFIG, crate] : OBSTACLE_CONFIG;
+  }
+
+  private activeHitscanBlockers(): readonly HitscanBlocker[] {
+    const crate = this.activeSupplyCrateObstacle();
+    return crate ? [...OBSTACLE_CONFIG, crate] : OBSTACLE_CONFIG;
   }
 
   private readSafeArea(): SafeAreaInsets {

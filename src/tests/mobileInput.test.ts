@@ -78,6 +78,8 @@ describe('mobile input', () => {
     expect(classifyMobilePointer(layout.joystick, layout)).toBe('movement');
     expect(classifyMobilePointer(layout.fire, layout)).toBe('fire');
     expect(classifyMobilePointer(layout.reload, layout)).toBe('reload');
+    expect(classifyMobilePointer(layout.interaction, layout, true)).toBe('interaction');
+    expect(classifyMobilePointer(layout.interaction, layout, false)).toBe('aim');
     expect(classifyMobilePointer({ x: 180, y: 10 }, layout)).toBe('aim');
     expect(classifyMobilePointer({ x: 180, y: 300 }, layout)).toBe('aim');
 
@@ -90,6 +92,7 @@ describe('mobile input', () => {
     expect(isMobileControlPointerRole('movement')).toBe(true);
     expect(isMobileControlPointerRole('fire')).toBe(true);
     expect(isMobileControlPointerRole('reload')).toBe(true);
+    expect(isMobileControlPointerRole('interaction')).toBe(true);
     expect(isMobileControlPointerRole('controlGuard')).toBe(true);
     expect(isMobileControlPointerRole('aim')).toBe(false);
     expect(isMobileControlPointerRole(null)).toBe(false);
@@ -211,6 +214,7 @@ describe('mobile input', () => {
       aim: null,
       fire: 30,
       reload: null,
+      interaction: null,
     });
   });
 });

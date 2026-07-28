@@ -3,11 +3,20 @@ export interface Vector2 {
   y: number;
 }
 
-export interface HitscanTarget {
+export interface HitscanCircleTarget {
   id: string;
   position: Vector2;
   radius: number;
 }
+
+export interface HitscanRectangleTarget {
+  id: string;
+  position: Vector2;
+  width: number;
+  height: number;
+}
+
+export type HitscanTarget = HitscanCircleTarget | HitscanRectangleTarget;
 
 export interface HitscanHit {
   targetId: string;
@@ -40,7 +49,7 @@ function pointAlongRay(origin: Vector2, direction: Vector2, distance: number): V
 function firstRayCircleIntersection(
   origin: Vector2,
   direction: Vector2,
-  target: HitscanTarget,
+  target: HitscanCircleTarget,
 ): number | undefined {
   if (target.radius < 0) {
     return undefined;
@@ -64,6 +73,26 @@ function firstRayCircleIntersection(
 
   const distance = -projection - Math.sqrt(discriminant);
   return distance >= 0 ? distance : undefined;
+}
+
+function firstRayTargetIntersection(
+  origin: Vector2,
+  direction: Vector2,
+  target: HitscanTarget,
+): number | undefined {
+  if ('radius' in target) {
+    return firstRayCircleIntersection(origin, direction, target);
+  }
+
+  const width = Math.max(0, target.width);
+  const height = Math.max(0, target.height);
+  return firstRayRectangleIntersection(origin, direction, {
+    x: target.position.x - width / 2,
+    y: target.position.y - height / 2,
+    width,
+    height,
+    blocksHitscan: true,
+  });
 }
 
 function firstRayRectangleIntersection(
@@ -128,12 +157,12 @@ export function resolveHitscan(
   }
 
   const candidates = targets.flatMap<HitscanHit>((target) => {
-    const distance = firstRayCircleIntersection(origin, normalizedDirection, target);
+    const distance = firstRayTargetIntersection(origin, normalizedDirection, target);
 
     if (
       distance === undefined
       || distance > range
-      || (blockerDistance !== undefined && distance >= blockerDistance)
+      || (blockerDistance !== undefined && distance > blockerDistance)
     ) {
       return [];
     }

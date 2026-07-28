@@ -2,7 +2,7 @@ import { INPUT_CONFIG } from '../config/inputConfig';
 import type { SafeAreaInsets } from './hud';
 import type { MovementInput, Position } from './movement';
 
-export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload';
+export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload' | 'interaction';
 export type MobilePointerClassification = MobilePointerRole | 'controlGuard' | null;
 export type ViewportOrientation = 'portrait' | 'landscape';
 
@@ -27,6 +27,9 @@ export interface MobileControlLayout {
   reload: CircleControl;
   reloadHit: CircleControl;
   reloadGuard: CircleControl;
+  interaction: CircleControl;
+  interactionHit: CircleControl;
+  interactionGuard: CircleControl;
   controlExclusion: RectangleControl;
   aimTop: number;
   knobRadius: number;
@@ -37,10 +40,17 @@ export interface MobilePointerOwnership {
   aim: number | null;
   fire: number | null;
   reload: number | null;
+  interaction: number | null;
 }
 
 export function createMobilePointerOwnership(): MobilePointerOwnership {
-  return { movement: null, aim: null, fire: null, reload: null };
+  return {
+    movement: null,
+    aim: null,
+    fire: null,
+    reload: null,
+    interaction: null,
+  };
 }
 
 export function shouldShowMobileControls(
@@ -117,6 +127,15 @@ export function createMobileControlLayout(
     ),
     radius: reloadRadius,
   };
+  const interaction = {
+    x: fire.x,
+    y: clamp(
+      reload.y - reloadHitRadius * 2 - gap,
+      reloadRadius,
+      Math.max(reloadRadius, height - reloadRadius),
+    ),
+    radius: reloadRadius,
+  };
   const exclusionLeft = Math.max(
     0,
     Math.min(fire.x - fireGuardRadius, reload.x - reloadGuardRadius),
@@ -135,6 +154,9 @@ export function createMobileControlLayout(
     reload,
     reloadHit: { ...reload, radius: reloadHitRadius },
     reloadGuard: { ...reload, radius: reloadGuardRadius },
+    interaction,
+    interactionHit: { ...interaction, radius: reloadHitRadius },
+    interactionGuard: { ...interaction, radius: reloadGuardRadius },
     controlExclusion: {
       x: exclusionLeft,
       y: exclusionTop,
@@ -210,13 +232,18 @@ function containsRectangle(rectangle: RectangleControl, point: Position): boolea
 export function classifyMobilePointer(
   point: Position,
   layout: MobileControlLayout,
+  interactionEnabled = false,
 ): MobilePointerClassification {
+  if (interactionEnabled && contains(layout.interactionHit, point)) {
+    return 'interaction';
+  }
   if (contains(layout.fireHit, point)) return 'fire';
   if (contains(layout.reloadHit, point)) return 'reload';
   if (contains(layout.joystick, point)) return 'movement';
   if (
     contains(layout.fireGuard, point)
     || contains(layout.reloadGuard, point)
+    || (interactionEnabled && contains(layout.interactionGuard, point))
     || containsRectangle(layout.controlExclusion, point)
   ) {
     return 'controlGuard';
@@ -230,6 +257,7 @@ export function isMobileControlPointerRole(
   return role === 'movement'
     || role === 'fire'
     || role === 'reload'
+    || role === 'interaction'
     || role === 'controlGuard';
 }
 

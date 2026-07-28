@@ -151,4 +151,41 @@ describe('resolveHitscan', () => {
 
     expect(result.hits.map((hit) => hit.targetId)).toEqual(['boundary']);
   });
+
+  it('uses exact rectangle bounds for rectangular targets', () => {
+    const rectangle = {
+      id: 'crate',
+      position: { x: 50, y: 0 },
+      width: 20,
+      height: 10,
+    };
+    const blocker = {
+      x: 40,
+      y: -5,
+      width: 20,
+      height: 10,
+      blocksHitscan: true,
+    };
+
+    expect(resolveHitscan(
+      origin,
+      direction,
+      100,
+      [rectangle],
+      1,
+      [blocker],
+    ).hits[0]).toMatchObject({
+      targetId: 'crate',
+      distance: 40,
+      point: { x: 40, y: 0 },
+    });
+    expect(resolveHitscan(
+      origin,
+      { x: 50, y: 7 },
+      100,
+      [rectangle],
+      1,
+      [blocker],
+    ).hits).toEqual([]);
+  });
 });
