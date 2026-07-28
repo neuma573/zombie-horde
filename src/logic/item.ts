@@ -1,7 +1,7 @@
 import type { RectangleObstacle } from './obstacleCollision';
 import type { Position } from './movement';
 import type { SupplyDropKind } from './supplyDrop';
-import type { WeaponId } from './weapon';
+import type { AmmoType, WeaponId } from './weapon';
 
 export type ConsumableItemKind = 'pistolAmmo' | 'rifleAmmo' | 'medical';
 export type SupplyLoot = {
@@ -112,6 +112,58 @@ export function addClamped(current: number, amount: number, maximum: number): nu
     Math.max(0, maximum),
     Math.max(0, current) + Math.max(0, amount),
   );
+}
+
+export function hasUsableAmmoPickup(
+  pickupKinds: readonly ConsumableItemKind[],
+  ownedAmmoTypes: ReadonlySet<AmmoType>,
+): boolean {
+  return pickupKinds.some((kind) => (
+    kind !== 'medical' && ownedAmmoTypes.has(kind)
+  ));
+}
+
+export function revalidatePickupPosition(
+  position: Position,
+  bounds: { width: number; height: number },
+  obstacles: readonly RectangleObstacle[],
+  clearance: number,
+): Position {
+  const safeClearance = Math.min(
+    Math.max(0, clearance),
+    Math.max(0, bounds.width) / 2,
+    Math.max(0, bounds.height) / 2,
+  );
+  const clamp = (candidate: Position): Position => ({
+    x: Math.min(
+      Math.max(safeClearance, bounds.width - safeClearance),
+      Math.max(safeClearance, candidate.x),
+    ),
+    y: Math.min(
+      Math.max(safeClearance, bounds.height - safeClearance),
+      Math.max(safeClearance, candidate.y),
+    ),
+  });
+  const constrained = clamp(position);
+  if (isValidDropPosition(constrained, bounds, obstacles, safeClearance)) {
+    return constrained;
+  }
+
+  const step = Math.max(16, safeClearance);
+  const maximumRadius = Math.hypot(bounds.width, bounds.height);
+  for (let radius = step; radius <= maximumRadius; radius += step) {
+    for (let index = 0; index < 16; index += 1) {
+      const angle = index / 16 * Math.PI * 2;
+      const candidate = clamp({
+        x: constrained.x + Math.cos(angle) * radius,
+        y: constrained.y + Math.sin(angle) * radius,
+      });
+      if (isValidDropPosition(candidate, bounds, obstacles, safeClearance)) {
+        return candidate;
+      }
+    }
+  }
+  return constrained;
 }
 
 function isValidDropPosition(

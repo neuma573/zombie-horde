@@ -5,6 +5,8 @@ import { SUPPLY_DROP_BALANCE } from '../config/supplyDropConfig';
 import {
   addClamped,
   claimSupplyLoot,
+  hasUsableAmmoPickup,
+  revalidatePickupPosition,
   selectSupplyLoot,
   spreadSupplyLootPositions,
 } from '../logic/item';
@@ -91,5 +93,37 @@ describe('item effects', () => {
 
   it('clamps healing to the configured maximum health', () => {
     expect(addClamped(80, ITEM_BALANCE_CONFIG.medicalHealingAmount, 100)).toBe(100);
+  });
+
+  it('counts only ammunition pickups usable by the current inventory', () => {
+    expect(hasUsableAmmoPickup(
+      ['rifleAmmo', 'medical'],
+      new Set(['pistolAmmo']),
+    )).toBe(false);
+    expect(hasUsableAmmoPickup(
+      ['rifleAmmo', 'medical'],
+      new Set(['pistolAmmo', 'rifleAmmo']),
+    )).toBe(true);
+  });
+
+  it('moves pickups from a removed map strip into an obstacle-free playable position', () => {
+    const obstacle = { x: 720, y: 400, width: 80, height: 200 };
+    const position = revalidatePickupPosition(
+      { x: 1_100, y: 500 },
+      { width: 800, height: 700 },
+      [obstacle],
+      30,
+    );
+
+    expect(position.x).toBeGreaterThanOrEqual(30);
+    expect(position.x).toBeLessThanOrEqual(770);
+    expect(position.y).toBeGreaterThanOrEqual(30);
+    expect(position.y).toBeLessThanOrEqual(670);
+    expect(
+      position.x >= obstacle.x - 30
+      && position.x <= obstacle.x + obstacle.width + 30
+      && position.y >= obstacle.y - 30
+      && position.y <= obstacle.y + obstacle.height + 30,
+    ).toBe(false);
   });
 });

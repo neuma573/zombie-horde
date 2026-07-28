@@ -100,6 +100,8 @@ import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import {
   addClamped,
   claimSupplyLoot,
+  hasUsableAmmoPickup,
+  revalidatePickupPosition,
   selectSupplyLoot,
   spreadSupplyLootPositions,
 } from '../logic/item';
@@ -1420,6 +1422,7 @@ export class GameScene extends Phaser.Scene {
       URBAN_MAP_CONFIG.sidewalkWidth,
     );
     this.timeBasedLighting?.resize(gameSize.width, gameSize.height);
+    this.revalidateSupplyCoordinates();
 
     const playerPosition = constrainToBounds(this.player, {
       ...this.playArea,
@@ -1892,9 +1895,56 @@ export class GameScene extends Phaser.Scene {
   }
 
   private hasAvailableAmmoPickup(): boolean {
-    return this.itemPickups.some((pickup) => (
-      pickup.kind === 'pistolAmmo' || pickup.kind === 'rifleAmmo'
-    ));
+    const ownedAmmoTypes = new Set(
+      this.weapon.getInventory().slots.flatMap((owned) => (
+        owned ? [owned.definition.ammoType] : []
+      )),
+    );
+    return hasUsableAmmoPickup(
+      this.itemPickups.map((pickup) => pickup.kind),
+      ownedAmmoTypes,
+    );
+  }
+
+  private revalidateSupplyCoordinates(): void {
+    if (this.supplyDropActive) {
+      const target = revalidatePickupPosition(
+        this.currentSupplyDropConfig.target,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        SUPPLY_DROP_BALANCE.locationClearance,
+      );
+      this.currentSupplyDropConfig = {
+        ...this.currentSupplyDropConfig,
+        target,
+      };
+    }
+    if (this.previousSupplyDropPosition) {
+      this.previousSupplyDropPosition = revalidatePickupPosition(
+        this.previousSupplyDropPosition,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        SUPPLY_DROP_BALANCE.locationClearance,
+      );
+    }
+    for (const pickup of this.weaponPickups) {
+      const position = revalidatePickupPosition(
+        pickup,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        WEAPON_PICKUP_RADIUS,
+      );
+      pickup.setPosition(position.x, position.y);
+    }
+    for (const pickup of this.itemPickups) {
+      const position = revalidatePickupPosition(
+        pickup,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        ITEM_BALANCE_CONFIG.pickupRadius / 2,
+      );
+      pickup.setPosition(position.x, position.y);
+    }
   }
 
   private activeSupplyCrateTarget(): {
