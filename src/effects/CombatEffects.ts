@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { HUMANOID_VISUAL } from '../config/characterVisualConfig';
 import {
   ZOMBIE_DEATH_EFFECT_CONFIG,
   ZOMBIE_HIT_EFFECT_CONFIG,
@@ -10,6 +11,11 @@ import {
   resolveHumanoidDeathPose,
   type HumanoidPartTransform,
 } from '../logic/humanoidDeathPose';
+import {
+  createZombieAppearance,
+  type ZombieAppearance,
+  type ZombieSleeves,
+} from '../logic/zombieAppearance';
 
 export class CombatEffects {
   private readonly active = new Set<Phaser.GameObjects.GameObject>();
@@ -107,7 +113,7 @@ export class CombatEffects {
         y: (event.direction?.y ?? 0) / directionLength,
       }
       : { x: 1, y: 0 };
-    const corpse = this.createZombieCorpse(event.radius);
+    const corpse = this.createZombieCorpse(event.radius, event.appearance);
     corpse.container
       .setPosition(event.position.x, event.position.y)
       .setRotation(Number.isFinite(event.rotation) ? event.rotation! : 0)
@@ -235,7 +241,10 @@ export class CombatEffects {
     this.active.clear();
   }
 
-  private createZombieCorpse(radius: number): {
+  private createZombieCorpse(
+    radius: number,
+    appearance: ZombieAppearance = createZombieAppearance(0, 0),
+  ): {
     container: Phaser.GameObjects.Container;
     head: Phaser.GameObjects.Graphics;
     torso: Phaser.GameObjects.Graphics;
@@ -246,25 +255,29 @@ export class CombatEffects {
   } {
     const safeRadius = Number.isFinite(radius) ? Math.max(1, radius) : 20;
     const shadow = this.scene.add.graphics();
-    shadow.fillStyle(0x000000, 0.32);
+    shadow.fillStyle(HUMANOID_VISUAL.shadow.color, 0.32);
     shadow.fillEllipse(0, 4, safeRadius * 2.15, safeRadius * 1.45);
     const torso = this.scene.add.graphics();
-    torso.fillStyle(0x263026, 1);
-    torso.fillEllipse(0, 0, safeRadius * 1.9, safeRadius * 1.35);
-    torso.lineStyle(3, 0x121713, 1);
-    torso.strokeEllipse(0, 0, safeRadius * 1.9, safeRadius * 1.35);
+    this.drawCorpseTorso(torso, appearance);
     const head = this.scene.add.graphics();
-    head.fillStyle(0x596451, 1);
-    head.fillCircle(-2, 0, safeRadius * 0.58);
-    head.lineStyle(2, 0x121713, 1);
-    head.strokeCircle(-2, 0, safeRadius * 0.58);
-    const upperArm = this.createCorpseArm(0x53604e);
+    this.drawCorpseHead(head, appearance);
+    const upperArm = this.createCorpseArm(
+      appearance.clothing.base,
+      appearance.skin.base,
+      appearance.skin.shadow,
+      appearance.sleeves,
+    );
     upperArm.setPosition(0, -10);
-    const lowerArm = this.createCorpseArm(0x606c58);
+    const lowerArm = this.createCorpseArm(
+      appearance.clothing.base,
+      appearance.skin.base,
+      appearance.skin.shadow,
+      appearance.sleeves,
+    );
     lowerArm.setPosition(0, 10);
-    const upperLeg = this.createCorpseLeg(0x202820);
+    const upperLeg = this.createCorpseLeg(appearance.clothing.base);
     upperLeg.setPosition(-9, -6);
-    const lowerLeg = this.createCorpseLeg(0x252d24);
+    const lowerLeg = this.createCorpseLeg(appearance.clothing.detail);
     lowerLeg.setPosition(-9, 6);
     const container = this.scene.add.container(0, 0, [
       shadow,
@@ -343,26 +356,129 @@ export class CombatEffects {
     );
   }
 
-  private createCorpseArm(color: number): Phaser.GameObjects.Graphics {
+  private drawCorpseTorso(
+    torso: Phaser.GameObjects.Graphics,
+    appearance: ZombieAppearance,
+  ): void {
+    const bodyScale = appearance.bodyType === 'slim'
+      ? 0.88
+      : appearance.bodyType === 'broad' ? 1.1 : 1;
+    const halfHeight = HUMANOID_VISUAL.torsoHeight * bodyScale / 2;
+    const torsoWidth = HUMANOID_VISUAL.torsoWidth
+      + (appearance.bodyType === 'broad' ? 2 : 0);
+    torso
+      .fillStyle(HUMANOID_VISUAL.outlineColor, 1)
+      .fillRoundedRect(-15, -halfHeight, torsoWidth, halfHeight * 2, 8)
+      .fillStyle(appearance.clothing.base, 1)
+      .fillRoundedRect(-13, -halfHeight + 3, torsoWidth - 4, halfHeight * 2 - 6, 6);
+
+    if (appearance.archetype === 'worker') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.85)
+        .fillRect(-7, -halfHeight + 4, 4, halfHeight * 2 - 8);
+    } else if (appearance.archetype === 'office') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.9)
+        .fillTriangle(7, -6, 7, 0, 1, -4)
+        .fillTriangle(7, 6, 7, 0, 1, 4);
+    } else if (appearance.archetype === 'athletic') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.9)
+        .fillRect(-10, -halfHeight + 4, 3, halfHeight * 2 - 8)
+        .fillRect(3, -halfHeight + 5, 3, halfHeight * 2 - 10);
+    } else if (appearance.archetype === 'medical') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.82)
+        .fillTriangle(7, -5, 7, 5, 1, 0)
+        .lineStyle(1.5, appearance.clothing.detail, 0.9)
+        .strokeRoundedRect(-8, 5, 7, 6, 1);
+    } else if (appearance.archetype === 'casualFemale') {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.72)
+        .fillTriangle(-10, -halfHeight + 4, -10, halfHeight - 4, 7, 0)
+        .fillStyle(appearance.clothing.base, 1)
+        .fillTriangle(-7, -halfHeight + 6, -7, halfHeight - 6, 8, 0);
+    } else {
+      torso
+        .fillStyle(appearance.clothing.detail, 0.7)
+        .fillRect(-8, -halfHeight + 5, 2, halfHeight * 2 - 10);
+    }
+  }
+
+  private drawCorpseHead(
+    head: Phaser.GameObjects.Graphics,
+    appearance: ZombieAppearance,
+  ): void {
+    head
+      .fillStyle(HUMANOID_VISUAL.outlineColor, 1)
+      .fillEllipse(2, 0, HUMANOID_VISUAL.headWidth, HUMANOID_VISUAL.headHeight)
+      .fillStyle(appearance.skin.base, 1)
+      .fillEllipse(3, 0.5, 20, 21)
+      .fillStyle(appearance.skin.highlight, 0.35)
+      .fillEllipse(6, -3, 7, 11);
+
+    if (appearance.hair === 'bald') return;
+    if (appearance.hair === 'side-part') {
+      head
+        .fillStyle(appearance.hairColor.base, 1)
+        .fillEllipse(0, -4, 13, 13);
+      return;
+    }
+    if (appearance.hair === 'ponytail') {
+      head
+        .fillStyle(HUMANOID_VISUAL.outlineColor, 0.9)
+        .fillEllipse(-13, 5, 17, 9)
+        .fillStyle(appearance.hairColor.base, 1)
+        .fillEllipse(-13, 5, 14, 6);
+    }
+    head
+      .fillStyle(appearance.hairColor.base, 1)
+      .fillEllipse(-1, 0, 10, 21)
+      .fillStyle(appearance.hairColor.highlight, 0.65)
+      .fillEllipse(1, -5, 4, 8);
+  }
+
+  private createCorpseArm(
+    clothingColor: number,
+    skinColor: number,
+    handColor: number,
+    sleeves: ZombieSleeves,
+  ): Phaser.GameObjects.Graphics {
     const arm = this.scene.add.graphics();
-    arm.lineStyle(8, 0x121713, 1);
+    arm.lineStyle(HUMANOID_VISUAL.outlineWidth, HUMANOID_VISUAL.outlineColor, 1);
     arm.beginPath();
     arm.moveTo(0, 0);
     arm.lineTo(11, -3);
     arm.lineTo(22, 0);
     arm.strokePath();
-    arm.lineStyle(5, color, 1);
+    arm.lineStyle(
+      HUMANOID_VISUAL.armWidth,
+      sleeves === 'long' ? clothingColor : skinColor,
+      1,
+    );
     arm.beginPath();
     arm.moveTo(0, 0);
     arm.lineTo(11, -3);
     arm.lineTo(22, 0);
     arm.strokePath();
+    if (sleeves === 'short') {
+      arm.lineStyle(HUMANOID_VISUAL.armWidth, clothingColor, 1);
+      arm.beginPath();
+      arm.moveTo(0, 0);
+      arm.lineTo(11, -3);
+      arm.strokePath();
+    }
+    arm
+      .fillStyle(HUMANOID_VISUAL.outlineColor, 1)
+      .fillCircle(22, 0, 3.5)
+      .fillStyle(handColor, 1)
+      .fillCircle(22, 0, 2.1);
     return arm;
   }
 
   private createCorpseLeg(color: number): Phaser.GameObjects.Graphics {
     const leg = this.scene.add.graphics();
-    leg.lineStyle(13, 0x111511, 1);
+    leg.lineStyle(13, HUMANOID_VISUAL.outlineColor, 1);
     leg.beginPath();
     leg.moveTo(0, 0);
     leg.lineTo(-12, 0);
@@ -374,7 +490,7 @@ export class CombatEffects {
     leg.lineTo(-12, 0);
     leg.lineTo(-25, 2);
     leg.strokePath();
-    leg.fillStyle(0x101410, 1);
+    leg.fillStyle(HUMANOID_VISUAL.outlineColor, 1);
     leg.fillEllipse(-28, 2, 10, 7);
     return leg;
   }

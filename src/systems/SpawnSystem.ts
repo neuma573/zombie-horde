@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import type { SpawnConfig } from '../config/spawnConfig';
 import { Zombie } from '../entities/Zombie';
 import { getEdgeSpawnPosition } from '../logic/spawn';
+import { createZombieAppearance } from '../logic/zombieAppearance';
 import type { MovementBounds } from '../logic/movement';
 import type { Position } from '../logic/movement';
 
@@ -34,6 +35,12 @@ export class SpawnSystem {
     );
     this.nextZombieId += 1;
 
-    return new Zombie(scene, `zombie-${id}`, position.x, position.y);
+    return new Zombie(
+      scene,
+      `zombie-${id}`,
+      position.x,
+      position.y,
+      createZombieAppearance(this.seed, id - 1),
+    );
   }
 }

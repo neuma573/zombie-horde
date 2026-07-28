@@ -13,6 +13,7 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
   private automaticAim = false;
   private automaticAimElapsedMs = 0;
   private persistentMuzzleReflection = false;
+  private debugWeapon: 'pistol' | 'burstRifle' = 'burstRifle';
   private statusText!: Phaser.GameObjects.Text;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
 
@@ -29,12 +30,15 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     if (requestedAngleIndex >= 0) this.angleIndex = requestedAngleIndex;
     this.moving = debugParameters.get('debugMoving') === '1';
     this.persistentMuzzleReflection = debugParameters.get('debugMuzzle') === '1';
+    if (debugParameters.get('debugWeapon') === 'pistol') {
+      this.debugWeapon = 'pistol';
+    }
 
     this.cameras.main.setBackgroundColor(0x30383c);
     this.male = new Player(this, 0, 0, 'male-swat');
     this.female = new Player(this, 0, 0, 'female-swat');
-    this.male.setWeaponVisual('burstRifle');
-    this.female.setWeaponVisual('burstRifle');
+    this.male.setWeaponVisual(this.debugWeapon);
+    this.female.setWeaponVisual(this.debugWeapon);
     this.statusText = this.add.text(16, 16, '', {
       color: '#f3f5f6',
       fontFamily: 'monospace',

@@ -1,0 +1,20 @@
+export const HUMANOID_VISUAL = {
+  armLengthScale: 0.9,
+  outlineColor: 0x05080b,
+  outlineWidth: 9,
+  armWidth: 6,
+  shoulderX: 2,
+  shoulderY: 14.5,
+  headWidth: 24,
+  headHeight: 25,
+  torsoWidth: 27,
+  torsoHeight: 34,
+  shadow: {
+    offsetX: -2,
+    offsetY: 4,
+    widthRadiusScale: 1.65,
+    heightRadiusScale: 2.1,
+    color: 0x000000,
+    alpha: 0.28,
+  },
+} as const;

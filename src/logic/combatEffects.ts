@@ -1,4 +1,5 @@
 import type { Vector2 } from './hitscan';
+import type { ZombieAppearance } from './zombieAppearance';
 
 const MIN_RAY_LENGTH = 1e-6;
 
@@ -13,6 +14,7 @@ export interface ImpactEffectEvent {
   direction?: Vector2;
   rotation?: number;
   variantKey?: string;
+  appearance?: ZombieAppearance;
 }
 
 export function constrainMuzzleToShotSegment(
