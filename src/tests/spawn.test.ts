@@ -169,4 +169,22 @@ describe('balanced zombie spawning', () => {
     ).toBe(false);
     expect(Math.hypot(position.x - 500, position.y - 350)).toBeGreaterThanOrEqual(160);
   });
+
+  it('does not reuse look-ahead positions for consecutive offscreen spawns', () => {
+    const positions = Array.from({ length: 12 }, (_, index) => (
+      getOffscreenEdgeSpawnPosition(
+        index,
+        { width: 1_000, height: 700 },
+        20,
+        { x: 850, y: 350 },
+        160,
+        { x: 520, y: 40, width: 460, height: 620 },
+        [{ x: 0, y: 0, width: 260, height: 180 }],
+        42,
+      )
+    ));
+
+    expect(new Set(positions.map(({ x, y }) => `${x}:${y}`)).size)
+      .toBe(positions.length);
+  });
 });

@@ -8,6 +8,8 @@ export interface SpawnExclusionRectangle {
   height: number;
 }
 
+const OFFSCREEN_CANDIDATES_PER_SPAWN = 32;
+
 type SpawnEdge = 0 | 1 | 2 | 3;
 
 function mixUint32(value: number): number {
@@ -141,9 +143,11 @@ export function getOffscreenEdgeSpawnPosition(
   obstacles: readonly RectangleObstacle[],
   seed = 0,
 ): Position {
-  const candidates = Array.from({ length: 32 }, (_, offset) => (
+  const candidateBlockStart = Math.max(0, Math.floor(spawnIndex))
+    * OFFSCREEN_CANDIDATES_PER_SPAWN;
+  const candidates = Array.from({ length: OFFSCREEN_CANDIDATES_PER_SPAWN }, (_, offset) => (
     getEdgeSpawnPosition(
-      spawnIndex + offset,
+      candidateBlockStart + offset,
       bounds,
       padding,
       undefined,
