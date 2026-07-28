@@ -309,6 +309,46 @@ describe('supply location selection', () => {
     expect(Math.hypot(target!.x - 300, target!.y - 300)).toBeGreaterThanOrEqual(500);
     expect(target!.x).toBeGreaterThan(300);
   });
+
+  it('never relaxes the normal player-distance band when sampling misses', () => {
+    const target = selectSupplyDropLocation(
+      'normal',
+      { x: 50, y: 50 },
+      { width: 4_000, height: 3_000 },
+      [],
+      null,
+      { x: 0, y: 0 },
+      0,
+      {
+        ...locationConfig,
+        sampleCount: 1,
+        normalMinimumPlayerDistance: 150,
+        normalMaximumPlayerDistance: 500,
+      },
+    );
+
+    expect(target).not.toBeNull();
+    const playerDistance = Math.hypot(target!.x - 50, target!.y - 50);
+    expect(playerDistance).toBeGreaterThanOrEqual(150);
+    expect(playerDistance).toBeLessThanOrEqual(500);
+  });
+
+  it('defers a normal drop when no reachable cell satisfies its distance band', () => {
+    expect(selectSupplyDropLocation(
+      'normal',
+      { x: 100, y: 100 },
+      { width: 220, height: 220 },
+      [],
+      null,
+      { x: 0, y: 0 },
+      0,
+      {
+        ...locationConfig,
+        normalMinimumPlayerDistance: 500,
+        normalMaximumPlayerDistance: 600,
+      },
+    )).toBeNull();
+  });
 });
 
 describe('supply drop indicator', () => {

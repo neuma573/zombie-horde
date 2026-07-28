@@ -195,12 +195,8 @@ export function selectSupplyDropLocation(
   const reachable = reachableCells(player, bounds, obstacles, clearance);
   if (reachable.length === 0) return null;
 
-  const candidates = Array.from(
-    { length: Math.max(1, Math.floor(config.sampleCount)) },
-    (_, index) => reachable[mixUint32(seed + index * 0x9e3779b9) % reachable.length],
-  ).filter((candidate): candidate is Position => candidate !== undefined);
   const previousDistance = Math.max(0, config.previousDropMinimumDistance);
-  const filtered = candidates.filter((candidate) => {
+  const eligible = reachable.filter((candidate) => {
     const playerDistance = distance(candidate, player);
     if (previousDrop && distance(candidate, previousDrop) < previousDistance) return false;
     return kind === 'normal'
@@ -208,12 +204,12 @@ export function selectSupplyDropLocation(
         && playerDistance <= config.normalMaximumPlayerDistance
       : playerDistance >= config.emergencyMinimumPlayerDistance;
   });
-  const pool = filtered.length > 0
-    ? filtered
-    : candidates.filter((candidate) => (
-      !previousDrop || distance(candidate, previousDrop) >= previousDistance * 0.5
-    ));
-  if (pool.length === 0) return null;
+  if (eligible.length === 0) return null;
+
+  const pool = Array.from(
+    { length: Math.max(1, Math.floor(config.sampleCount)) },
+    (_, index) => eligible[mixUint32(seed + index * 0x9e3779b9) % eligible.length],
+  ).filter((candidate): candidate is Position => candidate !== undefined);
 
   const threatLength = Math.hypot(threatDirection.x, threatDirection.y);
   return pool.reduce((best, candidate) => {

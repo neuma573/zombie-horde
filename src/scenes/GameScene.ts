@@ -1744,11 +1744,16 @@ export class GameScene extends Phaser.Scene {
       },
       SUPPLY_DROP_BALANCE,
     );
-    this.supplyTriggerState = trigger.state;
-    if (trigger.kind) this.startSupplyDrop(trigger.kind);
+    if (!trigger.kind) {
+      this.supplyTriggerState = trigger.state;
+      return;
+    }
+    if (this.startSupplyDrop(trigger.kind)) {
+      this.supplyTriggerState = trigger.state;
+    }
   }
 
-  private startSupplyDrop(kind: SupplyDropKind): void {
+  private startSupplyDrop(kind: SupplyDropKind): boolean {
     const threatDirection = this.zombies.reduce(
       (direction, zombie) => ({
         x: direction.x + zombie.x - this.player.x,
@@ -1773,7 +1778,7 @@ export class GameScene extends Phaser.Scene {
         previousDropMinimumDistance: SUPPLY_DROP_BALANCE.previousDropMinimumDistance,
       },
     );
-    if (!target) return;
+    if (!target) return false;
 
     this.previousSupplyDropPosition = target;
     this.currentSupplyDropConfig = {
@@ -1788,6 +1793,7 @@ export class GameScene extends Phaser.Scene {
     this.supplyDropLootReleased = false;
     this.supplyDropActive = true;
     this.updateSupplyDropVisual();
+    return true;
   }
 
   private canOpenSupplyCrate(): boolean {
@@ -1834,7 +1840,10 @@ export class GameScene extends Phaser.Scene {
       Math.floor(Math.random() * 0x1_0000_0000),
       ITEM_BALANCE_CONFIG,
     );
-    loot.slice(0, positions.length).forEach((item, index) => {
+    if (positions.length !== loot.length) {
+      throw new Error('Supply loot placement could not preserve every selected item');
+    }
+    loot.forEach((item, index) => {
       const position = positions[index];
       if (item.type === 'weapon') {
         const definition = item.weaponId === 'burstRifle'

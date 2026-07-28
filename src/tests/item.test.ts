@@ -105,6 +105,27 @@ describe('supply loot', () => {
       }
     }
   });
+
+  it('retains every selected loot position near a constrained map corner', () => {
+    const positions = spreadSupplyLootPositions(
+      3,
+      { x: 40, y: 40 },
+      { width: 320, height: 320 },
+      [{ x: 90, y: 0, width: 230, height: 190 }],
+      91,
+      ITEM_BALANCE_CONFIG,
+    );
+
+    expect(positions).toHaveLength(3);
+    for (let left = 0; left < positions.length; left += 1) {
+      for (let right = left + 1; right < positions.length; right += 1) {
+        expect(Math.hypot(
+          positions[left].x - positions[right].x,
+          positions[left].y - positions[right].y,
+        )).toBeGreaterThanOrEqual(ITEM_BALANCE_CONFIG.dropMinimumSpacing);
+      }
+    }
+  });
 });
 
 describe('item effects', () => {

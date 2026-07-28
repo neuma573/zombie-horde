@@ -116,6 +116,54 @@ export function spreadSupplyLootPositions(
     }
     if (selected) positions.push(selected);
   }
+
+  const clearsExisting = (candidate: Position): boolean => positions.every((position) => (
+    Math.hypot(candidate.x - position.x, candidate.y - position.y)
+      >= minimumSpacing
+  ));
+  const maximumRadius = Math.hypot(bounds.width, bounds.height);
+  const radiusStep = Math.max(16, minimumSpacing, config.dropClearance * 2);
+  const angleOffset = random01(seed, 0x51f15e) * Math.PI * 2;
+  for (
+    let radius = Math.max(0, config.dropMinimumDistance);
+    positions.length < safeCount && radius <= maximumRadius;
+    radius += radiusStep
+  ) {
+    for (let index = 0; index < 48 && positions.length < safeCount; index += 1) {
+      const angle = angleOffset + index / 48 * Math.PI * 2;
+      const candidate = {
+        x: center.x + Math.cos(angle) * radius,
+        y: center.y + Math.sin(angle) * radius,
+      };
+      if (
+        clearsExisting(candidate)
+        && isValidDropPosition(candidate, bounds, obstacles, config.dropClearance)
+      ) {
+        positions.push(candidate);
+      }
+    }
+  }
+
+  const gridStep = Math.max(16, minimumSpacing, config.dropClearance * 2);
+  for (
+    let y = config.dropClearance;
+    positions.length < safeCount && y <= bounds.height - config.dropClearance;
+    y += gridStep
+  ) {
+    for (
+      let x = config.dropClearance;
+      positions.length < safeCount && x <= bounds.width - config.dropClearance;
+      x += gridStep
+    ) {
+      const candidate = { x, y };
+      if (
+        clearsExisting(candidate)
+        && isValidDropPosition(candidate, bounds, obstacles, config.dropClearance)
+      ) {
+        positions.push(candidate);
+      }
+    }
+  }
   return positions;
 }
 
