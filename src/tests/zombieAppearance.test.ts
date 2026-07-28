@@ -68,6 +68,28 @@ describe('zombie appearance', () => {
     }
   });
 
+  it('combines every two-color outfit palette with every hair color', () => {
+    const appearances = Array.from(
+      { length: 10_000 },
+      (_, index) => createZombieAppearance(0x13579bdf, index),
+    );
+
+    for (const archetype of ['office', 'worker', 'athletic', 'medical'] as const) {
+      const combinations = new Map<number, Set<number>>();
+      for (const appearance of appearances) {
+        if (appearance.archetype !== archetype) continue;
+        const hairColors = combinations.get(appearance.clothing.base) ?? new Set<number>();
+        hairColors.add(appearance.hairColor.base);
+        combinations.set(appearance.clothing.base, hairColors);
+      }
+
+      expect(combinations.size).toBe(2);
+      for (const hairColors of combinations.values()) {
+        expect(hairColors.size).toBe(4);
+      }
+    }
+  });
+
   it('derives a stable fallback seed from a zombie id', () => {
     expect(zombieAppearanceSeedFromId('zombie-12'))
       .toBe(zombieAppearanceSeedFromId('zombie-12'));

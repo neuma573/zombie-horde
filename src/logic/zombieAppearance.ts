@@ -155,8 +155,8 @@ export function createZombieAppearance(
     tornSide: appearanceChannel(seed, index, 4) % 2 === 0 ? 'upper' : 'lower',
     skin: ZOMBIE_SKIN_PALETTES[skinIndex],
     clothing: choose(palettes, 6),
-    hairColor: choose(ZOMBIE_HAIR_COLORS, 6),
-    posture: choose(POSTURES, 7),
+    hairColor: choose(ZOMBIE_HAIR_COLORS, 7),
+    posture: choose(POSTURES, 8),
   };
 }
 
