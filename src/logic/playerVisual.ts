@@ -19,7 +19,7 @@ export interface SidearmShoulderPose {
 export const SIDEARM_VISUAL = {
   length: 18,
   width: 5,
-  readyPose: { x: 44, y: 7, rotation: 0 },
+  readyPose: { x: 40.7, y: 7, rotation: 0 },
   reloadPose: { x: 9, y: -15, rotation: -1.15 },
 } as const;
 
@@ -27,9 +27,9 @@ export const RIFLE_VISUAL = {
   length: 46,
   width: 8,
   readyPose: { x: 25, y: 9, rotation: 0 },
-  leftHand: { x: 29, y: 6 },
-  rightHand: { x: 14, y: 13 },
-  supportPoint: { x: 29, y: -3 },
+  leftHand: { x: 26.3, y: 3.95 },
+  rightHand: { x: 12.8, y: 13.15 },
+  supportPoint: { x: 26.3, y: -5.05 },
 } as const;
 
 export interface RifleReloadVisual {

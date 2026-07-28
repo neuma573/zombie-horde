@@ -10,14 +10,14 @@ export interface ZombieAttackPose {
 }
 
 const IDLE_POSE: ZombieAttackPose = {
-  upperElbowX: 17,
-  upperElbowY: -15,
-  upperHandX: 40,
-  upperHandY: -8,
-  lowerElbowX: 25,
-  lowerElbowY: 13,
-  lowerHandX: 40,
-  lowerHandY: 9,
+  upperElbowX: 16,
+  upperElbowY: -19,
+  upperHandX: 41,
+  upperHandY: -7,
+  lowerElbowX: 21,
+  lowerElbowY: 17,
+  lowerHandX: 36,
+  lowerHandY: 12,
 };
 
 const WINDUP_POSE: ZombieAttackPose = {

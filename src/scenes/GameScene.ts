@@ -101,6 +101,7 @@ import {
   type SupplyDropState,
 } from '../logic/supplyDrop';
 import { muzzleLightExposure } from '../logic/playerVisual';
+import type { ZombieAppearance } from '../logic/zombieAppearance';
 import {
   resolveHitscan,
   type HitscanBlocker,
@@ -712,6 +713,7 @@ export class GameScene extends Phaser.Scene {
       direction: Vector2;
       rotation: number;
       variantKey: string;
+      appearance: ZombieAppearance;
     }> = [];
 
     const deadIds = new Set<string>();
@@ -738,6 +740,7 @@ export class GameScene extends Phaser.Scene {
           direction: { ...shotDirection },
           rotation: zombie.rotation,
           variantKey: zombie.id,
+          appearance: zombie.appearance,
         });
 
         zombie.triggerHitReaction(shotDirection);

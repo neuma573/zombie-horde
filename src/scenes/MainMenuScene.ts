@@ -48,6 +48,10 @@ export class MainMenuScene extends Phaser.Scene {
   create(): void {
     document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
+    if (debugUrl.searchParams.has('zombieAppearanceDebug')) {
+      void this.startZombieAppearanceDebug(debugUrl);
+      return;
+    }
     if (debugUrl.searchParams.has('playerAppearanceDebug')) {
       void this.startAppearanceDebug(debugUrl);
       return;
@@ -539,6 +543,22 @@ export class MainMenuScene extends Phaser.Scene {
       );
     }
     this.scene.start('PlayerAppearanceDebugScene');
+  }
+
+  private async startZombieAppearanceDebug(debugUrl: URL): Promise<void> {
+    debugUrl.searchParams.delete('zombieAppearanceDebug');
+    window.history.replaceState({}, '', debugUrl);
+    const { ZombieAppearanceDebugScene } = await import(
+      './ZombieAppearanceDebugScene'
+    );
+    if (!this.scene.manager.keys.ZombieAppearanceDebugScene) {
+      this.scene.add(
+        'ZombieAppearanceDebugScene',
+        ZombieAppearanceDebugScene,
+        false,
+      );
+    }
+    this.scene.start('ZombieAppearanceDebugScene');
   }
 
   private async startGame(): Promise<void> {
