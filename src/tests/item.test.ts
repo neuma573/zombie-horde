@@ -4,6 +4,7 @@ import { ITEM_BALANCE_CONFIG } from '../config/itemConfig';
 import { SUPPLY_DROP_BALANCE } from '../config/supplyDropConfig';
 import {
   addClamped,
+  canCollectConsumable,
   claimSupplyLoot,
   hasUsableAmmoPickup,
   revalidatePickupPosition,
@@ -135,6 +136,12 @@ describe('item effects', () => {
 
   it('clamps healing to the configured maximum health', () => {
     expect(addClamped(80, ITEM_BALANCE_CONFIG.medicalHealingAmount, 100)).toBe(100);
+  });
+
+  it('leaves medical pickups available at full health', () => {
+    expect(canCollectConsumable('medical', 100, 100)).toBe(false);
+    expect(canCollectConsumable('medical', 99, 100)).toBe(true);
+    expect(canCollectConsumable('pistolAmmo', 100, 100)).toBe(true);
   });
 
   it('counts only ammunition pickups usable by the current inventory', () => {

@@ -99,6 +99,7 @@ import {
 import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import {
   addClamped,
+  canCollectConsumable,
   claimSupplyLoot,
   hasUsableAmmoPickup,
   revalidatePickupPosition,
@@ -1875,6 +1876,11 @@ export class GameScene extends Phaser.Scene {
         pickup.x,
         pickup.y,
       ) <= ITEM_BALANCE_CONFIG.pickupRadius
+      && canCollectConsumable(
+        pickup.kind,
+        this.player.health,
+        PLAYER_CONFIG.health,
+      )
     ));
     if (collected.length === 0) return;
 

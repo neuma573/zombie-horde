@@ -174,6 +174,15 @@ export function addClamped(current: number, amount: number, maximum: number): nu
   );
 }
 
+export function canCollectConsumable(
+  kind: ConsumableItemKind,
+  currentHealth: number,
+  maximumHealth: number,
+): boolean {
+  return kind !== 'medical'
+    || Math.max(0, currentHealth) < Math.max(0, maximumHealth);
+}
+
 export function hasUsableAmmoPickup(
   pickupKinds: readonly ConsumableItemKind[],
   ownedAmmoTypes: ReadonlySet<AmmoType>,
