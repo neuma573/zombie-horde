@@ -114,13 +114,29 @@ export function totalAvailableAmmo(
     (total, ammoType) => total + Math.max(0, reserves[ammoType]),
     0,
   );
-  const capacity = owned.reduce(
-    (total, weapon) => (
-      total + weapon.definition.config.magazineSize + weapon.definition.config.reserveAmmo
-    ),
+  const magazineCapacity = owned.reduce(
+    (total, weapon) => total + weapon.definition.config.magazineSize,
     0,
   );
-  return { current, capacity };
+  const reserveCapacityByAmmoType = owned.reduce((capacities, weapon) => {
+    const ammoType = weapon.definition.ammoType;
+    capacities.set(
+      ammoType,
+      Math.max(
+        capacities.get(ammoType) ?? 0,
+        weapon.definition.config.reserveAmmo,
+      ),
+    );
+    return capacities;
+  }, new Map<AmmoType, number>());
+  const reserveCapacity = [...reserveCapacityByAmmoType.values()].reduce(
+    (total, capacity) => total + Math.max(0, capacity),
+    0,
+  );
+  return {
+    current,
+    capacity: magazineCapacity + reserveCapacity,
+  };
 }
 
 export function resolveSupplyTrigger(

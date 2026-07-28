@@ -12,6 +12,7 @@ import {
   openSupplyDropCrate,
   resolveSupplyTrigger,
   selectSupplyDropLocation,
+  totalAvailableAmmo,
   type SupplyDropConfig,
 } from '../logic/supplyDrop';
 import {
@@ -20,6 +21,8 @@ import {
   SUPPLY_DROP_BALANCE,
   SUPPLY_DROP_CONFIG,
 } from '../config/supplyDropConfig';
+import { PISTOL_WEAPON } from '../config/weaponConfig';
+import { createWeaponInventory, pickupWeapon } from '../logic/weapon';
 
 const CONFIG: SupplyDropConfig = {
   target: { x: 1_000, y: 700 },
@@ -192,6 +195,23 @@ describe('supply drop sequence', () => {
 });
 
 describe('supply trigger rules', () => {
+  it('counts shared reserve capacity once for two weapons using the same ammo type', () => {
+    const inventory = pickupWeapon(
+      createWeaponInventory(PISTOL_WEAPON),
+      PISTOL_WEAPON,
+    ).state;
+    const expectedAmmo = PISTOL_WEAPON.config.magazineSize * 2
+      + PISTOL_WEAPON.config.reserveAmmo;
+
+    expect(totalAvailableAmmo(inventory, {
+      pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
+      rifleAmmo: 0,
+    })).toEqual({
+      current: expectedAmmo,
+      capacity: expectedAmmo,
+    });
+  });
+
   it('triggers emergency supply immediately only when no supply is active', () => {
     const initial = createSupplyTriggerState();
     const emergency = resolveSupplyTrigger(initial, {
