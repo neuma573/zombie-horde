@@ -673,7 +673,17 @@ export class GameScene extends Phaser.Scene {
     if (!contactDamage.died) {
       const waveUpdate = this.wave.update(deltaMs, this.zombies.length);
       for (let index = 0; index < waveUpdate.spawnCount; index += 1) {
-        this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
+        this.zombies.push(this.spawn.spawn(
+          this,
+          this.playArea,
+          this.player,
+          cameraWorldView(
+            { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
+            this.viewport,
+            this.cameras.main.zoom,
+          ),
+          OBSTACLE_CONFIG,
+        ));
       }
       this.tryTriggerSupplyDrop(waveUpdate.waveCleared);
     }

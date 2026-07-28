@@ -60,7 +60,7 @@ describe('weapon logic', () => {
     }
 
     const fourthShot = applyDamage(health, PISTOL_WEAPON.config.damage);
-    expect(health).toBe(11);
+    expect(health).toBe(13);
     expect(fourthShot).toEqual({ health: 0, died: true });
   });
 

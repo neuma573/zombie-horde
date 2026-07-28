@@ -1,4 +1,12 @@
 import type { MovementBounds, Position } from './movement';
+import type { RectangleObstacle } from './obstacleCollision';
+
+export interface SpawnExclusionRectangle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 type SpawnEdge = 0 | 1 | 2 | 3;
 
@@ -105,4 +113,68 @@ export function getEdgeSpawnPosition(
     const distance = Math.hypot(position.x - avoidPosition.x, position.y - avoidPosition.y);
     return distance > farthestDistance ? position : farthest;
   });
+}
+
+export function zombieHealthForSpawn(
+  spawnIndex: number,
+  seed: number,
+  pistolDamage: number,
+  durabilityShots: readonly number[],
+): number {
+  const validShots = durabilityShots
+    .map((shots) => Math.max(1, Math.floor(shots)))
+    .filter((shots) => Number.isFinite(shots));
+  const shots = validShots[
+    mixUint32((seed >>> 0) ^ Math.imul(spawnIndex + 1, 0x9e3779b9))
+      % Math.max(1, validShots.length)
+  ] ?? 1;
+  return Math.max(1, pistolDamage) * shots;
+}
+
+export function getOffscreenEdgeSpawnPosition(
+  spawnIndex: number,
+  bounds: Omit<MovementBounds, 'padding'>,
+  padding: number,
+  player: Position,
+  minPlayerDistance: number,
+  cameraView: SpawnExclusionRectangle,
+  obstacles: readonly RectangleObstacle[],
+  seed = 0,
+): Position {
+  const candidates = Array.from({ length: 32 }, (_, offset) => (
+    getEdgeSpawnPosition(
+      spawnIndex + offset,
+      bounds,
+      padding,
+      undefined,
+      0,
+      seed,
+    )
+  ));
+  const outsideCamera = (position: Position): boolean => (
+    position.x < cameraView.x - padding
+    || position.x > cameraView.x + cameraView.width + padding
+    || position.y < cameraView.y - padding
+    || position.y > cameraView.y + cameraView.height + padding
+  );
+  const outsideObstacles = (position: Position): boolean => !obstacles.some((obstacle) => (
+    position.x >= obstacle.x - padding
+    && position.x <= obstacle.x + obstacle.width + padding
+    && position.y >= obstacle.y - padding
+    && position.y <= obstacle.y + obstacle.height + padding
+  ));
+  const valid = candidates.filter((position) => (
+    outsideObstacles(position)
+    && Math.hypot(position.x - player.x, position.y - player.y) >= minPlayerDistance
+  ));
+  return valid.find(outsideCamera)
+    ?? valid[0]
+    ?? getEdgeSpawnPosition(
+      spawnIndex,
+      bounds,
+      padding,
+      player,
+      minPlayerDistance,
+      seed,
+    );
 }
