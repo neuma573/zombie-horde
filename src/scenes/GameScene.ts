@@ -137,6 +137,7 @@ import {
   consumeFirstShotAccuracy,
   createFirstShotAccuracyState,
   createOwnedWeapon,
+  hasLoadedWeaponPickup,
   shouldAutoPickupWeapon,
   shouldAutoReload,
   shouldShowFieldWeaponInfo,
@@ -1738,7 +1739,11 @@ export class GameScene extends Phaser.Scene {
       {
         activeSupply: this.supplyDropActive,
         waveCleared,
-        allAmmoDepleted: ammo.current === 0 && !this.hasAvailableAmmoPickup(),
+        allAmmoDepleted: ammo.current === 0
+          && !this.hasAvailableAmmoPickup()
+          && !hasLoadedWeaponPickup(
+            this.weaponPickups.map((pickup) => pickup.ownedWeapon),
+          ),
         ammoRatio: ammo.capacity > 0 ? ammo.current / ammo.capacity : 0,
         healthRatio: this.player.health / PLAYER_CONFIG.health,
         randomValue: Math.random(),

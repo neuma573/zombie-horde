@@ -10,6 +10,7 @@ import {
   createWeaponInventory,
   createWeaponState,
   getReloadProgress,
+  hasLoadedWeaponPickup,
   consumeFirstShotAccuracy,
   FIRST_SHOT_ACCURACY,
   pickupWeapon,
@@ -221,6 +222,18 @@ describe('weapon logic', () => {
     expect(shouldAutoPickupWeapon(initial, true)).toBe(true);
     expect(shouldAutoPickupWeapon(initial, false)).toBe(false);
     expect(shouldAutoPickupWeapon(full, true)).toBe(false);
+  });
+
+  it('treats only loaded ground weapons as immediate ammunition recovery', () => {
+    const loaded = createOwnedWeapon(BURST_RIFLE_WEAPON);
+    const empty = {
+      ...loaded,
+      state: { ...loaded.state, magazineAmmo: 0 },
+    };
+
+    expect(hasLoadedWeaponPickup([loaded])).toBe(true);
+    expect(hasLoadedWeaponPickup([empty])).toBe(false);
+    expect(hasLoadedWeaponPickup([])).toBe(false);
   });
 
   it('shows field weapon info only with two weapons and the correct input trigger', () => {
