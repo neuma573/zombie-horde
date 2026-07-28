@@ -5,6 +5,7 @@ import { CAMERA_FOLLOW_CONFIG, CAMERA_ZOOM_CONFIG } from '../config/cameraConfig
 import { GAME_REGISTRY_KEYS } from '../config/menuConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
+import { ITEM_BALANCE_CONFIG } from '../config/itemConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
@@ -17,6 +18,7 @@ import {
   SUPPLY_DROP_CONFIG,
 } from '../config/supplyDropConfig';
 import {
+  BURST_RIFLE_WEAPON,
   PISTOL_WEAPON,
   STARTING_AMMO_RESERVES,
 } from '../config/weaponConfig';
@@ -43,6 +45,7 @@ import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
 import { WeaponPickup, WEAPON_PICKUP_RADIUS } from '../entities/WeaponPickup';
+import { ItemPickup } from '../entities/ItemPickup';
 import {
   resolveAimAssist,
   shouldReleaseAimLock,
@@ -95,6 +98,12 @@ import {
 } from '../logic/gameTime';
 import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import {
+  addClamped,
+  claimSupplyLoot,
+  selectSupplyLoot,
+  spreadSupplyLootPositions,
+} from '../logic/item';
+import {
   advanceSupplyDrop,
   canOpenSupplyDropCrate,
   createSupplyTriggerState,
@@ -124,6 +133,7 @@ import {
   advanceFirstShotAccuracy,
   consumeFirstShotAccuracy,
   createFirstShotAccuracyState,
+  createOwnedWeapon,
   shouldAutoPickupWeapon,
   shouldAutoReload,
   shouldShowFieldWeaponInfo,
@@ -222,6 +232,8 @@ export class GameScene extends Phaser.Scene {
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private supplyDropState: SupplyDropState = createSupplyDropState();
   private supplyDropActive = false;
+  private supplyDropKind: SupplyDropKind = 'normal';
+  private supplyDropLootReleased = false;
   private supplyTriggerState: SupplyTriggerState = createSupplyTriggerState();
   private currentSupplyDropConfig: SupplyDropConfig = SUPPLY_DROP_CONFIG;
   private previousSupplyDropPosition: Vector2 | null = null;
@@ -233,6 +245,7 @@ export class GameScene extends Phaser.Scene {
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
   private weaponPickups: WeaponPickup[] = [];
+  private itemPickups: ItemPickup[] = [];
   private hoveredWeaponPickup?: WeaponPickup;
   private hud?: HudSystem;
   private effects?: CombatEffects;
@@ -263,6 +276,8 @@ export class GameScene extends Phaser.Scene {
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
     this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
     this.supplyDropActive = false;
+    this.supplyDropKind = 'normal';
+    this.supplyDropLootReleased = false;
     this.supplyTriggerState = createSupplyTriggerState();
     this.currentSupplyDropConfig = SUPPLY_DROP_CONFIG;
     this.previousSupplyDropPosition = null;
@@ -316,6 +331,7 @@ export class GameScene extends Phaser.Scene {
       appearance,
     );
     this.weaponPickups = [];
+    this.itemPickups = [];
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
@@ -402,6 +418,8 @@ export class GameScene extends Phaser.Scene {
       this.supplyDropVisual = undefined;
       this.weaponPickups.forEach((pickup) => pickup.destroy());
       this.weaponPickups = [];
+      this.itemPickups.forEach((pickup) => pickup.destroy());
+      this.itemPickups = [];
       this.hoveredWeaponPickup = undefined;
       this.uiCamera = undefined;
     });
@@ -563,6 +581,7 @@ export class GameScene extends Phaser.Scene {
     if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
       this.tryPickupWeapon(nearbyPickup);
     }
+    this.collectNearbyItems();
     const playerMovementEnd = { x: nextPlayerPosition.x, y: nextPlayerPosition.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
     const zombieSpatialEntries = this.zombies.map((zombie) => ({
@@ -735,6 +754,7 @@ export class GameScene extends Phaser.Scene {
         );
         this.supplyDropState = damage.state;
         this.effects?.playSupplyCrateHit(hit.point, damage.died);
+        if (damage.died) this.releaseSupplyLoot();
         continue;
       }
 
@@ -1701,7 +1721,7 @@ export class GameScene extends Phaser.Scene {
       {
         activeSupply: this.supplyDropActive,
         waveCleared,
-        allAmmoDepleted: ammo.current === 0,
+        allAmmoDepleted: ammo.current === 0 && !this.hasAvailableAmmoPickup(),
         ammoRatio: ammo.capacity > 0 ? ammo.current / ammo.capacity : 0,
         healthRatio: this.player.health / PLAYER_CONFIG.health,
         randomValue: Math.random(),
@@ -1748,6 +1768,8 @@ export class GameScene extends Phaser.Scene {
         : NORMAL_SUPPLY_FALL_DURATION_MS,
     };
     this.supplyDropState = createSupplyDropState(this.currentSupplyDropConfig.crateHealth);
+    this.supplyDropKind = kind;
+    this.supplyDropLootReleased = false;
     this.supplyDropActive = true;
     this.updateSupplyDropVisual();
   }
@@ -1764,7 +1786,104 @@ export class GameScene extends Phaser.Scene {
   private tryOpenSupplyCrate(): void {
     if (!this.canOpenSupplyCrate()) return;
     this.supplyDropState = openSupplyDropCrate(this.supplyDropState);
+    this.releaseSupplyLoot();
+  }
+
+  private releaseSupplyLoot(): void {
+    if (!this.supplyDropActive) return;
+    const claim = claimSupplyLoot(this.supplyDropLootReleased);
+    this.supplyDropLootReleased = claim.released;
+    if (!claim.shouldDrop) return;
+    const loot = selectSupplyLoot(
+      this.supplyDropKind,
+      this.wave.getState().waveNumber,
+      this.player.health / PLAYER_CONFIG.health,
+      Math.random(),
+      Math.random(),
+      {
+        rifleUnlockWave: SUPPLY_DROP_BALANCE.rifleUnlockWave,
+        rifleDropChance: SUPPLY_DROP_BALANCE.rifleDropChance,
+        criticalHealthRatio: SUPPLY_DROP_BALANCE.criticalHealthRatio,
+        normalMedicalChance: ITEM_BALANCE_CONFIG.normalMedicalChance,
+        criticalHealthMedicalChanceBonus: (
+          ITEM_BALANCE_CONFIG.criticalHealthMedicalChanceBonus
+        ),
+      },
+    );
+    const positions = spreadSupplyLootPositions(
+      loot.length,
+      this.currentSupplyDropConfig.target,
+      this.playArea,
+      OBSTACLE_CONFIG,
+      Math.floor(Math.random() * 0x1_0000_0000),
+      ITEM_BALANCE_CONFIG,
+    );
+    loot.slice(0, positions.length).forEach((item, index) => {
+      const position = positions[index];
+      if (item.type === 'weapon') {
+        const definition = item.weaponId === 'burstRifle'
+          ? BURST_RIFLE_WEAPON
+          : PISTOL_WEAPON;
+        this.createWeaponPickup(
+          position.x,
+          position.y,
+          createOwnedWeapon(definition),
+        );
+      } else {
+        this.itemPickups.push(new ItemPickup(
+          this,
+          position.x,
+          position.y,
+          item.kind,
+        ));
+      }
+    });
     this.updateSupplyDropVisual();
+    this.supplyDropActive = false;
+  }
+
+  private collectNearbyItems(): void {
+    const collected = this.itemPickups.filter((pickup) => (
+      Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        pickup.x,
+        pickup.y,
+      ) <= ITEM_BALANCE_CONFIG.pickupRadius
+    ));
+    if (collected.length === 0) return;
+
+    for (const pickup of collected) {
+      if (pickup.kind === 'pistolAmmo') {
+        this.weapon.addReserveAmmo(
+          'pistolAmmo',
+          ITEM_BALANCE_CONFIG.pistolAmmoAmount,
+          PISTOL_WEAPON.config.reserveAmmo,
+        );
+      } else if (pickup.kind === 'rifleAmmo') {
+        this.weapon.addReserveAmmo(
+          'rifleAmmo',
+          ITEM_BALANCE_CONFIG.rifleAmmoAmount,
+          BURST_RIFLE_WEAPON.config.reserveAmmo,
+        );
+      } else {
+        this.player.health = addClamped(
+          this.player.health,
+          ITEM_BALANCE_CONFIG.medicalHealingAmount,
+          PLAYER_CONFIG.health,
+        );
+      }
+      pickup.destroy();
+    }
+    const collectedSet = new Set(collected);
+    this.itemPickups = this.itemPickups.filter((pickup) => !collectedSet.has(pickup));
+    this.updateHud();
+  }
+
+  private hasAvailableAmmoPickup(): boolean {
+    return this.itemPickups.some((pickup) => (
+      pickup.kind === 'pistolAmmo' || pickup.kind === 'rifleAmmo'
+    ));
   }
 
   private activeSupplyCrateTarget(): {

@@ -58,7 +58,7 @@ const PONYTAIL_SHOT_SWAY_RADIANS = 0.065;
 const PONYTAIL_SHOT_SWAY_DECAY_RATE = 18;
 
 export class Player extends Phaser.GameObjects.Container {
-  health = PLAYER_CONFIG.health;
+  health: number = PLAYER_CONFIG.health;
   readonly hitRadius = PLAYER_CONFIG.radius;
   invulnerabilityRemainingMs = 0;
   isAlive = true;

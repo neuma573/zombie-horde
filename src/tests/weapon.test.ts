@@ -186,6 +186,14 @@ describe('weapon logic', () => {
     expect(pickup.replaced).toBeNull();
   });
 
+  it('adds reserve ammunition without exceeding its configured maximum', () => {
+    const system = new WeaponSystem(PISTOL_WEAPON, { pistolAmmo: 90 });
+
+    expect(system.addReserveAmmo('pistolAmmo', 34, 100)).toBe(10);
+    expect(system.getAmmoReserves().pistolAmmo).toBe(100);
+    expect(system.getState().reserveAmmo).toBe(100);
+  });
+
   it('replaces only the active weapon when both slots are occupied', () => {
     const full = pickupWeapon(
       createWeaponInventory(PISTOL_WEAPON),

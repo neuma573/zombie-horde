@@ -14,6 +14,7 @@ import {
   type WeaponInventoryState,
   type WeaponState,
 } from '../logic/weapon';
+import { addClamped } from '../logic/item';
 
 export class WeaponSystem {
   private inventory: WeaponInventoryState;
@@ -142,6 +143,16 @@ export class WeaponSystem {
 
   getAmmoReserves(): Readonly<Record<AmmoType, number>> {
     return this.ammoReserves;
+  }
+
+  addReserveAmmo(ammoType: AmmoType, amount: number, maximum: number): number {
+    const previous = this.ammoReserves[ammoType];
+    const next = addClamped(previous, amount, maximum);
+    this.ammoReserves[ammoType] = next;
+    if (this.getDefinition().ammoType === ammoType) {
+      this.updateActiveState({ ...this.getState(), reserveAmmo: next });
+    }
+    return next - previous;
   }
 
   private fireRound(ignoreCooldown: boolean): boolean {
