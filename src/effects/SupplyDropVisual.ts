@@ -63,9 +63,8 @@ export class SupplyDropVisual {
     viewport: { width: number; height: number },
     indicatorMargin: number,
   ): void {
-    const isFlyover = snapshot.phase === 'flyover';
     this.planeShadow
-      .setVisible(isFlyover)
+      .setVisible(snapshot.planeVisible)
       .setPosition(snapshot.planePosition.x, snapshot.planePosition.y)
       .setRotation(snapshot.planeRotation);
 
@@ -102,7 +101,7 @@ export class SupplyDropVisual {
     );
     const showPlaneIndicator = (
       snapshot.phase === 'announced'
-      || snapshot.phase === 'flyover'
+      || snapshot.planeVisible
     );
     const planeMarkerVisible = showPlaneIndicator && planeIndicator.visible;
     this.planeIndicatorBubble

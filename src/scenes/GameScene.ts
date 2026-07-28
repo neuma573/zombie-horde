@@ -547,6 +547,9 @@ export class GameScene extends Phaser.Scene {
       deltaMs,
     );
     this.advanceWeaponPickupLifetimes(deltaMs);
+    for (const pickup of this.itemPickups) {
+      pickup.advanceVisual(deltaMs);
+    }
     const burstShots = this.weapon.update(deltaMs);
     for (let index = 0; index < burstShots; index += 1) {
       this.resolveHitscanShot();

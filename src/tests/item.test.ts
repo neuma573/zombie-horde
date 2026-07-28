@@ -85,6 +85,10 @@ describe('supply loot', () => {
 });
 
 describe('item effects', () => {
+  it('configures pistol ammunition pickups to grant 68 rounds', () => {
+    expect(ITEM_BALANCE_CONFIG.pistolAmmoAmount).toBe(68);
+  });
+
   it('clamps ammunition and healing to configured maxima', () => {
     expect(addClamped(90, ITEM_BALANCE_CONFIG.pistolAmmoAmount, 100)).toBe(100);
     expect(addClamped(170, ITEM_BALANCE_CONFIG.rifleAmmoAmount, 180)).toBe(180);

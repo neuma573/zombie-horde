@@ -38,7 +38,9 @@ export const SUPPLY_DROP_CONFIG = {
   flyoverDurationMs: (
     ORIGINAL_FLYOVER_DURATION_MS / SUPPLY_DROP_BALANCE.planeSpeedMultiplier
   ),
-  dropDelayMs: 900,
+  dropDelayMs: (
+    ORIGINAL_FLYOVER_DURATION_MS / SUPPLY_DROP_BALANCE.planeSpeedMultiplier / 2
+  ),
   fallDurationMs: NORMAL_SUPPLY_FALL_DURATION_MS,
   planeTravel: { x: 1_600, y: 900 },
   fallHeight: 180,

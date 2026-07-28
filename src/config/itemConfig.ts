@@ -1,7 +1,7 @@
 import type { ItemBalanceConfig } from '../logic/item';
 
 export const ITEM_BALANCE_CONFIG = {
-  pistolAmmoAmount: 34,
+  pistolAmmoAmount: 68,
   rifleAmmoAmount: 60,
   medicalHealingAmount: 35,
   pickupRadius: 42,

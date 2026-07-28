@@ -52,19 +52,16 @@ describe('supply drop sequence', () => {
     state = advanceSupplyDrop(state, 2_500);
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('flyover');
 
-    state = advanceSupplyDrop(state, 2_500);
-    expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('drop-pending');
-
-    state = advanceSupplyDrop(state, 1_500);
+    state = advanceSupplyDrop(state, 500);
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('falling');
 
-    state = advanceSupplyDrop(state, 500);
+    state = advanceSupplyDrop(state, 1_000);
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('landed');
   });
 
   it('produces the same result regardless of frame partitioning', () => {
-    const oneFrame = advanceSupplyDrop(createSupplyDropState(), 6_500);
-    const manyFrames = Array.from({ length: 390 }).reduce<ReturnType<
+    const oneFrame = advanceSupplyDrop(createSupplyDropState(), 3_500);
+    const manyFrames = Array.from({ length: 210 }).reduce<ReturnType<
       typeof createSupplyDropState
     >>(
       (state) => advanceSupplyDrop(state, 1_000 / 60),
@@ -78,21 +75,42 @@ describe('supply drop sequence', () => {
 
   it('moves the plane across the target and the crate down to the ground', () => {
     const planeMidpoint = resolveSupplyDropSnapshot(
-      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 3_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const falling = resolveSupplyDropSnapshot(
-      { elapsedMs: 6_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const landed = resolveSupplyDropSnapshot(
-      { elapsedMs: 7_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 4_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
 
     expect(planeMidpoint.planePosition).toEqual(CONFIG.target);
     expect(falling.cratePosition.y).toBe(CONFIG.target.y - 100);
     expect(landed.cratePosition).toEqual(CONFIG.target);
+  });
+
+  it('keeps the plane visible after release until it reaches the end of its route', () => {
+    const falling = resolveSupplyDropSnapshot(
+      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      CONFIG,
+    );
+    const landedWhileFlying = resolveSupplyDropSnapshot(
+      { elapsedMs: 4_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      CONFIG,
+    );
+    const routeComplete = resolveSupplyDropSnapshot(
+      { elapsedMs: 5_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      CONFIG,
+    );
+
+    expect(falling.planeVisible).toBe(true);
+    expect(landedWhileFlying.phase).toBe('landed');
+    expect(landedWhileFlying.planeVisible).toBe(true);
+    expect(routeComplete.planeProgress).toBe(1);
+    expect(routeComplete.planeVisible).toBe(false);
   });
 
   it('ignores invalid and negative delta time', () => {
@@ -119,15 +137,15 @@ describe('supply drop sequence', () => {
 
   it('blocks movement only after landing and while the crate is intact', () => {
     const falling = resolveSupplyDropSnapshot(
-      { elapsedMs: 6_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const landed = resolveSupplyDropSnapshot(
-      { elapsedMs: 7_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 4_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const destroyed = resolveSupplyDropSnapshot(
-      { elapsedMs: 7_000, crateHealth: 0, crateOpened: true },
+      { elapsedMs: 4_000, crateHealth: 0, crateOpened: true },
       CONFIG,
     );
 
@@ -142,7 +160,7 @@ describe('supply drop sequence', () => {
 
   it('opens only an intact landed crate within interaction range', () => {
     const state = {
-      elapsedMs: 7_000,
+      elapsedMs: 4_000,
       crateHealth: CONFIG.crateHealth,
       crateOpened: false,
     };

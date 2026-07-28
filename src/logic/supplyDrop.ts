@@ -68,6 +68,7 @@ export interface SupplyDropSnapshot {
   planePosition: Position;
   planeRotation: number;
   planeProgress: number;
+  planeVisible: boolean;
   cratePosition: Position;
   fallProgress: number;
   smokeElapsedMs: number;
@@ -243,15 +244,23 @@ export function resolveSupplyDropSnapshot(
 ): SupplyDropSnapshot {
   const announcementEnd = duration(config.announcementDurationMs);
   const flyoverEnd = announcementEnd + duration(config.flyoverDurationMs);
-  const pendingEnd = flyoverEnd + duration(config.dropDelayMs);
-  const fallingEnd = pendingEnd + duration(config.fallDurationMs);
+  const dropStart = announcementEnd + Math.min(
+    duration(config.dropDelayMs),
+    duration(config.flyoverDurationMs),
+  );
+  const fallingEnd = dropStart + duration(config.fallDurationMs);
   const elapsedMs = Math.max(0, finite(state.elapsedMs));
   const planeProgress = progress(
     elapsedMs,
     announcementEnd,
     flyoverEnd,
   );
-  const fallProgress = progress(elapsedMs, pendingEnd, fallingEnd);
+  const fallProgress = progress(elapsedMs, dropStart, fallingEnd);
+  const dropPlaneProgress = progress(
+    dropStart,
+    announcementEnd,
+    flyoverEnd,
+  );
   const travelX = finite(config.planeTravel.x);
   const travelY = finite(config.planeTravel.y);
   const target = {
@@ -262,20 +271,19 @@ export function resolveSupplyDropSnapshot(
   return {
     phase: elapsedMs < announcementEnd
       ? 'announced'
-      : elapsedMs < flyoverEnd
+      : elapsedMs < dropStart
         ? 'flyover'
-        : elapsedMs < pendingEnd
-          ? 'drop-pending'
-          : elapsedMs < fallingEnd
-            ? 'falling'
-            : 'landed',
+        : elapsedMs < fallingEnd
+          ? 'falling'
+          : 'landed',
     target,
     planePosition: {
-      x: target.x + (planeProgress - 0.5) * travelX,
-      y: target.y + (planeProgress - 0.5) * travelY,
+      x: target.x + (planeProgress - dropPlaneProgress) * travelX,
+      y: target.y + (planeProgress - dropPlaneProgress) * travelY,
     },
     planeRotation: Math.atan2(travelY, travelX),
     planeProgress,
+    planeVisible: elapsedMs >= announcementEnd && elapsedMs < flyoverEnd,
     cratePosition: {
       x: target.x,
       y: target.y - Math.max(0, finite(config.fallHeight)) * (1 - fallProgress),
