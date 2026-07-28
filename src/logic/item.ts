@@ -182,9 +182,11 @@ export function canCollectConsumable(
   kind: ConsumableItemKind,
   currentHealth: number,
   maximumHealth: number,
+  medicalHealingAmount: number,
 ): boolean {
   return kind !== 'medical'
-    || Math.max(0, currentHealth) < Math.max(0, maximumHealth);
+    || Math.max(0, currentHealth) + Math.max(0, medicalHealingAmount)
+      <= Math.max(0, maximumHealth);
 }
 
 export function hasUsableAmmoPickup(

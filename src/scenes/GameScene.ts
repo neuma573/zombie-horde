@@ -1874,22 +1874,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private collectNearbyItems(): void {
-    const collected = this.itemPickups.filter((pickup) => (
+    const nearby = this.itemPickups.filter((pickup) => (
       Phaser.Math.Distance.Between(
         this.player.x,
         this.player.y,
         pickup.x,
         pickup.y,
       ) <= ITEM_BALANCE_CONFIG.pickupRadius
-      && canCollectConsumable(
+    ));
+    if (nearby.length === 0) return;
+
+    const collected: ItemPickup[] = [];
+    for (const pickup of nearby) {
+      if (!canCollectConsumable(
         pickup.kind,
         this.player.health,
         PLAYER_CONFIG.health,
-      )
-    ));
-    if (collected.length === 0) return;
-
-    for (const pickup of collected) {
+        ITEM_BALANCE_CONFIG.medicalHealingAmount,
+      )) {
+        continue;
+      }
       if (pickup.kind === 'pistolAmmo') {
         this.weapon.addReserveAmmo(
           'pistolAmmo',
@@ -1907,8 +1911,11 @@ export class GameScene extends Phaser.Scene {
           PLAYER_CONFIG.health,
         );
       }
+      collected.push(pickup);
       pickup.destroy();
     }
+    if (collected.length === 0) return;
+
     const collectedSet = new Set(collected);
     this.itemPickups = this.itemPickups.filter((pickup) => !collectedSet.has(pickup));
     this.updateHud();

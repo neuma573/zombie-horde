@@ -142,10 +142,24 @@ describe('item effects', () => {
     expect(addClamped(80, ITEM_BALANCE_CONFIG.medicalHealingAmount, 100)).toBe(100);
   });
 
-  it('leaves medical pickups available at full health', () => {
-    expect(canCollectConsumable('medical', 100, 100)).toBe(false);
-    expect(canCollectConsumable('medical', 99, 100)).toBe(true);
-    expect(canCollectConsumable('pistolAmmo', 100, 100)).toBe(true);
+  it('collects medical pickups only when the full healing amount can be used', () => {
+    const healingAmount = ITEM_BALANCE_CONFIG.medicalHealingAmount;
+
+    expect(canCollectConsumable('medical', 100, 100, healingAmount)).toBe(false);
+    expect(canCollectConsumable('medical', 99, 100, healingAmount)).toBe(false);
+    expect(canCollectConsumable('medical', 65, 100, healingAmount)).toBe(true);
+    expect(canCollectConsumable('pistolAmmo', 100, 100, healingAmount)).toBe(true);
+  });
+
+  it('rechecks medical eligibility after each heal', () => {
+    const healingAmount = ITEM_BALANCE_CONFIG.medicalHealingAmount;
+    let health = 30;
+
+    expect(canCollectConsumable('medical', health, 100, healingAmount)).toBe(true);
+    health = addClamped(health, healingAmount, 100);
+    expect(canCollectConsumable('medical', health, 100, healingAmount)).toBe(true);
+    health = addClamped(health, healingAmount, 100);
+    expect(canCollectConsumable('medical', health, 100, healingAmount)).toBe(false);
   });
 
   it('counts only ammunition pickups usable by the current inventory', () => {
