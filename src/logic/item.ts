@@ -121,7 +121,10 @@ export function spreadSupplyLootPositions(
     Math.hypot(candidate.x - position.x, candidate.y - position.y)
       >= minimumSpacing
   ));
-  const maximumRadius = Math.hypot(bounds.width, bounds.height);
+  const maximumRadius = Math.max(0, config.dropMaximumDistance);
+  const isWithinMaximumRadius = (candidate: Position): boolean => (
+    Math.hypot(candidate.x - center.x, candidate.y - center.y) <= maximumRadius
+  );
   const radiusStep = Math.max(16, minimumSpacing, config.dropClearance * 2);
   const angleOffset = random01(seed, 0x51f15e) * Math.PI * 2;
   for (
@@ -157,7 +160,8 @@ export function spreadSupplyLootPositions(
     ) {
       const candidate = { x, y };
       if (
-        clearsExisting(candidate)
+        isWithinMaximumRadius(candidate)
+        && clearsExisting(candidate)
         && isValidDropPosition(candidate, bounds, obstacles, config.dropClearance)
       ) {
         positions.push(candidate);

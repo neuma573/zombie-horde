@@ -119,6 +119,10 @@ describe('supply loot', () => {
 
     expect(positions).toHaveLength(3);
     for (let left = 0; left < positions.length; left += 1) {
+      expect(Math.hypot(
+        positions[left].x - 40,
+        positions[left].y - 40,
+      )).toBeLessThanOrEqual(ITEM_BALANCE_CONFIG.dropMaximumDistance);
       for (let right = left + 1; right < positions.length; right += 1) {
         expect(Math.hypot(
           positions[left].x - positions[right].x,
