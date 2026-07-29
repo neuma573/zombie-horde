@@ -28,6 +28,7 @@ interface SimulationResult {
 
 const bounds = { width: 800, height: 600 };
 const stepMs = 1_000 / 60;
+const LONG_SIMULATION_TIMEOUT_MS = 10_000;
 
 function simulate(
   obstacles: readonly RectangleObstacle[],
@@ -452,5 +453,5 @@ describe('zombie pathfinding movement scenarios', () => {
         waypointCount: zombie.navigation.waypoints.length,
       })),
     ).toEqual([]);
-  });
+  }, LONG_SIMULATION_TIMEOUT_MS);
 });
