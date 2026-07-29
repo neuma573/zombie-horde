@@ -25,6 +25,7 @@ import {
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
+import { PATHFINDING_CONFIG } from '../config/pathfindingConfig';
 import {
   Player,
   PLAYER_RADIUS,
@@ -65,6 +66,15 @@ import {
 } from '../logic/zombieCrowdSpacing';
 import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
+import {
+  createPathfindingGrid,
+  type PathfindingGrid,
+} from '../logic/pathfinding';
+import {
+  createZombieNavigationState,
+  updateZombieNavigation,
+  type ZombieNavigationState,
+} from '../logic/zombieNavigation';
 import {
   cameraScreenPoint,
   cameraScrollForPlayer,
@@ -229,6 +239,8 @@ export class GameScene extends Phaser.Scene {
   private cameraFollowState: CameraFollowState = snapCameraFollow({ x: 0, y: 0 });
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
+  private pathfindingGrid!: PathfindingGrid;
+  private readonly zombieNavigation = new Map<string, ZombieNavigationState>();
   private pendingZombieSpawns = 0;
   private killCount = 0;
   private shotSequence = 0;
@@ -318,6 +330,14 @@ export class GameScene extends Phaser.Scene {
       CAMERA_ZOOM_CONFIG.min,
       SPAWN_OFFSCREEN_WORLD_MARGIN,
     );
+    this.pathfindingGrid = createPathfindingGrid(
+      this.playArea,
+      OBSTACLE_CONFIG,
+      {
+        cellSize: PATHFINDING_CONFIG.cellSize,
+        clearance: ZOMBIE_CONFIG.radius + PATHFINDING_CONFIG.obstacleClearance,
+      },
+    );
     this.worldBackdrop = new WorldBackdrop(this);
     this.worldBackdrop.resize(
       this.playArea.width,
@@ -347,6 +367,7 @@ export class GameScene extends Phaser.Scene {
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
+    this.zombieNavigation.clear();
     this.killCount = 0;
     this.shotSequence = 0;
     this.recoilSeed = Math.floor(Math.random() * 0x1_0000_0000);
@@ -613,18 +634,29 @@ export class GameScene extends Phaser.Scene {
     );
 
     for (const zombie of this.zombies) {
+      const navigation = updateZombieNavigation(
+        this.zombieNavigation.get(zombie.id) ?? createZombieNavigationState(),
+        zombie,
+        this.player,
+        this.pathfindingGrid,
+        OBSTACLE_CONFIG,
+        zombie.hitRadius,
+        PATHFINDING_CONFIG,
+        deltaMs,
+      );
+      this.zombieNavigation.set(zombie.id, navigation.state);
       const separationVelocity = crowdSpacing.valid
         ? crowdSpacing.velocities.get(zombie.id) ?? { x: 0, y: 0 }
         : { x: 0, y: 0 };
       const velocity = zombieVelocityWithCrowdSpacing(
         zombie,
-        this.player,
+        navigation.target,
         ZOMBIE_CONFIG.speed,
         separationVelocity,
       );
       const desiredZombiePosition = moveZombieWithCrowdSpacing(
         zombie,
-        this.player,
+        navigation.target,
         velocity,
         deltaMs,
       );
@@ -816,6 +848,7 @@ export class GameScene extends Phaser.Scene {
     if (deadIds.size > 0) {
       this.killCount += deadIds.size;
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
+      for (const id of deadIds) this.zombieNavigation.delete(id);
 
       if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
         this.aimTargetId = null;
