@@ -1,11 +1,18 @@
 import Phaser from 'phaser';
 
 import type { SpawnConfig } from '../config/spawnConfig';
+import { PISTOL_WEAPON } from '../config/weaponConfig';
+import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { Zombie } from '../entities/Zombie';
-import { getEdgeSpawnPosition } from '../logic/spawn';
+import {
+  getOffscreenEdgeSpawnPosition,
+  zombieHealthForSpawn,
+  type SpawnExclusionRectangle,
+} from '../logic/spawn';
 import { createZombieAppearance } from '../logic/zombieAppearance';
 import type { MovementBounds } from '../logic/movement';
 import type { Position } from '../logic/movement';
+import type { RectangleObstacle } from '../logic/obstacleCollision';
 
 export class SpawnSystem {
   private nextZombieId = 1;
@@ -23,16 +30,22 @@ export class SpawnSystem {
     scene: Phaser.Scene,
     bounds: Omit<MovementBounds, 'padding'>,
     playerPosition: Position,
-  ): Zombie {
+    cameraView: SpawnExclusionRectangle,
+    obstacles: readonly RectangleObstacle[],
+  ): Zombie | null {
     const id = this.nextZombieId;
-    const position = getEdgeSpawnPosition(
+    const position = getOffscreenEdgeSpawnPosition(
       id - 1,
       bounds,
       this.zombieRadius,
       playerPosition,
       this.config.minimumZombieDistanceFromPlayer,
+      cameraView,
+      obstacles,
       this.seed,
     );
+    if (!position) return null;
+
     this.nextZombieId += 1;
 
     return new Zombie(
@@ -41,6 +54,12 @@ export class SpawnSystem {
       position.x,
       position.y,
       createZombieAppearance(this.seed, id - 1),
+      zombieHealthForSpawn(
+        id - 1,
+        this.seed,
+        PISTOL_WEAPON.config.damage,
+        ZOMBIE_CONFIG.durabilityShots,
+      ),
     );
   }
 }

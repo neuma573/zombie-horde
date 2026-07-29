@@ -8,6 +8,13 @@ import {
   type ContactTarget,
 } from '../logic/contactDamage';
 import { moveToward } from '../logic/movement';
+import { PLAYER_CONFIG } from '../config/playerConfig';
+
+describe('player damage balance', () => {
+  it('uses a short 200ms invulnerability window', () => {
+    expect(PLAYER_CONFIG.invulnerabilityMs).toBe(200);
+  });
+});
 
 const target = (overrides: Partial<ContactTarget> = {}): ContactTarget => ({
   health: 100,

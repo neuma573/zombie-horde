@@ -40,7 +40,7 @@ function drawZombieArm(
 }
 
 export class Zombie extends Phaser.GameObjects.Container {
-  health = ZOMBIE_CONFIG.health;
+  health: number;
   readonly hitRadius = ZOMBIE_CONFIG.radius;
   attackCooldownRemainingMs = 0;
   attackWindupRemainingMs: number | null = null;
@@ -63,6 +63,7 @@ export class Zombie extends Phaser.GameObjects.Container {
       zombieAppearanceSeedFromId(id),
       0,
     ),
+    health: number = ZOMBIE_CONFIG.health,
   ) {
     const shadow = new Phaser.GameObjects.Ellipse(
       scene,
@@ -98,6 +99,7 @@ export class Zombie extends Phaser.GameObjects.Container {
     this.head = head;
     this.hairFront = hairFront;
     this.muzzleReflection = muzzleReflection;
+    this.health = Math.max(1, health);
 
     scene.add.existing(this);
     this.drawStaticAppearance();

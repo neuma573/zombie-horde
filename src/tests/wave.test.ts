@@ -7,6 +7,7 @@ import {
   zombieCountForWave,
   type WaveConfig,
 } from '../logic/wave';
+import { WAVE_CONFIG } from '../config/waveConfig';
 
 const config: WaveConfig = {
   initialDelayMs: 100,
@@ -19,6 +20,10 @@ const config: WaveConfig = {
 };
 
 describe('wave logic', () => {
+  it('configures a ten-second rest after each cleared wave', () => {
+    expect(WAVE_CONFIG.betweenWaveDelayMs).toBe(10_000);
+  });
+
   it('waits before starting the first wave', () => {
     const initial = createWaveState(config);
     const waiting = advanceWave(initial, config, 99, 0);

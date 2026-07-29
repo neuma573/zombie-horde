@@ -10,6 +10,7 @@ import {
   createWeaponInventory,
   createWeaponState,
   getReloadProgress,
+  hasLoadedWeaponPickup,
   consumeFirstShotAccuracy,
   FIRST_SHOT_ACCURACY,
   pickupWeapon,
@@ -24,7 +25,11 @@ import {
   weaponSpreadDegrees,
   type WeaponConfig,
 } from '../logic/weapon';
-import { BURST_RIFLE_WEAPON, PISTOL_WEAPON } from '../config/weaponConfig';
+import {
+  BURST_RIFLE_WEAPON,
+  PISTOL_WEAPON,
+  STARTING_AMMO_RESERVES,
+} from '../config/weaponConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { applyDamage } from '../logic/damage';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -40,6 +45,17 @@ const config: WeaponConfig = {
 };
 
 describe('weapon logic', () => {
+  it('starts the service pistol with 17 loaded rounds and 100 reserve rounds', () => {
+    const system = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
+
+    expect(system.getState()).toMatchObject({
+      magazineAmmo: 17,
+      reserveAmmo: 100,
+    });
+    expect(system.getAmmoReserves().pistolAmmo).toBe(100);
+    expect(system.getAmmoReserves().rifleAmmo).toBe(0);
+  });
+
   it('requires four pistol body shots to kill the base zombie', () => {
     let health: number = ZOMBIE_CONFIG.health;
 
@@ -50,7 +66,7 @@ describe('weapon logic', () => {
     }
 
     const fourthShot = applyDamage(health, PISTOL_WEAPON.config.damage);
-    expect(health).toBe(11);
+    expect(health).toBe(13);
     expect(fourthShot).toEqual({ health: 0, died: true });
   });
 
@@ -176,6 +192,14 @@ describe('weapon logic', () => {
     expect(pickup.replaced).toBeNull();
   });
 
+  it('stacks reserve ammunition without a maximum holding limit', () => {
+    const system = new WeaponSystem(PISTOL_WEAPON, { pistolAmmo: 90 });
+
+    expect(system.addReserveAmmo('pistolAmmo', 68)).toBe(68);
+    expect(system.getAmmoReserves().pistolAmmo).toBe(158);
+    expect(system.getState().reserveAmmo).toBe(158);
+  });
+
   it('replaces only the active weapon when both slots are occupied', () => {
     const full = pickupWeapon(
       createWeaponInventory(PISTOL_WEAPON),
@@ -198,6 +222,18 @@ describe('weapon logic', () => {
     expect(shouldAutoPickupWeapon(initial, true)).toBe(true);
     expect(shouldAutoPickupWeapon(initial, false)).toBe(false);
     expect(shouldAutoPickupWeapon(full, true)).toBe(false);
+  });
+
+  it('treats only loaded ground weapons as immediate ammunition recovery', () => {
+    const loaded = createOwnedWeapon(BURST_RIFLE_WEAPON);
+    const empty = {
+      ...loaded,
+      state: { ...loaded.state, magazineAmmo: 0 },
+    };
+
+    expect(hasLoadedWeaponPickup([loaded])).toBe(true);
+    expect(hasLoadedWeaponPickup([empty])).toBe(false);
+    expect(hasLoadedWeaponPickup([])).toBe(false);
   });
 
   it('shows field weapon info only with two weapons and the correct input trigger', () => {

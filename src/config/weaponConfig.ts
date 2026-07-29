@@ -16,8 +16,8 @@ export const PISTOL_WEAPON = {
     damage: 13,
     range: 1_200,
     fireIntervalMs: 150,
-    magazineSize: 12,
-    reserveAmmo: 300,
+    magazineSize: 17,
+    reserveAmmo: 100,
     reloadDurationMs: 1_500,
     maxTargets: 1,
   },
@@ -57,5 +57,5 @@ export const BASIC_WEAPON_CONFIG = PISTOL_WEAPON.config;
 
 export const STARTING_AMMO_RESERVES = {
   pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
-  rifleAmmo: BURST_RIFLE_WEAPON.config.reserveAmmo,
+  rifleAmmo: 0,
 } as const;

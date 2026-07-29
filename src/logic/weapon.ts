@@ -192,6 +192,12 @@ export function shouldAutoPickupWeapon(
   return isInPickupRange && state.slots.some((slot) => slot === null);
 }
 
+export function hasLoadedWeaponPickup(
+  pickups: readonly OwnedWeapon[],
+): boolean {
+  return pickups.some((pickup) => pickup.state.magazineAmmo > 0);
+}
+
 export function shouldShowFieldWeaponInfo(
   hasTwoWeapons: boolean,
   mobileControlsEnabled: boolean,

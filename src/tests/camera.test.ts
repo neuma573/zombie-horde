@@ -24,6 +24,18 @@ describe('responsive world and camera', () => {
     )).toEqual({ width: 2_560, height: 1_600 });
   });
 
+  it('retains off-screen world space at the minimum supported zoom', () => {
+    expect(createWorldSize(
+      { width: 4_000, height: 3_000 },
+      { width: 4_000, height: 3_000 },
+      0.75,
+      81,
+    )).toEqual({
+      width: 4_000 / 0.75 + 81,
+      height: 3_000 / 0.75 + 81,
+    });
+  });
+
   it('centers the camera on the player away from map edges', () => {
     expect(cameraScrollForPlayer(
       { x: 1_200, y: 800 },

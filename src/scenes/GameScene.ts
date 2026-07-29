@@ -5,12 +5,18 @@ import { CAMERA_FOLLOW_CONFIG, CAMERA_ZOOM_CONFIG } from '../config/cameraConfig
 import { GAME_REGISTRY_KEYS } from '../config/menuConfig';
 import { GAME_TIME_CONFIG } from '../config/gameTimeConfig';
 import { TIME_BASED_LIGHTING_CONFIG } from '../config/lightingConfig';
+import { ITEM_BALANCE_CONFIG } from '../config/itemConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
-import { SUPPLY_DROP_CONFIG } from '../config/supplyDropConfig';
+import {
+  EMERGENCY_SUPPLY_FALL_DURATION_MS,
+  NORMAL_SUPPLY_FALL_DURATION_MS,
+  SUPPLY_DROP_BALANCE,
+  SUPPLY_DROP_CONFIG,
+} from '../config/supplyDropConfig';
 import {
   BURST_RIFLE_WEAPON,
   PISTOL_WEAPON,
@@ -39,6 +45,7 @@ import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
 import { WeaponPickup, WEAPON_PICKUP_RADIUS } from '../entities/WeaponPickup';
+import { ItemPickup } from '../entities/ItemPickup';
 import {
   resolveAimAssist,
   shouldReleaseAimLock,
@@ -91,14 +98,30 @@ import {
 } from '../logic/gameTime';
 import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import {
+  addClamped,
+  canCollectConsumable,
+  claimSupplyLoot,
+  hasUsableAmmoPickup,
+  revalidatePickupPosition,
+  selectSupplyLoot,
+  spreadSupplyLootPositions,
+} from '../logic/item';
+import {
   advanceSupplyDrop,
   canOpenSupplyDropCrate,
+  createSupplyTriggerState,
   createSupplyDropState,
   damageSupplyDropCrate,
   openSupplyDropCrate,
   resolveSupplyDropCrateBounds,
   resolveSupplyDropSnapshot,
+  resolveSupplyTrigger,
+  selectSupplyDropLocation,
+  totalAvailableAmmo,
+  type SupplyDropConfig,
+  type SupplyDropKind,
   type SupplyDropState,
+  type SupplyTriggerState,
 } from '../logic/supplyDrop';
 import { muzzleLightExposure } from '../logic/playerVisual';
 import type { ZombieAppearance } from '../logic/zombieAppearance';
@@ -114,11 +137,10 @@ import {
   consumeFirstShotAccuracy,
   createFirstShotAccuracyState,
   createOwnedWeapon,
+  hasLoadedWeaponPickup,
   shouldAutoPickupWeapon,
   shouldAutoReload,
   shouldShowFieldWeaponInfo,
-  WEAPON_RARITIES,
-  withWeaponRarity,
   weaponSpreadDegrees,
 } from '../logic/weapon';
 import type { FirstShotAccuracyState, OwnedWeapon } from '../logic/weapon';
@@ -174,6 +196,7 @@ import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
 const SUPPLY_CRATE_TARGET_ID = 'supply-drop-crate';
+const SPAWN_OFFSCREEN_WORLD_MARGIN = ZOMBIE_CONFIG.radius * 4 + 1;
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -206,6 +229,7 @@ export class GameScene extends Phaser.Scene {
   private cameraFollowState: CameraFollowState = snapCameraFollow({ x: 0, y: 0 });
   private mobileRestartArmed = true;
   private zombies: Zombie[] = [];
+  private pendingZombieSpawns = 0;
   private killCount = 0;
   private shotSequence = 0;
   private recoilSeed = 0;
@@ -213,6 +237,12 @@ export class GameScene extends Phaser.Scene {
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private supplyDropState: SupplyDropState = createSupplyDropState();
+  private supplyDropActive = false;
+  private supplyDropKind: SupplyDropKind = 'normal';
+  private supplyDropLootReleased = false;
+  private supplyTriggerState: SupplyTriggerState = createSupplyTriggerState();
+  private currentSupplyDropConfig: SupplyDropConfig = SUPPLY_DROP_CONFIG;
+  private previousSupplyDropPosition: Vector2 | null = null;
   private simulationStepState: FixedStepState = createFixedStepState();
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
@@ -221,6 +251,7 @@ export class GameScene extends Phaser.Scene {
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
   private weaponPickups: WeaponPickup[] = [];
+  private itemPickups: ItemPickup[] = [];
   private hoveredWeaponPickup?: WeaponPickup;
   private hud?: HudSystem;
   private effects?: CombatEffects;
@@ -250,6 +281,12 @@ export class GameScene extends Phaser.Scene {
     this.sessionState = createSessionState();
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
     this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
+    this.supplyDropActive = false;
+    this.supplyDropKind = 'normal';
+    this.supplyDropLootReleased = false;
+    this.supplyTriggerState = createSupplyTriggerState();
+    this.currentSupplyDropConfig = SUPPLY_DROP_CONFIG;
+    this.previousSupplyDropPosition = null;
     this.simulationStepState = createFixedStepState();
     this.playerInput = createPlayerInputState();
     this.viewDirection = { ...this.playerInput.manualAimDirection };
@@ -270,11 +307,17 @@ export class GameScene extends Phaser.Scene {
     this.targetZoom = CAMERA_ZOOM_CONFIG.initial;
     this.cameras.main.setZoom(CAMERA_ZOOM_CONFIG.initial);
     this.mobileRestartArmed = true;
+    this.pendingZombieSpawns = 0;
     this.spawn = new SpawnSystem(SPAWN_CONFIG, ZOMBIE_CONFIG.radius);
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
     this.viewport = { width: this.scale.width, height: this.scale.height };
-    this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
+    this.playArea = createWorldSize(
+      URBAN_MAP_CONFIG,
+      this.viewport,
+      CAMERA_ZOOM_CONFIG.min,
+      SPAWN_OFFSCREEN_WORLD_MARGIN,
+    );
     this.worldBackdrop = new WorldBackdrop(this);
     this.worldBackdrop.resize(
       this.playArea.width,
@@ -300,19 +343,7 @@ export class GameScene extends Phaser.Scene {
       appearance,
     );
     this.weaponPickups = [];
-    const fieldWeapons = WEAPON_RARITIES.flatMap((rarity) => [
-      withWeaponRarity(PISTOL_WEAPON, rarity),
-      withWeaponRarity(BURST_RIFLE_WEAPON, rarity),
-    ]);
-    fieldWeapons.forEach((definition, index) => {
-      const angle = index / fieldWeapons.length * Math.PI * 2;
-      const radius = index % 2 === 0 ? 145 : 215;
-      this.createWeaponPickup(
-        this.player.x + Math.cos(angle) * radius,
-        this.player.y + Math.sin(angle) * radius,
-        createOwnedWeapon(definition),
-      );
-    });
+    this.itemPickups = [];
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.zombies = [];
@@ -399,6 +430,8 @@ export class GameScene extends Phaser.Scene {
       this.supplyDropVisual = undefined;
       this.weaponPickups.forEach((pickup) => pickup.destroy());
       this.weaponPickups = [];
+      this.itemPickups.forEach((pickup) => pickup.destroy());
+      this.itemPickups = [];
       this.hoveredWeaponPickup = undefined;
       this.uiCamera = undefined;
     });
@@ -517,13 +550,18 @@ export class GameScene extends Phaser.Scene {
 
   private advanceSimulationStep(deltaMs: number): { died: boolean; damageEventCount: number } {
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
-    this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
+    if (this.supplyDropActive) {
+      this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
+    }
     const movementObstacles = this.activeMovementObstacles();
     this.firstShotAccuracy = advanceFirstShotAccuracy(
       this.firstShotAccuracy,
       deltaMs,
     );
     this.advanceWeaponPickupLifetimes(deltaMs);
+    for (const pickup of this.itemPickups) {
+      pickup.advanceVisual(deltaMs);
+    }
     const burstShots = this.weapon.update(deltaMs);
     for (let index = 0; index < burstShots; index += 1) {
       this.resolveHitscanShot();
@@ -558,6 +596,7 @@ export class GameScene extends Phaser.Scene {
     if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
       this.tryPickupWeapon(nearbyPickup);
     }
+    this.collectNearbyItems();
     const playerMovementEnd = { x: nextPlayerPosition.x, y: nextPlayerPosition.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
     const zombieSpatialEntries = this.zombies.map((zombie) => ({
@@ -647,10 +686,28 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (!contactDamage.died) {
-      const spawnCount = this.wave.update(deltaMs, this.zombies.length);
-      for (let index = 0; index < spawnCount; index += 1) {
-        this.zombies.push(this.spawn.spawn(this, this.playArea, this.player));
+      const waveUpdate = this.wave.update(
+        deltaMs,
+        this.zombies.length + this.pendingZombieSpawns,
+      );
+      this.pendingZombieSpawns += waveUpdate.spawnCount;
+      while (this.pendingZombieSpawns > 0) {
+        const zombie = this.spawn.spawn(
+          this,
+          this.playArea,
+          this.player,
+          cameraWorldView(
+            { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
+            this.viewport,
+            this.cameras.main.zoom,
+          ),
+          movementObstacles,
+        );
+        if (!zombie) break;
+        this.zombies.push(zombie);
+        this.pendingZombieSpawns -= 1;
       }
+      this.tryTriggerSupplyDrop(waveUpdate.waveCleared);
     }
 
     return {
@@ -729,6 +786,7 @@ export class GameScene extends Phaser.Scene {
         );
         this.supplyDropState = damage.state;
         this.effects?.playSupplyCrateHit(hit.point, damage.died);
+        if (damage.died) this.releaseSupplyLoot();
         continue;
       }
 
@@ -1362,7 +1420,12 @@ export class GameScene extends Phaser.Scene {
       height: gameSize.height,
     };
     this.lastMouseScreenPoint = null;
-    this.playArea = createWorldSize(URBAN_MAP_CONFIG, this.viewport);
+    this.playArea = createWorldSize(
+      URBAN_MAP_CONFIG,
+      this.viewport,
+      CAMERA_ZOOM_CONFIG.min,
+      SPAWN_OFFSCREEN_WORLD_MARGIN,
+    );
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
@@ -1381,6 +1444,7 @@ export class GameScene extends Phaser.Scene {
       URBAN_MAP_CONFIG.sidewalkWidth,
     );
     this.timeBasedLighting?.resize(gameSize.width, gameSize.height);
+    this.revalidateSupplyCoordinates();
 
     const playerPosition = constrainToBounds(this.player, {
       ...this.playArea,
@@ -1644,11 +1708,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSupplyDropVisual(): void {
-    if (!this.supplyDropVisual) return;
+    if (!this.supplyDropVisual || !this.supplyDropActive) {
+      this.mobileControls?.setInteractionVisible(false);
+      return;
+    }
 
     const snapshot = resolveSupplyDropSnapshot(
       this.supplyDropState,
-      SUPPLY_DROP_CONFIG,
+      this.currentSupplyDropConfig,
     );
     const targetScreen = cameraScreenPoint(
       snapshot.target,
@@ -1673,7 +1740,7 @@ export class GameScene extends Phaser.Scene {
       planeScreen,
       targetScreen,
       this.viewport,
-      SUPPLY_DROP_CONFIG.indicatorMargin,
+      this.currentSupplyDropConfig.indicatorMargin,
     );
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
@@ -1682,18 +1749,249 @@ export class GameScene extends Phaser.Scene {
     );
   }
 
-  private canOpenSupplyCrate(): boolean {
-    return canOpenSupplyDropCrate(
-      resolveSupplyDropSnapshot(this.supplyDropState, SUPPLY_DROP_CONFIG),
+  private tryTriggerSupplyDrop(waveCleared: boolean): void {
+    const ammo = totalAvailableAmmo(
+      this.weapon.getInventory(),
+      this.weapon.getAmmoReserves(),
+    );
+    const trigger = resolveSupplyTrigger(
+      this.supplyTriggerState,
+      {
+        activeSupply: this.supplyDropActive,
+        waveCleared,
+        allAmmoDepleted: ammo.current === 0
+          && !this.hasAvailableAmmoPickup()
+          && !hasLoadedWeaponPickup(
+            this.weaponPickups.map((pickup) => pickup.ownedWeapon),
+          ),
+        ammoRatio: ammo.capacity > 0 ? ammo.current / ammo.capacity : 0,
+        healthRatio: this.player.health / PLAYER_CONFIG.health,
+        randomValue: Math.random(),
+      },
+      SUPPLY_DROP_BALANCE,
+    );
+    if (!trigger.kind) {
+      this.supplyTriggerState = trigger.state;
+      return;
+    }
+    if (this.startSupplyDrop(trigger.kind)) {
+      this.supplyTriggerState = trigger.state;
+    }
+  }
+
+  private startSupplyDrop(kind: SupplyDropKind): boolean {
+    const threatDirection = this.zombies.reduce(
+      (direction, zombie) => ({
+        x: direction.x + zombie.x - this.player.x,
+        y: direction.y + zombie.y - this.player.y,
+      }),
+      { x: 0, y: 0 },
+    );
+    const target = selectSupplyDropLocation(
+      kind,
       this.player,
-      SUPPLY_DROP_CONFIG,
+      this.playArea,
+      OBSTACLE_CONFIG,
+      this.previousSupplyDropPosition,
+      threatDirection,
+      Math.floor(Math.random() * 0x1_0000_0000),
+      {
+        sampleCount: SUPPLY_DROP_BALANCE.locationSampleCount,
+        clearance: SUPPLY_DROP_BALANCE.locationClearance,
+        normalMinimumPlayerDistance: SUPPLY_DROP_BALANCE.normalMinimumPlayerDistance,
+        normalMaximumPlayerDistance: SUPPLY_DROP_BALANCE.normalMaximumPlayerDistance,
+        emergencyMinimumPlayerDistance: SUPPLY_DROP_BALANCE.emergencyMinimumPlayerDistance,
+        previousDropMinimumDistance: SUPPLY_DROP_BALANCE.previousDropMinimumDistance,
+      },
+    );
+    if (!target) return false;
+
+    this.previousSupplyDropPosition = target;
+    this.currentSupplyDropConfig = {
+      ...SUPPLY_DROP_CONFIG,
+      target,
+      fallDurationMs: kind === 'emergency'
+        ? EMERGENCY_SUPPLY_FALL_DURATION_MS
+        : NORMAL_SUPPLY_FALL_DURATION_MS,
+    };
+    this.supplyDropState = createSupplyDropState(this.currentSupplyDropConfig.crateHealth);
+    this.supplyDropKind = kind;
+    this.supplyDropLootReleased = false;
+    this.supplyDropActive = true;
+    this.updateSupplyDropVisual();
+    return true;
+  }
+
+  private canOpenSupplyCrate(): boolean {
+    if (!this.supplyDropActive) return false;
+    return canOpenSupplyDropCrate(
+      resolveSupplyDropSnapshot(this.supplyDropState, this.currentSupplyDropConfig),
+      this.player,
+      this.currentSupplyDropConfig,
     );
   }
 
   private tryOpenSupplyCrate(): void {
     if (!this.canOpenSupplyCrate()) return;
     this.supplyDropState = openSupplyDropCrate(this.supplyDropState);
+    this.releaseSupplyLoot();
+  }
+
+  private releaseSupplyLoot(): void {
+    if (!this.supplyDropActive) return;
+    const claim = claimSupplyLoot(this.supplyDropLootReleased);
+    this.supplyDropLootReleased = claim.released;
+    if (!claim.shouldDrop) return;
+    const loot = selectSupplyLoot(
+      this.supplyDropKind,
+      this.wave.getState().waveNumber,
+      this.player.health / PLAYER_CONFIG.health,
+      Math.random(),
+      Math.random(),
+      {
+        rifleUnlockWave: SUPPLY_DROP_BALANCE.rifleUnlockWave,
+        rifleDropChance: SUPPLY_DROP_BALANCE.rifleDropChance,
+        criticalHealthRatio: SUPPLY_DROP_BALANCE.criticalHealthRatio,
+        normalMedicalChance: ITEM_BALANCE_CONFIG.normalMedicalChance,
+        criticalHealthMedicalChanceBonus: (
+          ITEM_BALANCE_CONFIG.criticalHealthMedicalChanceBonus
+        ),
+      },
+    );
+    const positions = spreadSupplyLootPositions(
+      loot.length,
+      this.currentSupplyDropConfig.target,
+      this.playArea,
+      OBSTACLE_CONFIG,
+      Math.floor(Math.random() * 0x1_0000_0000),
+      ITEM_BALANCE_CONFIG,
+    );
+    if (positions.length !== loot.length) {
+      throw new Error('Supply loot placement could not preserve every selected item');
+    }
+    loot.forEach((item, index) => {
+      const position = positions[index];
+      if (item.type === 'weapon') {
+        const definition = item.weaponId === 'burstRifle'
+          ? BURST_RIFLE_WEAPON
+          : PISTOL_WEAPON;
+        this.createWeaponPickup(
+          position.x,
+          position.y,
+          createOwnedWeapon(definition),
+        );
+      } else {
+        this.itemPickups.push(new ItemPickup(
+          this,
+          position.x,
+          position.y,
+          item.kind,
+        ));
+      }
+    });
     this.updateSupplyDropVisual();
+    this.supplyDropActive = false;
+  }
+
+  private collectNearbyItems(): void {
+    const nearby = this.itemPickups.filter((pickup) => (
+      Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        pickup.x,
+        pickup.y,
+      ) <= ITEM_BALANCE_CONFIG.pickupRadius
+    ));
+    if (nearby.length === 0) return;
+
+    const collected: ItemPickup[] = [];
+    for (const pickup of nearby) {
+      if (!canCollectConsumable(
+        pickup.kind,
+        this.player.health,
+        PLAYER_CONFIG.health,
+        ITEM_BALANCE_CONFIG.medicalHealingAmount,
+      )) {
+        continue;
+      }
+      if (pickup.kind === 'pistolAmmo') {
+        this.weapon.addReserveAmmo(
+          'pistolAmmo',
+          ITEM_BALANCE_CONFIG.pistolAmmoAmount,
+        );
+      } else if (pickup.kind === 'rifleAmmo') {
+        this.weapon.addReserveAmmo(
+          'rifleAmmo',
+          ITEM_BALANCE_CONFIG.rifleAmmoAmount,
+        );
+      } else {
+        this.player.health = addClamped(
+          this.player.health,
+          ITEM_BALANCE_CONFIG.medicalHealingAmount,
+          PLAYER_CONFIG.health,
+        );
+      }
+      collected.push(pickup);
+      pickup.destroy();
+    }
+    if (collected.length === 0) return;
+
+    const collectedSet = new Set(collected);
+    this.itemPickups = this.itemPickups.filter((pickup) => !collectedSet.has(pickup));
+    this.updateHud();
+  }
+
+  private hasAvailableAmmoPickup(): boolean {
+    const ownedAmmoTypes = new Set(
+      this.weapon.getInventory().slots.flatMap((owned) => (
+        owned ? [owned.definition.ammoType] : []
+      )),
+    );
+    return hasUsableAmmoPickup(
+      this.itemPickups.map((pickup) => pickup.kind),
+      ownedAmmoTypes,
+    );
+  }
+
+  private revalidateSupplyCoordinates(): void {
+    if (this.supplyDropActive) {
+      const target = revalidatePickupPosition(
+        this.currentSupplyDropConfig.target,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        SUPPLY_DROP_BALANCE.locationClearance,
+      );
+      this.currentSupplyDropConfig = {
+        ...this.currentSupplyDropConfig,
+        target,
+      };
+    }
+    if (this.previousSupplyDropPosition) {
+      this.previousSupplyDropPosition = revalidatePickupPosition(
+        this.previousSupplyDropPosition,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        SUPPLY_DROP_BALANCE.locationClearance,
+      );
+    }
+    for (const pickup of this.weaponPickups) {
+      const position = revalidatePickupPosition(
+        pickup,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        WEAPON_PICKUP_RADIUS,
+      );
+      pickup.setPosition(position.x, position.y);
+    }
+    for (const pickup of this.itemPickups) {
+      const position = revalidatePickupPosition(
+        pickup,
+        this.playArea,
+        OBSTACLE_CONFIG,
+        ITEM_BALANCE_CONFIG.pickupRadius / 2,
+      );
+      pickup.setPosition(position.x, position.y);
+    }
   }
 
   private activeSupplyCrateTarget(): {
@@ -1702,9 +2000,10 @@ export class GameScene extends Phaser.Scene {
     width: number;
     height: number;
   } | null {
+    if (!this.supplyDropActive) return null;
     const snapshot = resolveSupplyDropSnapshot(
       this.supplyDropState,
-      SUPPLY_DROP_CONFIG,
+      this.currentSupplyDropConfig,
     );
     if (
       snapshot.crateDestroyed
@@ -1717,8 +2016,8 @@ export class GameScene extends Phaser.Scene {
     return {
       id: SUPPLY_CRATE_TARGET_ID,
       position: { ...snapshot.cratePosition },
-      width: SUPPLY_DROP_CONFIG.crateSize.width,
-      height: SUPPLY_DROP_CONFIG.crateSize.height,
+      width: this.currentSupplyDropConfig.crateSize.width,
+      height: this.currentSupplyDropConfig.crateSize.height,
     };
   }
 
@@ -1729,11 +2028,12 @@ export class GameScene extends Phaser.Scene {
     height: number;
     blocksHitscan: true;
   } | null {
+    if (!this.supplyDropActive) return null;
     const snapshot = resolveSupplyDropSnapshot(
       this.supplyDropState,
-      SUPPLY_DROP_CONFIG,
+      this.currentSupplyDropConfig,
     );
-    const bounds = resolveSupplyDropCrateBounds(snapshot, SUPPLY_DROP_CONFIG);
+    const bounds = resolveSupplyDropCrateBounds(snapshot, this.currentSupplyDropConfig);
     if (!bounds) return null;
 
     return {

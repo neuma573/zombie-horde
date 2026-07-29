@@ -1,5 +1,6 @@
 export interface ZombieConfig {
   health: number;
+  durabilityShots: readonly number[];
   speed: number;
   radius: number;
   contactDamage: number;
@@ -8,8 +9,9 @@ export interface ZombieConfig {
 }
 
 export const ZOMBIE_CONFIG = {
-  health: 50,
-  speed: 80,
+  health: 52,
+  durabilityShots: [3, 4],
+  speed: 100,
   radius: 20,
   contactDamage: 10,
   attackWindupMs: 260,

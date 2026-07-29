@@ -144,6 +144,17 @@ export class WeaponSystem {
     return this.ammoReserves;
   }
 
+  addReserveAmmo(ammoType: AmmoType, amount: number): number {
+    const previous = this.ammoReserves[ammoType];
+    const granted = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+    const next = previous + granted;
+    this.ammoReserves[ammoType] = next;
+    if (this.getDefinition().ammoType === ammoType) {
+      this.updateActiveState({ ...this.getState(), reserveAmmo: next });
+    }
+    return granted;
+  }
+
   private fireRound(ignoreCooldown: boolean): boolean {
     const owned = this.getOwnedWeapon();
     const state = ignoreCooldown

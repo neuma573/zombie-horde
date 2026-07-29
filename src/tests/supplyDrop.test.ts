@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   advanceSupplyDrop,
+  createSupplyTriggerState,
   createSupplyDropState,
   resolveSupplyDropIndicator,
   resolveSupplyDropCrateBounds,
@@ -9,8 +10,19 @@ import {
   damageSupplyDropCrate,
   canOpenSupplyDropCrate,
   openSupplyDropCrate,
+  resolveSupplyTrigger,
+  selectSupplyDropLocation,
+  totalAvailableAmmo,
   type SupplyDropConfig,
 } from '../logic/supplyDrop';
+import {
+  EMERGENCY_SUPPLY_FALL_DURATION_MS,
+  NORMAL_SUPPLY_FALL_DURATION_MS,
+  SUPPLY_DROP_BALANCE,
+  SUPPLY_DROP_CONFIG,
+} from '../config/supplyDropConfig';
+import { PISTOL_WEAPON } from '../config/weaponConfig';
+import { createWeaponInventory, pickupWeapon } from '../logic/weapon';
 
 const CONFIG: SupplyDropConfig = {
   target: { x: 1_000, y: 700 },
@@ -27,6 +39,15 @@ const CONFIG: SupplyDropConfig = {
 };
 
 describe('supply drop sequence', () => {
+  it('slows the plane by half and derives fall durations from shared multipliers', () => {
+    expect(SUPPLY_DROP_BALANCE.planeSpeedMultiplier).toBe(0.5);
+    expect(SUPPLY_DROP_CONFIG.flyoverDurationMs).toBe(5_600);
+    expect(NORMAL_SUPPLY_FALL_DURATION_MS).toBe(3_300);
+    expect(EMERGENCY_SUPPLY_FALL_DURATION_MS).toBe(
+      NORMAL_SUPPLY_FALL_DURATION_MS * 2,
+    );
+  });
+
   it('advances through flyover, delayed fall, and landing by elapsed time', () => {
     let state = createSupplyDropState();
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('announced');
@@ -34,19 +55,16 @@ describe('supply drop sequence', () => {
     state = advanceSupplyDrop(state, 2_500);
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('flyover');
 
-    state = advanceSupplyDrop(state, 2_500);
-    expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('drop-pending');
-
-    state = advanceSupplyDrop(state, 1_500);
+    state = advanceSupplyDrop(state, 500);
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('falling');
 
-    state = advanceSupplyDrop(state, 500);
+    state = advanceSupplyDrop(state, 1_000);
     expect(resolveSupplyDropSnapshot(state, CONFIG).phase).toBe('landed');
   });
 
   it('produces the same result regardless of frame partitioning', () => {
-    const oneFrame = advanceSupplyDrop(createSupplyDropState(), 6_500);
-    const manyFrames = Array.from({ length: 390 }).reduce<ReturnType<
+    const oneFrame = advanceSupplyDrop(createSupplyDropState(), 3_500);
+    const manyFrames = Array.from({ length: 210 }).reduce<ReturnType<
       typeof createSupplyDropState
     >>(
       (state) => advanceSupplyDrop(state, 1_000 / 60),
@@ -60,21 +78,42 @@ describe('supply drop sequence', () => {
 
   it('moves the plane across the target and the crate down to the ground', () => {
     const planeMidpoint = resolveSupplyDropSnapshot(
-      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 3_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const falling = resolveSupplyDropSnapshot(
-      { elapsedMs: 6_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const landed = resolveSupplyDropSnapshot(
-      { elapsedMs: 7_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 4_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
 
     expect(planeMidpoint.planePosition).toEqual(CONFIG.target);
     expect(falling.cratePosition.y).toBe(CONFIG.target.y - 100);
     expect(landed.cratePosition).toEqual(CONFIG.target);
+  });
+
+  it('keeps the plane visible after release until it reaches the end of its route', () => {
+    const falling = resolveSupplyDropSnapshot(
+      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      CONFIG,
+    );
+    const landedWhileFlying = resolveSupplyDropSnapshot(
+      { elapsedMs: 4_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      CONFIG,
+    );
+    const routeComplete = resolveSupplyDropSnapshot(
+      { elapsedMs: 5_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      CONFIG,
+    );
+
+    expect(falling.planeVisible).toBe(true);
+    expect(landedWhileFlying.phase).toBe('landed');
+    expect(landedWhileFlying.planeVisible).toBe(true);
+    expect(routeComplete.planeProgress).toBe(1);
+    expect(routeComplete.planeVisible).toBe(false);
   });
 
   it('ignores invalid and negative delta time', () => {
@@ -101,15 +140,15 @@ describe('supply drop sequence', () => {
 
   it('blocks movement only after landing and while the crate is intact', () => {
     const falling = resolveSupplyDropSnapshot(
-      { elapsedMs: 6_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 3_500, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const landed = resolveSupplyDropSnapshot(
-      { elapsedMs: 7_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
+      { elapsedMs: 4_000, crateHealth: CONFIG.crateHealth, crateOpened: false },
       CONFIG,
     );
     const destroyed = resolveSupplyDropSnapshot(
-      { elapsedMs: 7_000, crateHealth: 0, crateOpened: true },
+      { elapsedMs: 4_000, crateHealth: 0, crateOpened: true },
       CONFIG,
     );
 
@@ -124,7 +163,7 @@ describe('supply drop sequence', () => {
 
   it('opens only an intact landed crate within interaction range', () => {
     const state = {
-      elapsedMs: 7_000,
+      elapsedMs: 4_000,
       crateHealth: CONFIG.crateHealth,
       crateOpened: false,
     };
@@ -152,6 +191,163 @@ describe('supply drop sequence', () => {
       CONFIG.target,
       CONFIG,
     )).toBe(false);
+  });
+});
+
+describe('supply trigger rules', () => {
+  it('counts shared reserve capacity once for two weapons using the same ammo type', () => {
+    const inventory = pickupWeapon(
+      createWeaponInventory(PISTOL_WEAPON),
+      PISTOL_WEAPON,
+    ).state;
+    const expectedAmmo = PISTOL_WEAPON.config.magazineSize * 2
+      + PISTOL_WEAPON.config.reserveAmmo;
+
+    expect(totalAvailableAmmo(inventory, {
+      pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
+      rifleAmmo: 0,
+    })).toEqual({
+      current: expectedAmmo,
+      capacity: expectedAmmo,
+    });
+  });
+
+  it('triggers emergency supply immediately only when no supply is active', () => {
+    const initial = createSupplyTriggerState();
+    const emergency = resolveSupplyTrigger(initial, {
+      activeSupply: false,
+      waveCleared: false,
+      allAmmoDepleted: true,
+      ammoRatio: 0,
+      healthRatio: 1,
+      randomValue: 1,
+    }, SUPPLY_DROP_BALANCE);
+    const blocked = resolveSupplyTrigger(initial, {
+      activeSupply: true,
+      waveCleared: true,
+      allAmmoDepleted: true,
+      ammoRatio: 0,
+      healthRatio: 0,
+      randomValue: 0,
+    }, SUPPLY_DROP_BALANCE);
+
+    expect(emergency.kind).toBe('emergency');
+    expect(blocked.kind).toBeNull();
+  });
+
+  it('raises normal supply chance for low ammo, critical health, and consecutive misses', () => {
+    const healthy = resolveSupplyTrigger(createSupplyTriggerState(), {
+      activeSupply: false,
+      waveCleared: true,
+      allAmmoDepleted: false,
+      ammoRatio: 1,
+      healthRatio: 1,
+      randomValue: 0.99,
+    }, SUPPLY_DROP_BALANCE);
+    const needy = resolveSupplyTrigger({ consecutiveMisses: 2 }, {
+      activeSupply: false,
+      waveCleared: true,
+      allAmmoDepleted: false,
+      ammoRatio: 0.05,
+      healthRatio: 0.2,
+      randomValue: 0.5,
+    }, SUPPLY_DROP_BALANCE);
+
+    expect(healthy.kind).toBeNull();
+    expect(healthy.state.consecutiveMisses).toBe(1);
+    expect(needy.chance).toBeGreaterThan(healthy.chance);
+    expect(needy.kind).toBe('normal');
+    expect(needy.state.consecutiveMisses).toBe(0);
+  });
+});
+
+describe('supply location selection', () => {
+  const locationConfig = {
+    sampleCount: 128,
+    clearance: 30,
+    normalMinimumPlayerDistance: 150,
+    normalMaximumPlayerDistance: 500,
+    emergencyMinimumPlayerDistance: 500,
+    previousDropMinimumDistance: 180,
+  };
+
+  it('selects a reachable normal location outside obstacles and away from the previous drop', () => {
+    const obstacles = [{ x: 350, y: 200, width: 200, height: 300 }];
+    const target = selectSupplyDropLocation(
+      'normal',
+      { x: 100, y: 350 },
+      { width: 900, height: 700 },
+      obstacles,
+      { x: 250, y: 350 },
+      { x: 1, y: 0 },
+      42,
+      locationConfig,
+    );
+
+    expect(target).not.toBeNull();
+    expect(Math.hypot(target!.x - 100, target!.y - 350)).toBeGreaterThanOrEqual(150);
+    expect(Math.hypot(target!.x - 250, target!.y - 350)).toBeGreaterThanOrEqual(180);
+    expect(
+      target!.x >= 320 && target!.x <= 580
+      && target!.y >= 170 && target!.y <= 530,
+    ).toBe(false);
+  });
+
+  it('places emergency supply farther away and favors the threat direction', () => {
+    const target = selectSupplyDropLocation(
+      'emergency',
+      { x: 300, y: 300 },
+      { width: 1_400, height: 800 },
+      [],
+      null,
+      { x: 1, y: 0 },
+      7,
+      locationConfig,
+    );
+
+    expect(target).not.toBeNull();
+    expect(Math.hypot(target!.x - 300, target!.y - 300)).toBeGreaterThanOrEqual(500);
+    expect(target!.x).toBeGreaterThan(300);
+  });
+
+  it('never relaxes the normal player-distance band when sampling misses', () => {
+    const target = selectSupplyDropLocation(
+      'normal',
+      { x: 50, y: 50 },
+      { width: 4_000, height: 3_000 },
+      [],
+      null,
+      { x: 0, y: 0 },
+      0,
+      {
+        ...locationConfig,
+        sampleCount: 1,
+        normalMinimumPlayerDistance: 150,
+        normalMaximumPlayerDistance: 500,
+      },
+    );
+
+    expect(target).not.toBeNull();
+    const playerDistance = Math.hypot(target!.x - 50, target!.y - 50);
+    expect(playerDistance).toBeGreaterThanOrEqual(150);
+    expect(playerDistance).toBeLessThanOrEqual(500);
+  });
+
+  it('defers a normal drop when no reachable cell satisfies its distance band', () => {
+    expect(selectSupplyDropLocation(
+      'normal',
+      { x: 100, y: 100 },
+      { width: 220, height: 220 },
+      [],
+      null,
+      { x: 0, y: 0 },
+      0,
+      {
+        ...locationConfig,
+        normalMinimumPlayerDistance: 500,
+        normalMaximumPlayerDistance: 600,
+      },
+    )).toBeNull();
   });
 });
 
