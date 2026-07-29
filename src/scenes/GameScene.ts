@@ -641,6 +641,7 @@ export class GameScene extends Phaser.Scene {
         this.pathfindingGrid,
         OBSTACLE_CONFIG,
         zombie.hitRadius,
+        this.player.hitRadius,
         PATHFINDING_CONFIG,
         deltaMs,
       );

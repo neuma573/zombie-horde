@@ -30,6 +30,7 @@ describe('zombie navigation policy', () => {
       navigationGrid,
       wall,
       10,
+      18,
       config,
       16,
     );
@@ -37,6 +38,24 @@ describe('zombie navigation policy', () => {
     expect(result.mode).toBe('direct');
     expect(result.pathCalculated).toBe(false);
     expect(result.target).toEqual({ x: 380, y: 280 });
+  });
+
+  it('chases directly when contact range is reachable beside an obstacle', () => {
+    const result = updateZombieNavigation(
+      createZombieNavigationState(),
+      { x: 80, y: 120 },
+      { x: 162, y: 120 },
+      navigationGrid,
+      wall,
+      20,
+      18,
+      config,
+      16,
+    );
+
+    expect(result.mode).toBe('direct');
+    expect(result.pathCalculated).toBe(false);
+    expect(result.target).toEqual({ x: 162, y: 120 });
   });
 
   it('calculates a path only when blocked and returns to direct chase when opened', () => {
@@ -47,6 +66,7 @@ describe('zombie navigation policy', () => {
       navigationGrid,
       wall,
       10,
+      18,
       config,
       16,
     );
@@ -57,6 +77,7 @@ describe('zombie navigation policy', () => {
       navigationGrid,
       wall,
       10,
+      18,
       config,
       16,
     );
@@ -75,6 +96,7 @@ describe('zombie navigation policy', () => {
       navigationGrid,
       wall,
       10,
+      18,
       config,
       16,
     );
@@ -85,6 +107,7 @@ describe('zombie navigation policy', () => {
       navigationGrid,
       wall,
       10,
+      18,
       config,
       16,
     );
@@ -112,6 +135,7 @@ describe('zombie navigation policy', () => {
       enclosedGrid,
       enclosure,
       0,
+      18,
       config,
       16,
     );
@@ -122,6 +146,7 @@ describe('zombie navigation policy', () => {
       enclosedGrid,
       enclosure,
       0,
+      18,
       config,
       16,
     );

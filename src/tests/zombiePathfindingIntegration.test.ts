@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PATHFINDING_CONFIG } from '../config/pathfindingConfig';
+import { PLAYER_CONFIG } from '../config/playerConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
 import { ZOMBIE_CROWD_SPACING_CONFIG } from '../config/zombieCrowdSpacingConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
@@ -35,8 +36,10 @@ function simulate(
   initialZombie: Position,
   playerAt: (elapsedMs: number) => Position,
   maximumMs = 30_000,
+  movementBounds = bounds,
+  reachDistance = 32,
 ): SimulationResult {
-  const grid = createPathfindingGrid(bounds, obstacles, {
+  const grid = createPathfindingGrid(movementBounds, obstacles, {
     cellSize: PATHFINDING_CONFIG.cellSize,
     clearance: ZOMBIE_CONFIG.radius + PATHFINDING_CONFIG.obstacleClearance,
   });
@@ -46,7 +49,7 @@ function simulate(
 
   for (let elapsedMs = 0; elapsedMs <= maximumMs; elapsedMs += stepMs) {
     const player = playerAt(elapsedMs);
-    if (Math.hypot(player.x - position.x, player.y - position.y) <= 32) {
+    if (Math.hypot(player.x - position.x, player.y - position.y) <= reachDistance) {
       return { position, elapsedMs, pathCalculations };
     }
     const navigation = updateZombieNavigation(
@@ -56,6 +59,7 @@ function simulate(
       grid,
       obstacles,
       ZOMBIE_CONFIG.radius,
+      PLAYER_CONFIG.radius,
       PATHFINDING_CONFIG,
       stepMs,
     );
@@ -78,7 +82,7 @@ function simulate(
       desired,
       ZOMBIE_CONFIG.radius,
       obstacles,
-      { ...bounds, padding: ZOMBIE_CONFIG.radius },
+      { ...movementBounds, padding: ZOMBIE_CONFIG.radius },
     );
   }
 
@@ -151,7 +155,7 @@ describe('zombie pathfinding movement scenarios', () => {
   it('replans when the player moves to the other side of a wall', () => {
     const obstacles = [{ x: 360, y: 80, width: 50, height: 380 }];
     const playerAt = (elapsedMs: number) => (
-      elapsedMs < 2_000 ? { x: 340, y: 260 } : { x: 620, y: 260 }
+      elapsedMs < 1_000 ? { x: 340, y: 260 } : { x: 620, y: 260 }
     );
     const result = simulate(obstacles, { x: 120, y: 260 }, playerAt);
     const finalPlayer = playerAt(result.elapsedMs);
@@ -172,6 +176,29 @@ describe('zombie pathfinding movement scenarios', () => {
     ).toBeLessThanOrEqual(32);
     expect(result.elapsedMs).toBeLessThan(30_000);
     expect(result.pathCalculations).toBeGreaterThan(0);
+  });
+
+  it('reaches contact range of a wall-adjacent player on the urban map', () => {
+    const mapBounds = {
+      width: URBAN_MAP_CONFIG.width,
+      height: URBAN_MAP_CONFIG.height,
+    };
+    const player = { x: 2_444 - PLAYER_CONFIG.radius, y: 770 };
+    const contactRange = ZOMBIE_CONFIG.radius + PLAYER_CONFIG.radius;
+    const result = simulate(
+      URBAN_MAP_CONFIG.obstacles,
+      { x: 1_468, y: 44 },
+      () => player,
+      60_000,
+      mapBounds,
+      contactRange,
+    );
+
+    expect(
+      Math.hypot(result.position.x - player.x, result.position.y - player.y),
+      JSON.stringify(result),
+    ).toBeLessThanOrEqual(contactRange);
+    expect(result.elapsedMs).toBeLessThan(60_000);
   });
 
   it('lets several zombies independently follow the same route', () => {
@@ -236,6 +263,7 @@ describe('zombie pathfinding movement scenarios', () => {
           grid,
           obstacles,
           ZOMBIE_CONFIG.radius,
+          PLAYER_CONFIG.radius,
           PATHFINDING_CONFIG,
           stepMs,
         );
@@ -319,6 +347,7 @@ describe('zombie pathfinding movement scenarios', () => {
           grid,
           obstacles,
           ZOMBIE_CONFIG.radius,
+          PLAYER_CONFIG.radius,
           PATHFINDING_CONFIG,
           stepMs,
         );
@@ -416,6 +445,7 @@ describe('zombie pathfinding movement scenarios', () => {
           grid,
           obstacles,
           ZOMBIE_CONFIG.radius,
+          PLAYER_CONFIG.radius,
           PATHFINDING_CONFIG,
           stepMs,
         );

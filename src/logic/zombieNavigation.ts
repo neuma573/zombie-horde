@@ -52,6 +52,28 @@ function distanceToSegment(point: Position, start: Position, end: Position): num
   );
 }
 
+function hasDirectPathToContactRange(
+  start: Position,
+  target: Position,
+  contactRange: number,
+  obstacles: readonly RectangleObstacle[],
+  clearance: number,
+): boolean {
+  const distance = Math.hypot(target.x - start.x, target.y - start.y);
+  const safeContactRange = Number.isFinite(contactRange) ? Math.max(0, contactRange) : 0;
+  if (distance <= safeContactRange) return true;
+  const travelRatio = (distance - safeContactRange) / distance;
+  return hasDirectPath(
+    start,
+    {
+      x: start.x + (target.x - start.x) * travelRatio,
+      y: start.y + (target.y - start.y) * travelRatio,
+    },
+    obstacles,
+    clearance,
+  );
+}
+
 export function updateZombieNavigation(
   previous: ZombieNavigationState,
   zombie: Position,
@@ -59,15 +81,24 @@ export function updateZombieNavigation(
   grid: PathfindingGrid,
   obstacles: readonly RectangleObstacle[],
   zombieRadius: number,
+  playerRadius: number,
   config: PathfindingConfig,
   deltaMs: number,
 ): ZombieNavigationResult {
-  const clearance = Math.max(0, zombieRadius) + config.obstacleClearance;
+  const safeZombieRadius = Number.isFinite(zombieRadius) ? Math.max(0, zombieRadius) : 0;
+  const safePlayerRadius = Number.isFinite(playerRadius) ? Math.max(0, playerRadius) : 0;
+  const clearance = safeZombieRadius + config.obstacleClearance;
   const replanRemainingMs = Math.max(
     0,
     previous.replanRemainingMs - Math.max(0, Number.isFinite(deltaMs) ? deltaMs : 0),
   );
-  if (hasDirectPath(zombie, player, obstacles, clearance)) {
+  if (hasDirectPathToContactRange(
+    zombie,
+    player,
+    safeZombieRadius + safePlayerRadius,
+    obstacles,
+    clearance,
+  )) {
     return {
       state: {
         waypoints: [],
