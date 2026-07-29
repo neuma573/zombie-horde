@@ -77,6 +77,22 @@ describe('low-resolution pathfinding grid and A*', () => {
     ), ...path!], obstacles);
   });
 
+  it('routes to a collision-valid goal beside an obstacle without crossing it', () => {
+    const obstacle = { x: 180, y: 20, width: 40, height: 220 };
+    const clearance = 24;
+    const { path } = pathBetween(
+      [obstacle],
+      { x: 320, y: 120 },
+      { x: obstacle.x - 18, y: 120 },
+      clearance,
+    );
+
+    expect(path).not.toBeNull();
+    expect(path!.some((point) => point.y < obstacle.y || point.y > obstacle.y + obstacle.height))
+      .toBe(true);
+    expect(path!.at(-1)!.x).toBeLessThan(obstacle.x);
+  });
+
   it('finds a route through offset gaps in parallel walls', () => {
     const obstacles = [
       { x: 100, y: 0, width: 20, height: 200 },

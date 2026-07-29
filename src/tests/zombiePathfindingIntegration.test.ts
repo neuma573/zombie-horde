@@ -160,6 +160,19 @@ describe('zombie pathfinding movement scenarios', () => {
     expect(result.pathCalculations).toBeGreaterThan(0);
   });
 
+  it('reaches a player hugging the opposite face of a wall', () => {
+    const obstacles = [{ x: 360, y: 80, width: 50, height: 380 }];
+    const player = { x: 360 - 18, y: 260 };
+    const result = simulate(obstacles, { x: 620, y: 260 }, () => player);
+
+    expect(
+      Math.hypot(result.position.x - player.x, result.position.y - player.y),
+      JSON.stringify(result),
+    ).toBeLessThanOrEqual(32);
+    expect(result.elapsedMs).toBeLessThan(30_000);
+    expect(result.pathCalculations).toBeGreaterThan(0);
+  });
+
   it('lets several zombies independently follow the same route', () => {
     const obstacles = [{ x: 360, y: 80, width: 50, height: 380 }];
     const player = { x: 620, y: 260 };

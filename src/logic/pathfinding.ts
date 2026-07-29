@@ -352,6 +352,26 @@ export function hasDirectPath(
   ));
 }
 
+function hasPathFromCollisionValidEndpoint(
+  endpoint: Position,
+  candidate: Position,
+  obstacles: readonly RectangleObstacle[],
+  clearance: number,
+): boolean {
+  const safeClearance = Number.isFinite(clearance) ? Math.max(0, clearance) : 0;
+  return !obstacles.some((obstacle) => {
+    if (!segmentIntersectsExpandedObstacle(endpoint, candidate, obstacle, safeClearance)) {
+      return false;
+    }
+    const startsWithinClearance = endpoint.x >= obstacle.x - safeClearance - EPSILON
+      && endpoint.x <= obstacle.x + Math.max(0, obstacle.width) + safeClearance + EPSILON
+      && endpoint.y >= obstacle.y - safeClearance - EPSILON
+      && endpoint.y <= obstacle.y + Math.max(0, obstacle.height) + safeClearance + EPSILON;
+    return !startsWithinClearance
+      || segmentIntersectsExpandedObstacle(endpoint, candidate, obstacle, 0);
+  });
+}
+
 export function hasGridLineOfSight(
   grid: PathfindingGrid,
   start: Position,
@@ -433,7 +453,7 @@ export function findWorldPath(
           const candidate = { column, row };
           if (
             isGridCellWalkable(grid, candidate)
-            && hasDirectPath(
+            && hasPathFromCollisionValidEndpoint(
               position,
               gridCellCenter(grid, candidate),
               obstacles,
