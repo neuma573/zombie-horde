@@ -476,6 +476,7 @@ export function findWorldPath(
   );
   if (!cells) return null;
   const points = [
+    { ...start },
     gridCellCenter(grid, cells[0]),
     ...cells.slice(1).map((cell) => gridCellCenter(grid, cell)),
   ];

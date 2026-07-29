@@ -93,6 +93,27 @@ describe('low-resolution pathfinding grid and A*', () => {
     expect(path!.at(-1)!.x).toBeLessThan(obstacle.x);
   });
 
+  it('validates the first waypoint from the actual world start', () => {
+    const obstacles = [{ x: 160, y: 80, width: 40, height: 240 }];
+    const start = { x: 120, y: 65 };
+    const goal = { x: 300, y: 20 };
+    const clearance = 20;
+    const navigationGrid = grid(obstacles, 64);
+    const path = findWorldPath(
+      navigationGrid,
+      start,
+      goal,
+      obstacles,
+      clearance,
+      { allowDiagonal: true },
+    );
+
+    expect(hasDirectPath(start, goal, obstacles, clearance)).toBe(false);
+    expect(path).not.toBeNull();
+    expect(path!.length).toBeGreaterThan(1);
+    expect(hasDirectPath(start, path![0], obstacles, clearance)).toBe(true);
+  });
+
   it('finds a route through offset gaps in parallel walls', () => {
     const obstacles = [
       { x: 100, y: 0, width: 20, height: 200 },
