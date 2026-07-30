@@ -1,19 +1,19 @@
 import Phaser from 'phaser';
 
-import { INPUT_CONFIG } from './config/inputConfig';
+import { GAME_RUNTIME_CONFIG } from './config/runtimeConfig';
 import { MainMenuScene } from './scenes/MainMenuScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   backgroundColor: '#1b1b1b',
   input: {
-    activePointers: INPUT_CONFIG.activePointers,
+    activePointers: GAME_RUNTIME_CONFIG.activePointers,
   },
   scale: {
     mode: Phaser.Scale.RESIZE,
-    parent: 'game',
-    width: '100%',
-    height: '100%',
+    parent: GAME_RUNTIME_CONFIG.parent,
+    width: GAME_RUNTIME_CONFIG.width,
+    height: GAME_RUNTIME_CONFIG.height,
   },
   scene: [MainMenuScene],
 };
