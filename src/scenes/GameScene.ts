@@ -42,6 +42,8 @@ import {
 } from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import { SupplyDropVisual } from '../effects/SupplyDropVisual';
+import { WeaponAudio } from '../effects/WeaponAudio';
+import { syncSoundEnabled } from '../effects/audioSettings';
 import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
@@ -268,6 +270,7 @@ export class GameScene extends Phaser.Scene {
   private hoveredWeaponPickup?: WeaponPickup;
   private hud?: HudSystem;
   private effects?: CombatEffects;
+  private weaponAudio?: WeaponAudio;
   private aimAssistVisual?: AimAssistVisual;
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
@@ -279,6 +282,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
+    WeaponAudio.preload(this);
     if (!this.textures.exists(PEDESTRIAN_ARROW_TEXTURE_KEY)) {
       this.load.image(PEDESTRIAN_ARROW_TEXTURE_KEY, pedestrianArrowUrl);
     }
@@ -291,6 +295,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    syncSoundEnabled(
+      this.sound,
+      this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false,
+    );
     this.sessionState = createSessionState();
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
     this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
@@ -375,8 +383,9 @@ export class GameScene extends Phaser.Scene {
     this.firstShotAccuracy = createFirstShotAccuracyState();
     this.resizePlayArea(this.scale.gameSize);
     this.updateTimeBasedLighting();
-    this.hud = new HudSystem(this, (slot) => this.weapon.selectSlot(slot));
+    this.hud = new HudSystem(this, (slot) => this.selectWeaponSlot(slot));
     this.effects = new CombatEffects(this);
+    this.weaponAudio = new WeaponAudio(this);
     this.aimAssistVisual = new AimAssistVisual(this);
     this.mobileControls = new MobileControls(this);
     this.supplyDropVisual = new SupplyDropVisual(this);
@@ -440,6 +449,8 @@ export class GameScene extends Phaser.Scene {
       this.hud = undefined;
       this.effects?.destroy();
       this.effects = undefined;
+      this.weaponAudio?.destroy();
+      this.weaponAudio = undefined;
       this.aimAssistVisual?.destroy();
       this.aimAssistVisual = undefined;
       this.worldBackdrop?.destroy();
@@ -494,10 +505,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
-      this.weapon.selectSlot(0);
+      this.selectWeaponSlot(0);
     }
     if (this.weaponSlotKeys?.[1] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[1])) {
-      this.weapon.selectSlot(1);
+      this.selectWeaponSlot(1);
     }
 
     const keyboardMovement = this.movementKeys ? {
@@ -514,7 +525,7 @@ export class GameScene extends Phaser.Scene {
     const reload = consumeReloadRequest(this.playerInput);
     this.playerInput = reload.state;
     if (reload.requested) {
-      this.weapon.reload();
+      this.startWeaponReload();
     }
     const fixedSteps = consumeFixedSteps(
       this.simulationStepState,
@@ -769,6 +780,7 @@ export class GameScene extends Phaser.Scene {
   private resolveHitscanShot(): void {
     const aimDirection = this.refreshAimAssist();
     const weaponDefinition = this.weapon.getDefinition();
+    this.weaponAudio?.playShot(weaponDefinition.id);
     const weaponConfig = weaponDefinition.config;
     const firstShot = consumeFirstShotAccuracy(this.firstShotAccuracy);
     this.firstShotAccuracy = firstShot.state;
@@ -911,7 +923,27 @@ export class GameScene extends Phaser.Scene {
 
   private startMobileAutoReloadIfNeeded(): void {
     if (shouldAutoReload(this.weapon.getState(), this.mobileControlsEnabled)) {
-      this.weapon.reload();
+      this.startWeaponReload();
+    }
+  }
+
+  private startWeaponReload(): void {
+    const wasReloading = this.weapon.getState().reloadRemainingMs !== null;
+    this.weapon.reload();
+    const reload = this.weapon.getReloadProgress();
+    if (!wasReloading && reload.isReloading) {
+      this.weaponAudio?.playReload(
+        this.weapon.getDefinition().id,
+        reload.durationMs,
+      );
+    }
+  }
+
+  private selectWeaponSlot(slot: 0 | 1): void {
+    const previousSlot = this.weapon.getInventory().activeSlot;
+    this.weapon.selectSlot(slot);
+    if (this.weapon.getInventory().activeSlot !== previousSlot) {
+      this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
     }
   }
 
@@ -960,6 +992,7 @@ export class GameScene extends Phaser.Scene {
 
     const position = { x: pickup.x, y: pickup.y };
     const replaced = this.weapon.pickupOwned(pickup.ownedWeapon);
+    this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
     if (this.hoveredWeaponPickup === pickup) {
       this.hoveredWeaponPickup = undefined;
     }
