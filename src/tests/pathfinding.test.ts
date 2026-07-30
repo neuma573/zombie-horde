@@ -8,6 +8,7 @@ import {
   hasDirectPath,
   hasGridLineOfSight,
   isGridCellWalkable,
+  resizePathfindingGrid,
   simplifyWorldPath,
   worldToGridCell,
   type GridCell,
@@ -57,6 +58,56 @@ function expectSafeSegments(
 }
 
 describe('low-resolution pathfinding grid and A*', () => {
+  it('rebuilds the grid only when the movement bounds change', () => {
+    const original = createPathfindingGrid(
+      { width: 320, height: 240 },
+      [],
+      { cellSize: 20, clearance: 0 },
+    );
+
+    expect(resizePathfindingGrid(
+      original,
+      { width: 320, height: 240 },
+      [],
+      { cellSize: 20, clearance: 0 },
+    )).toBe(original);
+
+    const expanded = resizePathfindingGrid(
+      original,
+      { width: 640, height: 360 },
+      [],
+      { cellSize: 20, clearance: 0 },
+    );
+    expect(expanded).not.toBe(original);
+    expect(expanded).toMatchObject({
+      width: 640,
+      height: 360,
+      columns: 32,
+      rows: 18,
+    });
+    expect(worldToGridCell(expanded, { x: 600, y: 320 })).toEqual({
+      column: 30,
+      row: 16,
+    });
+
+    const shrunk = resizePathfindingGrid(
+      expanded,
+      { width: 200, height: 160 },
+      [],
+      { cellSize: 20, clearance: 0 },
+    );
+    expect(shrunk).toMatchObject({
+      width: 200,
+      height: 160,
+      columns: 10,
+      rows: 8,
+    });
+    expect(worldToGridCell(shrunk, { x: 600, y: 320 })).toEqual({
+      column: 9,
+      row: 7,
+    });
+  });
+
   it('creates a path between unobstructed positions', () => {
     const { path } = pathBetween([], { x: 30, y: 30 }, { x: 350, y: 250 });
 

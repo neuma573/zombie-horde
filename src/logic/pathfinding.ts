@@ -117,6 +117,18 @@ export function createPathfindingGrid(
   return { cellSize, clearance, columns, rows, width, height, blocked };
 }
 
+export function resizePathfindingGrid(
+  grid: PathfindingGrid,
+  bounds: Omit<MovementBounds, 'padding'>,
+  obstacles: readonly RectangleObstacle[],
+  options: CreatePathfindingGridOptions,
+): PathfindingGrid {
+  const width = Math.max(0, Number.isFinite(bounds.width) ? bounds.width : 0);
+  const height = Math.max(0, Number.isFinite(bounds.height) ? bounds.height : 0);
+  if (grid.width === width && grid.height === height) return grid;
+  return createPathfindingGrid(bounds, obstacles, options);
+}
+
 export function worldToGridCell(grid: PathfindingGrid, position: Position): GridCell {
   return {
     column: Math.min(

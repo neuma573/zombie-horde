@@ -68,6 +68,7 @@ import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
 import {
   createPathfindingGrid,
+  resizePathfindingGrid,
   type PathfindingGrid,
 } from '../logic/pathfinding';
 import {
@@ -1454,12 +1455,26 @@ export class GameScene extends Phaser.Scene {
       height: gameSize.height,
     };
     this.lastMouseScreenPoint = null;
-    this.playArea = createWorldSize(
+    const nextPlayArea = createWorldSize(
       URBAN_MAP_CONFIG,
       this.viewport,
       CAMERA_ZOOM_CONFIG.min,
       SPAWN_OFFSCREEN_WORLD_MARGIN,
     );
+    const nextPathfindingGrid = resizePathfindingGrid(
+      this.pathfindingGrid,
+      nextPlayArea,
+      OBSTACLE_CONFIG,
+      {
+        cellSize: PATHFINDING_CONFIG.cellSize,
+        clearance: ZOMBIE_CONFIG.radius + PATHFINDING_CONFIG.obstacleClearance,
+      },
+    );
+    if (nextPathfindingGrid !== this.pathfindingGrid) {
+      this.pathfindingGrid = nextPathfindingGrid;
+      this.zombieNavigation.clear();
+    }
+    this.playArea = nextPlayArea;
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
