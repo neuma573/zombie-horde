@@ -1,21 +1,5 @@
 import Phaser from 'phaser';
 
-import { INPUT_CONFIG } from './config/inputConfig';
-import { MainMenuScene } from './scenes/MainMenuScene';
+import { GAME_CONFIG } from './gameConfig';
 
-const config: Phaser.Types.Core.GameConfig = {
-  type: Phaser.AUTO,
-  backgroundColor: '#1b1b1b',
-  input: {
-    activePointers: INPUT_CONFIG.activePointers,
-  },
-  scale: {
-    mode: Phaser.Scale.RESIZE,
-    parent: 'game',
-    width: '100%',
-    height: '100%',
-  },
-  scene: [MainMenuScene],
-};
-
-new Phaser.Game(config);
+new Phaser.Game(GAME_CONFIG);
