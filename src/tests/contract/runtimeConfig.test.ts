@@ -27,6 +27,12 @@ describe('game runtime configuration', () => {
     expect(GAME_CONFIG.scale?.mode).toBe(Phaser.Scale.RESIZE);
     expect(GAME_CONFIG.scene).toEqual([MainMenuScene]);
     expect(GAME_CONFIG.scale?.parent).toBe(GAME_RUNTIME_CONFIG.parent);
+    expect(GAME_CONFIG.scale?.width).toBe(GAME_RUNTIME_CONFIG.width);
+    expect(GAME_CONFIG.scale?.height).toBe(GAME_RUNTIME_CONFIG.height);
+    expect(GAME_CONFIG.scale?.width).toBe('100%');
+    expect(GAME_CONFIG.scale?.height).toBe('100%');
+    expect(GAME_CONFIG.scale?.width).not.toBe(960);
+    expect(GAME_CONFIG.scale?.height).not.toBe(540);
     expect(input).not.toBe(false);
     expect(input).toBeDefined();
     if (typeof input !== 'object') {
