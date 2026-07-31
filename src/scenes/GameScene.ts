@@ -201,6 +201,7 @@ import {
   type SessionState,
 } from '../logic/session';
 import { DamageSystem } from '../systems/DamageSystem';
+import { discardGameplayKeyState } from '../systems/gameplayKeyState';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
 import { PauseMenu } from '../systems/PauseMenu';
@@ -399,17 +400,17 @@ export class GameScene extends Phaser.Scene {
         safeArea: this.readSafeArea(),
       },
       () => {
-        this.resetGameplayKeys();
+        discardGameplayKeyState(this.gameplayKeys());
         this.resetMobileInput();
         this.pauseSceneManagers();
       },
       () => {
-        this.resetGameplayKeys();
+        discardGameplayKeyState(this.gameplayKeys());
         this.resumeSceneManagers();
         this.resetMobileInput();
       },
       () => {
-        this.resetGameplayKeys();
+        discardGameplayKeyState(this.gameplayKeys());
         this.resumeSceneManagers();
         this.scene.start('MainMenuScene');
       },
@@ -1698,15 +1699,14 @@ export class GameScene extends Phaser.Scene {
     this.mobileControls?.setJoystickPointer(null);
   }
 
-  private resetGameplayKeys(): void {
-    const keys: Array<Phaser.Input.Keyboard.Key | undefined> = [
+  private gameplayKeys(): Array<Phaser.Input.Keyboard.Key | undefined> {
+    return [
       ...Object.values(this.movementKeys ?? {}),
       this.reloadKey,
       this.pickupKey,
       ...(this.weaponSlotKeys ?? []),
       this.restartKey,
     ];
-    for (const key of keys) key?.reset();
   }
 
   private pauseSceneManagers(): void {
