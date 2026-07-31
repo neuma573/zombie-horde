@@ -6,7 +6,7 @@ import { toggleSound } from '../logic/menu';
 import {
   clampPauseActionWidth,
   createPauseMenuActionLayout,
-  fitPauseActionFontSize,
+  fitPauseTextFontSize,
   isPointInBounds,
   pauseButtonBounds,
 } from '../logic/pauseMenu';
@@ -160,7 +160,11 @@ export class PauseMenu {
       centerX,
       actionLayout.titleY,
       'PAUSED',
-      actionLayout.titleFontSize,
+      fitPauseTextFontSize(
+        'PAUSED',
+        primaryActionWidth,
+        actionLayout.titleFontSize,
+      ),
       true,
     );
     if (actionLayout.subtitleY !== null) {
@@ -168,7 +172,7 @@ export class PauseMenu {
         centerX,
         actionLayout.subtitleY,
         'ZOMBIE HORDE',
-        13,
+        fitPauseTextFontSize('ZOMBIE HORDE', primaryActionWidth, 13),
         false,
         COLORS.muted,
       );
@@ -209,7 +213,11 @@ export class PauseMenu {
       centerX,
       actionLayout.titleY,
       'SETTINGS',
-      Math.min(32, actionLayout.titleFontSize),
+      fitPauseTextFontSize(
+        'SETTINGS',
+        primaryActionWidth,
+        Math.min(32, actionLayout.titleFontSize),
+      ),
       true,
     );
     this.addButton(
@@ -246,7 +254,7 @@ export class PauseMenu {
       .setInteractive({ useHandCursor: true })
       .on('pointerup', onPress);
     this.overlay.add(background);
-    const fittedFontSize = fitPauseActionFontSize(label, width, fontSize);
+    const fittedFontSize = fitPauseTextFontSize(label, width, fontSize);
     if (fittedFontSize > 0) {
       this.addText(x, y, label, fittedFontSize, true);
     }

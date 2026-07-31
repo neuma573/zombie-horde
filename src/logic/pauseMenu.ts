@@ -71,7 +71,7 @@ export function clampPauseActionWidth(
   );
 }
 
-export function fitPauseActionFontSize(
+export function fitPauseTextFontSize(
   label: string,
   buttonWidth: number,
   requestedFontSize: number,
