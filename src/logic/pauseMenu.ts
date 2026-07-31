@@ -59,6 +59,17 @@ export function createPauseMenuActionLayout(
   };
 }
 
+export function clampPauseActionWidth(
+  requestedWidth: number,
+  left: number,
+  right: number,
+): number {
+  return Math.min(
+    Math.max(0, requestedWidth),
+    Math.max(0, right - left),
+  );
+}
+
 export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
   const centerX = layout.width - layout.safeArea.right - 50;
   const centerY = layout.safeArea.top + 30;

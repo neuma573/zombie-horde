@@ -4,6 +4,7 @@ import { GAME_REGISTRY_KEYS } from '../config/menuConfig';
 import { syncSoundEnabled } from '../effects/audioSettings';
 import { toggleSound } from '../logic/menu';
 import {
+  clampPauseActionWidth,
   createPauseMenuActionLayout,
   isPointInBounds,
   pauseButtonBounds,
@@ -125,6 +126,7 @@ export class PauseMenu {
     const top = safeArea.top + 24;
     const bottom = Math.max(top, height - safeArea.bottom - 24);
     const centerX = left + (right - left) / 2;
+    const primaryActionWidth = clampPauseActionWidth(220, left, right);
 
     const blocker = this.scene.add.rectangle(
       width / 2,
@@ -137,7 +139,7 @@ export class PauseMenu {
     this.overlay.add(blocker);
 
     if (this.view === 'settings') {
-      this.renderSettings(centerX, top, bottom);
+      this.renderSettings(centerX, top, bottom, primaryActionWidth);
       return;
     }
 
@@ -164,20 +166,20 @@ export class PauseMenu {
       actionLayout.actionYs[0],
       'RESUME',
       () => this.hide(),
-      220,
+      primaryActionWidth,
       actionLayout.buttonHeight,
       actionLayout.buttonFontSize,
     );
     this.addButton(centerX, actionLayout.actionYs[1], 'SETTINGS', () => {
       this.view = 'settings';
       this.renderOverlay();
-    }, 220, actionLayout.buttonHeight, actionLayout.buttonFontSize);
+    }, primaryActionWidth, actionLayout.buttonHeight, actionLayout.buttonFontSize);
     this.addButton(
       centerX,
       actionLayout.actionYs[2],
       'MAIN MENU',
       this.onMainMenu,
-      220,
+      primaryActionWidth,
       actionLayout.buttonHeight,
       actionLayout.buttonFontSize,
     );
@@ -187,6 +189,7 @@ export class PauseMenu {
     centerX: number,
     top: number,
     bottom: number,
+    primaryActionWidth: number,
   ): void {
     const soundEnabled = this.scene.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false;
     const actionLayout = createPauseMenuActionLayout(top, bottom, 2);
@@ -207,14 +210,14 @@ export class PauseMenu {
         syncSoundEnabled(this.scene.sound, next.soundEnabled);
         this.renderOverlay();
       },
-      220,
+      primaryActionWidth,
       actionLayout.buttonHeight,
       actionLayout.buttonFontSize,
     );
     this.addButton(centerX, actionLayout.actionYs[1], 'BACK', () => {
       this.view = 'main';
       this.renderOverlay();
-    }, 160, actionLayout.buttonHeight, actionLayout.buttonFontSize);
+    }, Math.min(160, primaryActionWidth), actionLayout.buttonHeight, actionLayout.buttonFontSize);
   }
 
   private addButton(

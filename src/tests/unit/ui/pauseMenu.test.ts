@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clampPauseActionWidth,
   createPauseMenuActionLayout,
   isPointInBounds,
   pauseButtonBounds,
@@ -41,5 +42,16 @@ describe('pause menu input boundary', () => {
     expect(actionBounds[2].bottom).toBeLessThanOrEqual(bottom);
     expect(actionBounds[1].top).toBeGreaterThan(actionBounds[0].bottom);
     expect(actionBounds[2].top).toBeGreaterThan(actionBounds[1].bottom);
+  });
+
+  it('clamps pause actions to a narrow horizontal safe area', () => {
+    const left = 24;
+    const right = 176;
+    const width = clampPauseActionWidth(220, left, right);
+    const centerX = left + (right - left) / 2;
+
+    expect(width).toBe(152);
+    expect(centerX - width / 2).toBe(left);
+    expect(centerX + width / 2).toBe(right);
   });
 });
