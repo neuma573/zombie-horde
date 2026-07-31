@@ -120,13 +120,18 @@ export class PauseMenu {
       .setStrokeStyle(1, COLORS.accent)
       .setInteractive({ useHandCursor: true })
       .on('pointerup', () => this.show());
-    const label = this.scene.add.text(x, y, 'PAUSE', {
-      color: COLORS.text,
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '12px',
-      fontStyle: 'bold',
-    }).setOrigin(0.5);
-    this.pauseButton.add([background, label]);
+    this.pauseButton.add(background);
+    const buttonWidth = bounds.right - bounds.left;
+    const labelFontSize = fitPauseTextFontSize('PAUSE', buttonWidth, 12);
+    if (labelFontSize > 0) {
+      const label = this.scene.add.text(x, y, 'PAUSE', {
+        color: COLORS.text,
+        fontFamily: 'Arial, sans-serif',
+        fontSize: `${labelFontSize}px`,
+        fontStyle: 'bold',
+      }).setOrigin(0.5);
+      this.pauseButton.add(label);
+    }
     this.pauseButton.setVisible(this.mobileVisible && !this.open);
   }
 

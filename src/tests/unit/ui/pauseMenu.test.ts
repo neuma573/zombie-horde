@@ -94,4 +94,16 @@ describe('pause menu input boundary', () => {
 
     expect(bounds).toEqual({ left: 302, right: 378, top: 11, bottom: 37 });
   });
+
+  it('hides the mobile pause label when the control has no text room', () => {
+    const bounds = pauseButtonBounds({
+      width: 30,
+      height: 844,
+      safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    const buttonWidth = bounds.right - bounds.left;
+
+    expect(buttonWidth).toBe(6);
+    expect(fitPauseTextFontSize('PAUSE', buttonWidth, 12)).toBe(0);
+  });
 });
