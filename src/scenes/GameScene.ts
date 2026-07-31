@@ -594,6 +594,7 @@ export class GameScene extends Phaser.Scene {
 
       if (transition.changed) {
         this.weaponAudio?.cancelReload();
+        this.pauseMenu?.setMobileVisible(false);
         this.events.emit('player-died');
       }
 
@@ -1243,6 +1244,7 @@ export class GameScene extends Phaser.Scene {
     _deltaX: number,
     deltaY: number,
   ): void => {
+    if (this.pauseMenu?.isOpen()) return;
     const minimumZoom = this.minimumAllowedZoom();
     this.setTargetZoom(wheelZoomTarget(
       this.targetZoom,
@@ -1649,7 +1651,9 @@ export class GameScene extends Phaser.Scene {
       this.coarsePointerQuery?.matches ?? window.matchMedia('(pointer: coarse)').matches,
     );
     this.mobileControls?.setVisible(this.mobileControlsEnabled);
-    this.pauseMenu?.setMobileVisible(this.mobileControlsEnabled);
+    this.pauseMenu?.setMobileVisible(
+      this.mobileControlsEnabled && isPlaying(this.sessionState),
+    );
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled

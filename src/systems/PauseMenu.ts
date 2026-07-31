@@ -3,7 +3,11 @@ import Phaser from 'phaser';
 import { GAME_REGISTRY_KEYS } from '../config/menuConfig';
 import { syncSoundEnabled } from '../effects/audioSettings';
 import { toggleSound } from '../logic/menu';
-import { isPointInBounds, pauseButtonBounds } from '../logic/pauseMenu';
+import {
+  createPauseMenuActionLayout,
+  isPointInBounds,
+  pauseButtonBounds,
+} from '../logic/pauseMenu';
 
 type PauseMenuView = 'main' | 'settings';
 
@@ -121,7 +125,6 @@ export class PauseMenu {
     const top = safeArea.top + 24;
     const bottom = Math.max(top, height - safeArea.bottom - 24);
     const centerX = left + (right - left) / 2;
-    const centerY = top + (bottom - top) / 2;
 
     const blocker = this.scene.add.rectangle(
       width / 2,
@@ -134,31 +137,69 @@ export class PauseMenu {
     this.overlay.add(blocker);
 
     if (this.view === 'settings') {
-      this.renderSettings(centerX, centerY, top, bottom);
+      this.renderSettings(centerX, top, bottom);
       return;
     }
 
-    this.addText(centerX, Math.max(top + 36, centerY - 150), 'PAUSED', 36, true);
-    this.addText(centerX, Math.max(top + 76, centerY - 108), 'ZOMBIE HORDE', 13, false, COLORS.muted);
-    this.addButton(centerX, centerY - 24, 'RESUME', () => this.hide());
-    this.addButton(centerX, centerY + 38, 'SETTINGS', () => {
+    const actionLayout = createPauseMenuActionLayout(top, bottom, 3);
+    this.addText(
+      centerX,
+      actionLayout.titleY,
+      'PAUSED',
+      actionLayout.titleFontSize,
+      true,
+    );
+    if (actionLayout.subtitleY !== null) {
+      this.addText(
+        centerX,
+        actionLayout.subtitleY,
+        'ZOMBIE HORDE',
+        13,
+        false,
+        COLORS.muted,
+      );
+    }
+    this.addButton(
+      centerX,
+      actionLayout.actionYs[0],
+      'RESUME',
+      () => this.hide(),
+      220,
+      actionLayout.buttonHeight,
+      actionLayout.buttonFontSize,
+    );
+    this.addButton(centerX, actionLayout.actionYs[1], 'SETTINGS', () => {
       this.view = 'settings';
       this.renderOverlay();
-    });
-    this.addButton(centerX, centerY + 100, 'MAIN MENU', this.onMainMenu);
+    }, 220, actionLayout.buttonHeight, actionLayout.buttonFontSize);
+    this.addButton(
+      centerX,
+      actionLayout.actionYs[2],
+      'MAIN MENU',
+      this.onMainMenu,
+      220,
+      actionLayout.buttonHeight,
+      actionLayout.buttonFontSize,
+    );
   }
 
   private renderSettings(
     centerX: number,
-    centerY: number,
     top: number,
     bottom: number,
   ): void {
     const soundEnabled = this.scene.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false;
-    this.addText(centerX, Math.max(top + 34, centerY - 130), 'SETTINGS', 32, true);
+    const actionLayout = createPauseMenuActionLayout(top, bottom, 2);
+    this.addText(
+      centerX,
+      actionLayout.titleY,
+      'SETTINGS',
+      Math.min(32, actionLayout.titleFontSize),
+      true,
+    );
     this.addButton(
       centerX,
-      centerY - 20,
+      actionLayout.actionYs[0],
       soundEnabled ? 'SOUND: ON' : 'SOUND: MUTED',
       () => {
         const next = toggleSound({ soundEnabled });
@@ -166,11 +207,14 @@ export class PauseMenu {
         syncSoundEnabled(this.scene.sound, next.soundEnabled);
         this.renderOverlay();
       },
+      220,
+      actionLayout.buttonHeight,
+      actionLayout.buttonFontSize,
     );
-    this.addButton(centerX, Math.min(bottom - 28, centerY + 72), 'BACK', () => {
+    this.addButton(centerX, actionLayout.actionYs[1], 'BACK', () => {
       this.view = 'main';
       this.renderOverlay();
-    }, 160);
+    }, 160, actionLayout.buttonHeight, actionLayout.buttonFontSize);
   }
 
   private addButton(
@@ -179,13 +223,15 @@ export class PauseMenu {
     label: string,
     onPress: () => void,
     width = 220,
+    height = 46,
+    fontSize = 16,
   ): void {
-    const background = this.scene.add.rectangle(x, y, width, 46, COLORS.panel)
+    const background = this.scene.add.rectangle(x, y, width, height, COLORS.panel)
       .setStrokeStyle(1, COLORS.accent)
       .setInteractive({ useHandCursor: true })
       .on('pointerup', onPress);
     this.overlay.add(background);
-    this.addText(x, y, label, 16, true);
+    this.addText(x, y, label, fontSize, true);
   }
 
   private addText(

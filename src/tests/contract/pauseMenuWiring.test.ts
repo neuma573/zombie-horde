@@ -10,9 +10,13 @@ describe('pause menu wiring', () => {
     // Phaser input and Scene rendering require the browser runtime, so this
     // contract keeps the adapter wiring visible without recreating Phaser.
     expect(gameScene).toContain('Phaser.Input.Keyboard.KeyCodes.ESC');
-    expect(gameScene).toContain('this.pauseMenu?.setMobileVisible(this.mobileControlsEnabled)');
     expect(gameScene).toContain('this.pauseMenu?.blocksGameplayPointer(pointer.x, pointer.y)');
     expect(gameScene).toContain('if (this.pauseMenu?.isOpen()) return;');
+    expect(gameScene).toContain('this.mobileControlsEnabled && isPlaying(this.sessionState)');
+    expect(gameScene).toContain('this.pauseMenu?.setMobileVisible(false);');
+    expect(gameScene).toMatch(
+      /private readonly handleWheelZoom = \([\s\S]*?if \(this\.pauseMenu\?\.isOpen\(\)\) return;/,
+    );
   });
 
   it('shares settings and exposes resume and main-menu actions', async () => {

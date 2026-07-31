@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { isPointInBounds, pauseButtonBounds } from '../../../logic/pauseMenu';
+import {
+  createPauseMenuActionLayout,
+  isPointInBounds,
+  pauseButtonBounds,
+} from '../../../logic/pauseMenu';
 
 describe('pause menu input boundary', () => {
   it('places the pause dead zone inside the mobile safe area', () => {
@@ -21,5 +25,21 @@ describe('pause menu input boundary', () => {
 
     expect(isPointInBounds({ x: 293, y: 42 }, bounds)).toBe(false);
     expect(isPointInBounds({ x: 332, y: 62 }, bounds)).toBe(false);
+  });
+
+  it('keeps compact pause actions inside a 240px viewport safe area', () => {
+    const top = 24;
+    const bottom = 216;
+    const layout = createPauseMenuActionLayout(top, bottom, 3);
+    const actionBounds = layout.actionYs.map((y) => ({
+      top: y - layout.buttonHeight / 2,
+      bottom: y + layout.buttonHeight / 2,
+    }));
+
+    expect(layout.subtitleY).toBeNull();
+    expect(actionBounds[0].top).toBeGreaterThanOrEqual(top);
+    expect(actionBounds[2].bottom).toBeLessThanOrEqual(bottom);
+    expect(actionBounds[1].top).toBeGreaterThan(actionBounds[0].bottom);
+    expect(actionBounds[2].top).toBeGreaterThan(actionBounds[1].bottom);
   });
 });
