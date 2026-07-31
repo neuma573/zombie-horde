@@ -70,26 +70,34 @@ describe('WeaponAudio', () => {
     expect(played).toHaveLength(4);
   });
 
-  it('advances reload cues with simulated time without Scene timers', () => {
+  it('preserves spacing between reload cues caught up in one render', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);
 
     audio.playReload('burstRifle', 1_000);
     audio.advanceReload(1_000);
+    audio.flushQueuedReloadCues();
 
+    expect(played).toHaveLength(2);
+    expect(scheduled.map(({ delay }) => delay)).toEqual([260, 560]);
+
+    scheduled[0].run();
+    scheduled[1].run();
     expect(played).toHaveLength(4);
-    expect(scheduled).toEqual([]);
   });
 
-  it('cancels reload cues before simulated time reaches them', () => {
-    const { runtime, played } = createAudioRuntime();
+  it('cancels queued reload cues when gameplay ends', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);
 
     audio.playReload('burstRifle', 1_000);
+    audio.advanceReload(1_000);
+    audio.flushQueuedReloadCues();
     const playedBeforeCancel = [...played];
     audio.cancelReload();
-    audio.advanceReload(1_000);
+    for (const event of scheduled) event.run();
 
+    expect(scheduled.every(({ removed }) => removed)).toBe(true);
     expect(played).toEqual(playedBeforeCancel);
   });
 });

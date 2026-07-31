@@ -551,6 +551,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.weaponAudio?.flushQueuedShots();
+    this.weaponAudio?.flushQueuedReloadCues();
 
     this.updatePlayerWeaponVisual();
     this.updateCameraPosition();
@@ -603,7 +604,7 @@ export class GameScene extends Phaser.Scene {
     for (const pickup of this.itemPickups) {
       pickup.advanceVisual(deltaMs);
     }
-    this.weaponAudio?.advanceReload(deltaMs);
+    this.weaponAudio?.advanceReload(deltaMs, audioDelayMs);
     const burstShotOffsets = this.weapon.updateBurst(deltaMs);
     for (const burstShotOffset of burstShotOffsets) {
       this.resolveHitscanShot(audioDelayMs + burstShotOffset);

@@ -30,11 +30,18 @@ interface ReloadTimeline {
   cues: Array<{ key: string; atMs: number }>;
 }
 
+interface QueuedReloadCue {
+  key: string;
+  offsetMs: number;
+}
+
 export class WeaponAudio {
   private readonly scene: WeaponAudioRuntime;
   private readonly variationIndices = new Map<WeaponId, number>();
   private shotTimers: AudioTimer[] = [];
+  private reloadTimers: AudioTimer[] = [];
   private queuedShots: QueuedShot[] = [];
+  private queuedReloadCues: QueuedReloadCue[] = [];
   private reloadTimeline?: ReloadTimeline;
   private activeTailKey?: string;
 
@@ -113,14 +120,18 @@ export class WeaponAudio {
     this.reloadTimeline = { elapsedMs: 0, cues };
   }
 
-  advanceReload(deltaMs: number): void {
+  advanceReload(deltaMs: number, offsetMs = 0): void {
     if (!this.reloadTimeline) return;
-    const endMs = this.reloadTimeline.elapsedMs + Math.max(0, deltaMs);
+    const startMs = this.reloadTimeline.elapsedMs;
+    const endMs = startMs + Math.max(0, deltaMs);
     const pending = [];
 
     for (const cue of this.reloadTimeline.cues) {
       if (cue.atMs <= endMs) {
-        this.scene.sound.play(cue.key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
+        this.queuedReloadCues.push({
+          key: cue.key,
+          offsetMs: Math.max(0, offsetMs + cue.atMs - startMs),
+        });
       } else {
         pending.push(cue);
       }
@@ -133,6 +144,28 @@ export class WeaponAudio {
     this.reloadTimeline = { elapsedMs: endMs, cues: pending };
   }
 
+  flushQueuedReloadCues(): void {
+    if (this.queuedReloadCues.length === 0) return;
+    const cues = [...this.queuedReloadCues].sort((first, second) => (
+      first.offsetMs - second.offsetMs
+    ));
+    this.queuedReloadCues = [];
+    const firstOffsetMs = cues[0].offsetMs;
+
+    for (const cue of cues) {
+      const delayMs = cue.offsetMs - firstOffsetMs;
+      if (delayMs === 0) {
+        this.scene.sound.play(cue.key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
+        continue;
+      }
+      const timer = this.scene.time.delayedCall(delayMs, () => {
+        this.reloadTimers = this.reloadTimers.filter((queued) => queued !== timer);
+        this.scene.sound.play(cue.key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
+      });
+      this.reloadTimers.push(timer);
+    }
+  }
+
   playEquip(weaponId: WeaponId): void {
     this.cancelReload();
     this.scene.sound.play(
@@ -143,6 +176,11 @@ export class WeaponAudio {
 
   cancelReload(): void {
     this.reloadTimeline = undefined;
+    this.queuedReloadCues = [];
+    for (const timer of this.reloadTimers) {
+      timer.remove(false);
+    }
+    this.reloadTimers = [];
     for (const definition of Object.values(WEAPON_AUDIO_CONFIG.weapons)) {
       for (const cue of definition.reloadCues) {
         this.scene.sound.stopByKey(cue.key);
