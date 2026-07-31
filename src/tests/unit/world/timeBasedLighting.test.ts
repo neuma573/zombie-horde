@@ -5,6 +5,7 @@ import {
   decayTransientLight,
   dampValue,
   darknessAlphaForTime,
+  lightingOverlayBounds,
   renderableDarknessAlpha,
   resolveFlashlightEnabled,
 } from '../../../logic/timeBasedLighting';
@@ -17,8 +18,8 @@ const darknessAt = (minuteOfDay: number): number => darknessAlphaForTime(
 describe('time-based lighting', () => {
   it('keeps daytime brighter than evening and night', () => {
     expect(darknessAt(12 * 60)).toBeCloseTo(0.08);
-    expect(darknessAt(19 * 60)).toBeCloseTo(0.43);
-    expect(darknessAt(23 * 60)).toBeCloseTo(0.78);
+    expect(darknessAt(19 * 60)).toBeCloseTo(0.52);
+    expect(darknessAt(23 * 60)).toBeCloseTo(0.96);
   });
 
   it('changes smoothly through dawn and dusk', () => {
@@ -77,8 +78,8 @@ describe('time-based lighting', () => {
   });
 
   it('disables darkness when the renderer cannot provide light masks', () => {
-    expect(renderableDarknessAlpha(0.78, false)).toBe(0);
-    expect(renderableDarknessAlpha(0.78, true)).toBe(0.78);
+    expect(renderableDarknessAlpha(0.96, false)).toBe(0);
+    expect(renderableDarknessAlpha(0.96, true)).toBe(0.96);
   });
 
   it('decays transient muzzle light using deltaMs', () => {
@@ -90,5 +91,20 @@ describe('time-based lighting', () => {
     expect(first).toBeLessThan(1);
     expect(second).toBeLessThan(first);
     expect(second).toBeCloseTo(whole);
+  });
+
+  it('overscans the darkness overlay beyond every viewport edge', () => {
+    expect(lightingOverlayBounds(390, 844)).toEqual({
+      x: -2,
+      y: -2,
+      width: 394,
+      height: 848,
+    });
+    expect(lightingOverlayBounds(1_920, 1_080)).toEqual({
+      x: -2,
+      y: -2,
+      width: 1_924,
+      height: 1_084,
+    });
   });
 });

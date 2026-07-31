@@ -2,14 +2,14 @@ import type { TimeBasedLightingConfig } from '../logic/timeBasedLighting';
 
 export const TIME_BASED_LIGHTING_CONFIG = {
   darknessKeyframes: [
-    { minuteOfDay: 0, darknessAlpha: 0.78 },
-    { minuteOfDay: 5 * 60, darknessAlpha: 0.78 },
+    { minuteOfDay: 0, darknessAlpha: 0.96 },
+    { minuteOfDay: 5 * 60, darknessAlpha: 0.96 },
     { minuteOfDay: 7 * 60, darknessAlpha: 0.08 },
     { minuteOfDay: 17 * 60, darknessAlpha: 0.08 },
-    { minuteOfDay: 21 * 60, darknessAlpha: 0.78 },
-    { minuteOfDay: 24 * 60, darknessAlpha: 0.78 },
+    { minuteOfDay: 21 * 60, darknessAlpha: 0.96 },
+    { minuteOfDay: 24 * 60, darknessAlpha: 0.96 },
   ],
-  ambientLightRadius: 120,
+  ambientLightRadius: 64,
   ambientTextureSize: 256,
   flashlightLength: 520,
   flashlightAngleRadians: Math.PI / 3,
