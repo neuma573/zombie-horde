@@ -29,6 +29,7 @@ export interface PauseMenuLayout {
 
 export class PauseMenu {
   private readonly scene: Phaser.Scene;
+  private readonly onPause: () => void;
   private readonly onResume: () => void;
   private readonly onMainMenu: () => void;
   private readonly pauseButton: Phaser.GameObjects.Container;
@@ -41,11 +42,13 @@ export class PauseMenu {
   constructor(
     scene: Phaser.Scene,
     layout: PauseMenuLayout,
+    onPause: () => void,
     onResume: () => void,
     onMainMenu: () => void,
   ) {
     this.scene = scene;
     this.layout = layout;
+    this.onPause = onPause;
     this.onResume = onResume;
     this.onMainMenu = onMainMenu;
     this.pauseButton = scene.add.container(0, 0).setDepth(950).setScrollFactor(0);
@@ -82,6 +85,7 @@ export class PauseMenu {
     this.view = 'main';
     this.pauseButton.setVisible(false);
     this.overlay.setVisible(true);
+    this.onPause();
     this.renderOverlay();
   }
 

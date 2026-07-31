@@ -17,6 +17,10 @@ describe('pause menu wiring', () => {
     expect(gameScene).toMatch(
       /private readonly handleWheelZoom = \([\s\S]*?if \(this\.pauseMenu\?\.isOpen\(\)\) return;/,
     );
+    expect(gameScene).toContain('this.time.paused = true;');
+    expect(gameScene).toContain('this.tweens.pauseAll();');
+    expect(gameScene).toContain('this.time.paused = false;');
+    expect(gameScene).toContain('this.tweens.resumeAll();');
   });
 
   it('shares settings and exposes resume and main-menu actions', async () => {
@@ -28,5 +32,7 @@ describe('pause menu wiring', () => {
     expect(pauseMenu).toContain("'MAIN MENU'");
     expect(pauseMenu).toContain('GAME_REGISTRY_KEYS.soundEnabled');
     expect(pauseMenu).toContain('syncSoundEnabled(this.scene.sound, next.soundEnabled)');
+    expect(pauseMenu).toContain('this.onPause();');
+    expect(pauseMenu).toContain('this.onResume();');
   });
 });

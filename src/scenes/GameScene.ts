@@ -398,8 +398,18 @@ export class GameScene extends Phaser.Scene {
         height: this.viewport.height,
         safeArea: this.readSafeArea(),
       },
-      () => this.resetMobileInput(),
-      () => this.scene.start('MainMenuScene'),
+      () => {
+        this.resetMobileInput();
+        this.pauseSceneManagers();
+      },
+      () => {
+        this.resumeSceneManagers();
+        this.resetMobileInput();
+      },
+      () => {
+        this.resumeSceneManagers();
+        this.scene.start('MainMenuScene');
+      },
     );
     this.supplyDropVisual = new SupplyDropVisual(this);
     this.uiCamera = this.cameras.add(
@@ -445,6 +455,7 @@ export class GameScene extends Phaser.Scene {
     window.addEventListener('blur', this.handleWindowBlur);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.resumeSceneManagers();
       this.cancelAllMobileInput();
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
       this.input.off(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
@@ -491,7 +502,6 @@ export class GameScene extends Phaser.Scene {
       if (this.pauseMenu?.isOpen()) {
         this.pauseMenu.hide();
       } else if (isPlaying(this.sessionState)) {
-        this.resetMobileInput();
         this.pauseMenu?.show();
       }
     }
@@ -1683,6 +1693,16 @@ export class GameScene extends Phaser.Scene {
     this.mobileMovement = { x: 0, y: 0 };
     this.playerInput = clearActiveInput(this.playerInput);
     this.mobileControls?.setJoystickPointer(null);
+  }
+
+  private pauseSceneManagers(): void {
+    this.time.paused = true;
+    this.tweens.pauseAll();
+  }
+
+  private resumeSceneManagers(): void {
+    this.time.paused = false;
+    this.tweens.resumeAll();
   }
 
   private cancelAllMobileInput(): void {
