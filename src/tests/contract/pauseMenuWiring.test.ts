@@ -21,6 +21,8 @@ describe('pause menu wiring', () => {
     expect(gameScene).toContain('this.tweens.pauseAll();');
     expect(gameScene).toContain('this.time.paused = false;');
     expect(gameScene).toContain('this.tweens.resumeAll();');
+    expect(gameScene.match(/this\.resetGameplayKeys\(\);/g)).toHaveLength(3);
+    expect(gameScene).toContain('for (const key of keys) key?.reset();');
   });
 
   it('shares settings and exposes resume and main-menu actions', async () => {

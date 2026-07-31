@@ -399,14 +399,17 @@ export class GameScene extends Phaser.Scene {
         safeArea: this.readSafeArea(),
       },
       () => {
+        this.resetGameplayKeys();
         this.resetMobileInput();
         this.pauseSceneManagers();
       },
       () => {
+        this.resetGameplayKeys();
         this.resumeSceneManagers();
         this.resetMobileInput();
       },
       () => {
+        this.resetGameplayKeys();
         this.resumeSceneManagers();
         this.scene.start('MainMenuScene');
       },
@@ -1693,6 +1696,17 @@ export class GameScene extends Phaser.Scene {
     this.mobileMovement = { x: 0, y: 0 };
     this.playerInput = clearActiveInput(this.playerInput);
     this.mobileControls?.setJoystickPointer(null);
+  }
+
+  private resetGameplayKeys(): void {
+    const keys: Array<Phaser.Input.Keyboard.Key | undefined> = [
+      ...Object.values(this.movementKeys ?? {}),
+      this.reloadKey,
+      this.pickupKey,
+      ...(this.weaponSlotKeys ?? []),
+      this.restartKey,
+    ];
+    for (const key of keys) key?.reset();
   }
 
   private pauseSceneManagers(): void {
