@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { WeaponAudio } from '../../../effects/WeaponAudio';
+import { WeaponAudio } from '../../effects/WeaponAudio';
 
 interface ScheduledAudio {
   delay: number;
