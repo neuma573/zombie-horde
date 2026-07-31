@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { discardGameplayKeyState } from '../../systems/gameplayKeyState';
+import { GameplayKeyStateGuard } from '../../systems/gameplayKeyState';
 
 interface GameplayKeyFixture {
+  keyCode: number;
+  enabled: boolean;
   isDown: boolean;
   justDown: boolean;
   reset(): void;
 }
 
-function createPressedKey(): GameplayKeyFixture {
+function createPressedKey(keyCode: number): GameplayKeyFixture {
   return {
+    keyCode,
+    enabled: true,
     isDown: true,
     justDown: true,
     reset() {
@@ -20,23 +24,31 @@ function createPressedKey(): GameplayKeyFixture {
 }
 
 describe('gameplay key state adapter', () => {
-  it('discards held and latched gameplay input before play resumes', () => {
-    const reload = createPressedKey();
-    const interact = createPressedKey();
-    const weaponSlot = createPressedKey();
+  it('suppresses held gameplay input until its physical keyup', () => {
+    const guard = new GameplayKeyStateGuard();
+    const reload = createPressedKey(82);
+    const interact = createPressedKey(69);
 
-    discardGameplayKeyState([reload, interact, weaponSlot]);
+    guard.suppressUntilKeyUp([reload, interact]);
 
-    expect(reload).toMatchObject({ isDown: false, justDown: false });
-    expect(interact).toMatchObject({ isDown: false, justDown: false });
-    expect(weaponSlot).toMatchObject({ isDown: false, justDown: false });
+    expect(reload).toMatchObject({ enabled: false, isDown: false, justDown: false });
+    expect(interact).toMatchObject({ enabled: false, isDown: false, justDown: false });
+
+    guard.releaseOnKeyUp(82);
+
+    expect(reload.enabled).toBe(true);
+    expect(interact.enabled).toBe(false);
   });
 
-  it('ignores unavailable gameplay keys', () => {
-    const reload = createPressedKey();
+  it('restores every suppressed key when gameplay is abandoned', () => {
+    const guard = new GameplayKeyStateGuard();
+    const reload = createPressedKey(82);
+    const interact = createPressedKey(69);
 
-    discardGameplayKeyState([undefined, reload]);
+    guard.suppressUntilKeyUp([undefined, reload, interact]);
+    guard.releaseAll();
 
-    expect(reload).toMatchObject({ isDown: false, justDown: false });
+    expect(reload.enabled).toBe(true);
+    expect(interact.enabled).toBe(true);
   });
 });

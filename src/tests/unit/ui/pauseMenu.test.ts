@@ -11,7 +11,7 @@ describe('pause menu input boundary', () => {
   it('places the pause dead zone inside the mobile safe area', () => {
     const bounds = pauseButtonBounds({
       width: 390,
-      safeArea: { top: 12, right: 8 },
+      safeArea: { top: 12, right: 8, left: 0 },
     });
 
     expect(bounds).toEqual({ left: 294, right: 370, top: 23, bottom: 61 });
@@ -21,7 +21,7 @@ describe('pause menu input boundary', () => {
   it('does not consume aiming immediately outside the pause button', () => {
     const bounds = pauseButtonBounds({
       width: 390,
-      safeArea: { top: 12, right: 8 },
+      safeArea: { top: 12, right: 8, left: 0 },
     });
 
     expect(isPointInBounds({ x: 293, y: 42 }, bounds)).toBe(false);
@@ -53,5 +53,14 @@ describe('pause menu input boundary', () => {
     expect(width).toBe(152);
     expect(centerX - width / 2).toBe(left);
     expect(centerX + width / 2).toBe(right);
+  });
+
+  it('clamps the mobile pause button to both horizontal safe edges', () => {
+    const bounds = pauseButtonBounds({
+      width: 80,
+      safeArea: { top: 0, right: 0, left: 0 },
+    });
+
+    expect(bounds).toEqual({ left: 12, right: 68, top: 11, bottom: 49 });
   });
 });

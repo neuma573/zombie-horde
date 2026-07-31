@@ -108,7 +108,14 @@ export class PauseMenu {
     const bounds = pauseButtonBounds(this.layout);
     const x = (bounds.left + bounds.right) / 2;
     const y = (bounds.top + bounds.bottom) / 2;
-    const background = this.scene.add.rectangle(x, y, 76, 38, COLORS.panel, 0.9)
+    const background = this.scene.add.rectangle(
+      x,
+      y,
+      bounds.right - bounds.left,
+      bounds.bottom - bounds.top,
+      COLORS.panel,
+      0.9,
+    )
       .setStrokeStyle(1, COLORS.accent)
       .setInteractive({ useHandCursor: true })
       .on('pointerup', () => this.show());

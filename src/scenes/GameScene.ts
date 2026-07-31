@@ -201,7 +201,7 @@ import {
   type SessionState,
 } from '../logic/session';
 import { DamageSystem } from '../systems/DamageSystem';
-import { discardGameplayKeyState } from '../systems/gameplayKeyState';
+import { GameplayKeyStateGuard } from '../systems/gameplayKeyState';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
 import { PauseMenu } from '../systems/PauseMenu';
@@ -214,6 +214,7 @@ const SUPPLY_CRATE_TARGET_ID = 'supply-drop-crate';
 const SPAWN_OFFSCREEN_WORLD_MARGIN = ZOMBIE_CONFIG.radius * 4 + 1;
 
 export class GameScene extends Phaser.Scene {
+  private readonly gameplayKeyStateGuard = new GameplayKeyStateGuard();
   private player!: Player;
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
@@ -400,17 +401,16 @@ export class GameScene extends Phaser.Scene {
         safeArea: this.readSafeArea(),
       },
       () => {
-        discardGameplayKeyState(this.gameplayKeys());
-        this.resetMobileInput();
+        this.gameplayKeyStateGuard.suppressUntilKeyUp(this.gameplayKeys());
+        this.clearActiveMobilePointers();
         this.pauseSceneManagers();
       },
       () => {
-        discardGameplayKeyState(this.gameplayKeys());
         this.resumeSceneManagers();
         this.resetMobileInput();
       },
       () => {
-        discardGameplayKeyState(this.gameplayKeys());
+        this.gameplayKeyStateGuard.releaseAll();
         this.resumeSceneManagers();
         this.scene.start('MainMenuScene');
       },
@@ -457,8 +457,10 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.addEventListener('touchcancel', this.handleNativeCancel);
     this.game.canvas.addEventListener('wheel', this.preventCanvasWheel, { passive: false });
     window.addEventListener('blur', this.handleWindowBlur);
+    window.addEventListener('keyup', this.handleNativeKeyUp);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.gameplayKeyStateGuard.releaseAll();
       this.resumeSceneManagers();
       this.cancelAllMobileInput();
       this.input.off(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
@@ -473,6 +475,7 @@ export class GameScene extends Phaser.Scene {
       this.game.canvas.removeEventListener('touchcancel', this.handleNativeCancel);
       this.game.canvas.removeEventListener('wheel', this.preventCanvasWheel);
       window.removeEventListener('blur', this.handleWindowBlur);
+      window.removeEventListener('keyup', this.handleNativeKeyUp);
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       this.hud?.destroy();
       this.hud = undefined;
@@ -1719,16 +1722,24 @@ export class GameScene extends Phaser.Scene {
     this.tweens.resumeAll();
   }
 
-  private cancelAllMobileInput(): void {
+  private readonly handleNativeKeyUp = (event: KeyboardEvent): void => {
+    this.gameplayKeyStateGuard.releaseOnKeyUp(event.keyCode);
+  };
+
+  private clearActiveMobilePointers(): void {
     this.activeMobilePointers.clear();
     this.pinchEligiblePointers.clear();
     this.mobilePointerPositions.clear();
     this.guardedMobilePointers.clear();
     this.resetPinchState();
+    this.resetMobileInput();
+  }
+
+  private cancelAllMobileInput(): void {
+    this.clearActiveMobilePointers();
     if (!isPlaying(this.sessionState)) this.mobileRestartArmed = true;
     this.aimSource = 'none';
     this.clearAimAssist();
-    this.resetMobileInput();
   }
 
   private refreshAimAssist(): Vector2 {
