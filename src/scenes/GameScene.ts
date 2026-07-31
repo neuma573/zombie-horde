@@ -203,6 +203,7 @@ import {
 import { DamageSystem } from '../systems/DamageSystem';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
+import { PauseMenu } from '../systems/PauseMenu';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -218,6 +219,7 @@ export class GameScene extends Phaser.Scene {
   private pickupKey?: Phaser.Input.Keyboard.Key;
   private weaponSlotKeys?: [Phaser.Input.Keyboard.Key, Phaser.Input.Keyboard.Key];
   private restartKey?: Phaser.Input.Keyboard.Key;
+  private pauseKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
@@ -230,6 +232,7 @@ export class GameScene extends Phaser.Scene {
   private mobileLayout?: MobileControlLayout;
   private mobileControlsEnabled = false;
   private mobileControls?: MobileControls;
+  private pauseMenu?: PauseMenu;
   private coarsePointerQuery?: MediaQueryList;
   private viewportOrientation?: ViewportOrientation;
   private readonly activeMobilePointers = new Set<number>();
@@ -388,6 +391,16 @@ export class GameScene extends Phaser.Scene {
     this.weaponAudio = new WeaponAudio(this);
     this.aimAssistVisual = new AimAssistVisual(this);
     this.mobileControls = new MobileControls(this);
+    this.pauseMenu = new PauseMenu(
+      this,
+      {
+        width: this.viewport.width,
+        height: this.viewport.height,
+        safeArea: this.readSafeArea(),
+      },
+      () => this.resetMobileInput(),
+      () => this.scene.start('MainMenuScene'),
+    );
     this.supplyDropVisual = new SupplyDropVisual(this);
     this.uiCamera = this.cameras.add(
       0,
@@ -417,6 +430,7 @@ export class GameScene extends Phaser.Scene {
       this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
     ] : undefined;
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    this.pauseKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
@@ -459,6 +473,8 @@ export class GameScene extends Phaser.Scene {
       this.timeBasedLighting = undefined;
       this.mobileControls?.destroy();
       this.mobileControls = undefined;
+      this.pauseMenu?.destroy();
+      this.pauseMenu = undefined;
       this.supplyDropVisual?.destroy();
       this.supplyDropVisual = undefined;
       this.weaponPickups.forEach((pickup) => pickup.destroy());
@@ -471,6 +487,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
+    if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
+      if (this.pauseMenu?.isOpen()) {
+        this.pauseMenu.hide();
+      } else if (isPlaying(this.sessionState)) {
+        this.resetMobileInput();
+        this.pauseMenu?.show();
+      }
+    }
+    if (this.pauseMenu?.isOpen()) return;
+
     this.player.updateVisual(
       deltaMs,
       Math.hypot(this.playerInput.movement.x, this.playerInput.movement.y) > 0.01,
@@ -1331,6 +1357,11 @@ export class GameScene extends Phaser.Scene {
     pointer: Phaser.Input.Pointer,
     currentlyOver: Phaser.GameObjects.GameObject[] = [],
   ): void {
+    if (this.pauseMenu?.blocksGameplayPointer(pointer.x, pointer.y)) {
+      if (pointer.wasTouch) this.guardedMobilePointers.add(pointer.id);
+      return;
+    }
+
     if (!isPlaying(this.sessionState)) {
       if (!pointer.wasTouch && isPrimaryFireInput(pointer)) {
         this.restartSession();
@@ -1406,6 +1437,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePointerMove(pointer: Phaser.Input.Pointer): void {
+    if (this.pauseMenu?.blocksGameplayPointer(pointer.x, pointer.y)) return;
+
     if (!pointer.wasTouch) {
       this.lastMouseScreenPoint = { x: pointer.x, y: pointer.y };
       if (!isPlaying(this.sessionState)) return;
@@ -1525,6 +1558,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
+    this.pauseMenu?.resize({
+      width: gameSize.width,
+      height: gameSize.height,
+      safeArea: this.readSafeArea(),
+    });
     const minimumZoom = this.minimumAllowedZoom();
     this.setTargetZoom(this.targetZoom);
     if (this.cameras.main.zoom < minimumZoom) {
@@ -1611,6 +1649,7 @@ export class GameScene extends Phaser.Scene {
       this.coarsePointerQuery?.matches ?? window.matchMedia('(pointer: coarse)').matches,
     );
     this.mobileControls?.setVisible(this.mobileControlsEnabled);
+    this.pauseMenu?.setMobileVisible(this.mobileControlsEnabled);
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled
