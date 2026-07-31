@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { syncSoundEnabled } from '../../../effects/audioSettings';
+import { syncSoundEnabled } from '../../effects/audioSettings';
 
 describe('audio settings', () => {
   it('mutes audio output when sound is disabled', () => {
