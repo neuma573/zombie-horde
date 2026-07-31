@@ -550,6 +550,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+    this.weaponAudio?.flushQueuedShots();
 
     this.updatePlayerWeaponVisual();
     this.updateCameraPosition();
@@ -602,6 +603,7 @@ export class GameScene extends Phaser.Scene {
     for (const pickup of this.itemPickups) {
       pickup.advanceVisual(deltaMs);
     }
+    this.weaponAudio?.advanceReload(deltaMs);
     const burstShotOffsets = this.weapon.updateBurst(deltaMs);
     for (const burstShotOffset of burstShotOffsets) {
       this.resolveHitscanShot(audioDelayMs + burstShotOffset);
@@ -784,10 +786,14 @@ export class GameScene extends Phaser.Scene {
     this.resolveHitscanShot();
   }
 
-  private resolveHitscanShot(audioDelayMs = 0): void {
+  private resolveHitscanShot(audioOffsetMs?: number): void {
     const aimDirection = this.refreshAimAssist();
     const weaponDefinition = this.weapon.getDefinition();
-    this.weaponAudio?.playShot(weaponDefinition.id, audioDelayMs);
+    if (audioOffsetMs === undefined) {
+      this.weaponAudio?.playShot(weaponDefinition.id);
+    } else {
+      this.weaponAudio?.queueShot(weaponDefinition.id, audioOffsetMs);
+    }
     const weaponConfig = weaponDefinition.config;
     const firstShot = consumeFirstShotAccuracy(this.firstShotAccuracy);
     this.firstShotAccuracy = firstShot.state;
