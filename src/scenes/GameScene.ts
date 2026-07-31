@@ -401,7 +401,7 @@ export class GameScene extends Phaser.Scene {
         safeArea: this.readSafeArea(),
       },
       () => {
-        this.gameplayKeyStateGuard.suppressUntilKeyUp(this.gameplayKeys());
+        this.gameplayKeyStateGuard.suppressHeldUntilKeyUp(this.gameplayKeys());
         this.clearActiveMobilePointers();
         this.pauseSceneManagers();
       },
@@ -457,6 +457,7 @@ export class GameScene extends Phaser.Scene {
     this.game.canvas.addEventListener('touchcancel', this.handleNativeCancel);
     this.game.canvas.addEventListener('wheel', this.preventCanvasWheel, { passive: false });
     window.addEventListener('blur', this.handleWindowBlur);
+    window.addEventListener('keydown', this.handleNativeKeyDown);
     window.addEventListener('keyup', this.handleNativeKeyUp);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -475,6 +476,7 @@ export class GameScene extends Phaser.Scene {
       this.game.canvas.removeEventListener('touchcancel', this.handleNativeCancel);
       this.game.canvas.removeEventListener('wheel', this.preventCanvasWheel);
       window.removeEventListener('blur', this.handleWindowBlur);
+      window.removeEventListener('keydown', this.handleNativeKeyDown);
       window.removeEventListener('keyup', this.handleNativeKeyUp);
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       this.hud?.destroy();
@@ -1724,6 +1726,14 @@ export class GameScene extends Phaser.Scene {
 
   private readonly handleNativeKeyUp = (event: KeyboardEvent): void => {
     this.gameplayKeyStateGuard.releaseOnKeyUp(event.keyCode);
+  };
+
+  private readonly handleNativeKeyDown = (event: KeyboardEvent): void => {
+    if (!this.pauseMenu?.isOpen()) return;
+    const key = this.gameplayKeys().find((candidate) => (
+      candidate?.keyCode === event.keyCode
+    ));
+    if (key) this.gameplayKeyStateGuard.suppressUntilKeyUp(key);
   };
 
   private clearActiveMobilePointers(): void {

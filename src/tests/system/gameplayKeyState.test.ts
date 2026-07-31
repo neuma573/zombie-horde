@@ -10,12 +10,12 @@ interface GameplayKeyFixture {
   reset(): void;
 }
 
-function createPressedKey(keyCode: number): GameplayKeyFixture {
+function createKey(keyCode: number, isDown: boolean): GameplayKeyFixture {
   return {
     keyCode,
     enabled: true,
-    isDown: true,
-    justDown: true,
+    isDown,
+    justDown: isDown,
     reset() {
       this.isDown = false;
       this.justDown = false;
@@ -26,26 +26,37 @@ function createPressedKey(keyCode: number): GameplayKeyFixture {
 describe('gameplay key state adapter', () => {
   it('suppresses held gameplay input until its physical keyup', () => {
     const guard = new GameplayKeyStateGuard();
-    const reload = createPressedKey(82);
-    const interact = createPressedKey(69);
+    const reload = createKey(82, true);
+    const interact = createKey(69, false);
 
-    guard.suppressUntilKeyUp([reload, interact]);
+    guard.suppressHeldUntilKeyUp([reload, interact]);
 
     expect(reload).toMatchObject({ enabled: false, isDown: false, justDown: false });
-    expect(interact).toMatchObject({ enabled: false, isDown: false, justDown: false });
+    expect(interact).toMatchObject({ enabled: true, isDown: false, justDown: false });
 
     guard.releaseOnKeyUp(82);
 
     expect(reload.enabled).toBe(true);
+    expect(interact.enabled).toBe(true);
+  });
+
+  it('suppresses a gameplay key pressed after pause opens', () => {
+    const guard = new GameplayKeyStateGuard();
+    const interact = createKey(69, true);
+
+    guard.suppressUntilKeyUp(interact);
+
     expect(interact.enabled).toBe(false);
+    guard.releaseOnKeyUp(69);
+    expect(interact.enabled).toBe(true);
   });
 
   it('restores every suppressed key when gameplay is abandoned', () => {
     const guard = new GameplayKeyStateGuard();
-    const reload = createPressedKey(82);
-    const interact = createPressedKey(69);
+    const reload = createKey(82, true);
+    const interact = createKey(69, true);
 
-    guard.suppressUntilKeyUp([undefined, reload, interact]);
+    guard.suppressHeldUntilKeyUp([undefined, reload, interact]);
     guard.releaseAll();
 
     expect(reload.enabled).toBe(true);

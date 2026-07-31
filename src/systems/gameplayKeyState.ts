@@ -1,21 +1,25 @@
 export interface ResettableGameplayKey {
   keyCode: number;
   enabled: boolean;
+  isDown: boolean;
   reset(): unknown;
 }
 
 export class GameplayKeyStateGuard {
   private readonly suppressedKeys = new Map<number, ResettableGameplayKey>();
 
-  suppressUntilKeyUp(
+  suppressHeldUntilKeyUp(
     keys: readonly (ResettableGameplayKey | undefined)[],
   ): void {
     for (const key of keys) {
-      if (!key) continue;
-      key.reset();
-      key.enabled = false;
-      this.suppressedKeys.set(key.keyCode, key);
+      if (key?.isDown) this.suppressUntilKeyUp(key);
     }
+  }
+
+  suppressUntilKeyUp(key: ResettableGameplayKey): void {
+    key.reset();
+    key.enabled = false;
+    this.suppressedKeys.set(key.keyCode, key);
   }
 
   releaseOnKeyUp(keyCode: number): void {
