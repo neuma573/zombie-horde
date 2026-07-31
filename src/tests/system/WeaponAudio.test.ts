@@ -86,6 +86,24 @@ describe('WeaponAudio', () => {
     expect(played).toHaveLength(4);
   });
 
+  it('keeps newly due reload cues behind timers from an earlier flush', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('burstRifle', 1_000);
+    audio.advanceReload(600);
+    audio.flushQueuedReloadCues();
+    audio.advanceReload(220);
+    audio.flushQueuedReloadCues();
+
+    expect(played).toHaveLength(2);
+    expect(scheduled.map(({ delay }) => delay)).toEqual([260, 340]);
+
+    scheduled[0].run();
+    scheduled[1].run();
+    expect(played).toHaveLength(4);
+  });
+
   it('cancels queued reload cues when gameplay ends', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);

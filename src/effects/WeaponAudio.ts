@@ -32,6 +32,7 @@ interface ReloadTimeline {
 
 interface QueuedReloadCue {
   key: string;
+  atMs: number;
   offsetMs: number;
 }
 
@@ -43,6 +44,8 @@ export class WeaponAudio {
   private queuedShots: QueuedShot[] = [];
   private queuedReloadCues: QueuedReloadCue[] = [];
   private reloadTimeline?: ReloadTimeline;
+  private reloadPlaybackTailAtMs?: number;
+  private reloadPlaybackTailDelayMs = 0;
   private activeTailKey?: string;
 
   static preload(scene: Phaser.Scene): void {
@@ -122,14 +125,20 @@ export class WeaponAudio {
 
   advanceReload(deltaMs: number, offsetMs = 0): void {
     if (!this.reloadTimeline) return;
+    const elapsedMs = Math.max(0, deltaMs);
+    this.reloadPlaybackTailDelayMs = Math.max(
+      0,
+      this.reloadPlaybackTailDelayMs - elapsedMs,
+    );
     const startMs = this.reloadTimeline.elapsedMs;
-    const endMs = startMs + Math.max(0, deltaMs);
+    const endMs = startMs + elapsedMs;
     const pending = [];
 
     for (const cue of this.reloadTimeline.cues) {
       if (cue.atMs <= endMs) {
         this.queuedReloadCues.push({
           key: cue.key,
+          atMs: cue.atMs,
           offsetMs: Math.max(0, offsetMs + cue.atMs - startMs),
         });
       } else {
@@ -147,22 +156,32 @@ export class WeaponAudio {
   flushQueuedReloadCues(): void {
     if (this.queuedReloadCues.length === 0) return;
     const cues = [...this.queuedReloadCues].sort((first, second) => (
-      first.offsetMs - second.offsetMs
+      first.atMs - second.atMs
     ));
     this.queuedReloadCues = [];
-    const firstOffsetMs = cues[0].offsetMs;
+    const firstCue = cues[0];
+    const hasPlaybackTail = this.reloadPlaybackTailAtMs !== undefined;
+    const firstDelayMs = hasPlaybackTail
+      ? this.reloadPlaybackTailDelayMs
+        + firstCue.atMs
+        - this.reloadPlaybackTailAtMs!
+      : 0;
 
     for (const cue of cues) {
-      const delayMs = cue.offsetMs - firstOffsetMs;
+      const delayMs = hasPlaybackTail
+        ? firstDelayMs + cue.atMs - firstCue.atMs
+        : cue.offsetMs - firstCue.offsetMs;
       if (delayMs === 0) {
         this.scene.sound.play(cue.key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
-        continue;
+      } else {
+        const timer = this.scene.time.delayedCall(delayMs, () => {
+          this.reloadTimers = this.reloadTimers.filter((queued) => queued !== timer);
+          this.scene.sound.play(cue.key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
+        });
+        this.reloadTimers.push(timer);
       }
-      const timer = this.scene.time.delayedCall(delayMs, () => {
-        this.reloadTimers = this.reloadTimers.filter((queued) => queued !== timer);
-        this.scene.sound.play(cue.key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
-      });
-      this.reloadTimers.push(timer);
+      this.reloadPlaybackTailAtMs = cue.atMs;
+      this.reloadPlaybackTailDelayMs = delayMs;
     }
   }
 
@@ -177,6 +196,8 @@ export class WeaponAudio {
   cancelReload(): void {
     this.reloadTimeline = undefined;
     this.queuedReloadCues = [];
+    this.reloadPlaybackTailAtMs = undefined;
+    this.reloadPlaybackTailDelayMs = 0;
     for (const timer of this.reloadTimers) {
       timer.remove(false);
     }
