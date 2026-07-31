@@ -3,7 +3,6 @@ import Phaser from 'phaser';
 import {
   decayTransientLight,
   dampValue,
-  lightingOverlayBounds,
   renderableDarknessAlpha,
   resolveFlashlightEnabled,
   type TimeBasedLightingConfig,
@@ -97,10 +96,7 @@ export class TimeBasedLighting {
   }
 
   resize(width: number, height: number): void {
-    const bounds = lightingOverlayBounds(width, height);
-    this.darkness
-      .setPosition(bounds.x, bounds.y)
-      .setSize(bounds.width, bounds.height);
+    this.darkness.setSize(Math.max(0, width), Math.max(0, height));
   }
 
   update(

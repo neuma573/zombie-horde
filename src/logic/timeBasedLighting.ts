@@ -26,23 +26,6 @@ export interface TimeBasedLightingConfig {
   muzzleFlashDecayRate: number;
 }
 
-export function lightingOverlayBounds(
-  width: number,
-  height: number,
-  overscan = 2,
-): { x: number; y: number; width: number; height: number } {
-  const safeWidth = Number.isFinite(width) ? Math.max(0, width) : 0;
-  const safeHeight = Number.isFinite(height) ? Math.max(0, height) : 0;
-  const safeOverscan = Number.isFinite(overscan) ? Math.max(0, overscan) : 0;
-
-  return {
-    x: -safeOverscan,
-    y: -safeOverscan,
-    width: safeWidth + safeOverscan * 2,
-    height: safeHeight + safeOverscan * 2,
-  };
-}
-
 export function dampValue(
   current: number,
   target: number,
