@@ -1,6 +1,7 @@
 export interface PauseButtonLayout {
   width: number;
-  safeArea: { top: number; right: number; left: number };
+  height: number;
+  safeArea: { top: number; right: number; bottom: number; left: number };
 }
 
 export interface RectangleBounds {
@@ -81,13 +82,22 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
   );
   const buttonWidth = Math.min(76, usableRight - usableLeft);
   const centerX = usableRight - buttonWidth / 2;
-  const centerY = layout.safeArea.top + 30;
+  const usableTop = Math.min(
+    layout.height,
+    Math.max(0, layout.safeArea.top + 11),
+  );
+  const usableBottom = Math.max(
+    usableTop,
+    Math.min(layout.height, layout.height - layout.safeArea.bottom - 11),
+  );
+  const buttonHeight = Math.min(38, usableBottom - usableTop);
+  const centerY = usableTop + buttonHeight / 2;
 
   return {
     left: centerX - buttonWidth / 2,
     right: centerX + buttonWidth / 2,
-    top: centerY - 19,
-    bottom: centerY + 19,
+    top: centerY - buttonHeight / 2,
+    bottom: centerY + buttonHeight / 2,
   };
 }
 

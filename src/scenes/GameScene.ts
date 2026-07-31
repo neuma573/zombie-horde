@@ -1838,11 +1838,13 @@ export class GameScene extends Phaser.Scene {
   };
 
   private readonly handleWindowBlur = (): void => {
+    this.gameplayKeyStateGuard.releaseAll();
     this.cancelAllMobileInput();
   };
 
   private readonly handleVisibilityChange = (): void => {
     if (document.visibilityState !== 'visible') {
+      this.gameplayKeyStateGuard.releaseAll();
       this.cancelAllMobileInput();
     }
   };
