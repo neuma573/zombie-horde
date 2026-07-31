@@ -105,4 +105,11 @@ describe('WeaponSystem', () => {
       cooldownRemainingMs: 0,
     });
   });
+
+  it('reports each overdue burst round at its simulated offset', () => {
+    const system = new WeaponSystem(BURST_RIFLE_WEAPON);
+
+    expect(system.fire()).toBe(true);
+    expect(system.updateBurst(1_000)).toEqual([65, 130]);
+  });
 });

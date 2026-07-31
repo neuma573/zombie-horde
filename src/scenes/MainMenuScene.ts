@@ -13,6 +13,7 @@ import {
   selectCharacterClass,
   toggleSound,
 } from '../logic/menu';
+import { syncSoundEnabled } from '../effects/audioSettings';
 
 type MenuView = 'main' | 'settings' | 'classSelect';
 
@@ -63,6 +64,10 @@ export class MainMenuScene extends Phaser.Scene {
         DEFAULT_GAME_SETTINGS.soundEnabled,
       );
     }
+    syncSoundEnabled(
+      this.sound,
+      this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false,
+    );
 
     this.scale.on(
       Phaser.Scale.Events.RESIZE,
@@ -199,6 +204,7 @@ export class MainMenuScene extends Phaser.Scene {
       () => {
         const next = toggleSound({ soundEnabled });
         this.registry.set(GAME_REGISTRY_KEYS.soundEnabled, next.soundEnabled);
+        syncSoundEnabled(this.sound, next.soundEnabled);
         this.render();
       },
     );

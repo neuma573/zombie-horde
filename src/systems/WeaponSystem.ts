@@ -38,8 +38,13 @@ export class WeaponSystem {
   }
 
   update(deltaMs: number): number {
+    return this.updateBurst(deltaMs).length;
+  }
+
+  updateBurst(deltaMs: number): readonly number[] {
     let remainingMs = Math.max(0, deltaMs);
-    let fired = 0;
+    let elapsedMs = 0;
+    const firedAtMs: number[] = [];
     const interval = this.getDefinition().config.burstIntervalMs ?? 0;
 
     while (
@@ -49,13 +54,14 @@ export class WeaponSystem {
       const elapsedBeforeShot = Math.max(0, this.burstTimerMs);
       this.advanceWeaponsBy(elapsedBeforeShot);
       remainingMs -= elapsedBeforeShot;
+      elapsedMs += elapsedBeforeShot;
       this.burstTimerMs = 0;
 
       if (!this.fireRound(true)) {
         this.cancelBurst();
         break;
       }
-      fired += 1;
+      firedAtMs.push(elapsedMs);
       this.burstShotsRemaining -= 1;
       this.burstTimerMs = interval;
     }
@@ -64,7 +70,7 @@ export class WeaponSystem {
     this.burstTimerMs = Math.max(0, this.burstTimerMs - remainingMs);
     const active = this.getOwnedWeapon();
     this.ammoReserves[active.definition.ammoType] = active.state.reserveAmmo;
-    return fired;
+    return firedAtMs;
   }
 
   fire(): boolean {
