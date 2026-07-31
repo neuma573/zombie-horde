@@ -6,6 +6,7 @@ import { toggleSound } from '../logic/menu';
 import {
   clampPauseActionWidth,
   createPauseMenuActionLayout,
+  fitPauseActionFontSize,
   isPointInBounds,
   pauseButtonBounds,
 } from '../logic/pauseMenu';
@@ -245,7 +246,10 @@ export class PauseMenu {
       .setInteractive({ useHandCursor: true })
       .on('pointerup', onPress);
     this.overlay.add(background);
-    this.addText(x, y, label, fontSize, true);
+    const fittedFontSize = fitPauseActionFontSize(label, width, fontSize);
+    if (fittedFontSize > 0) {
+      this.addText(x, y, label, fittedFontSize, true);
+    }
   }
 
   private addText(

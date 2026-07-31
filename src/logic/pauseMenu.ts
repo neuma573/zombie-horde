@@ -71,6 +71,23 @@ export function clampPauseActionWidth(
   );
 }
 
+export function fitPauseActionFontSize(
+  label: string,
+  buttonWidth: number,
+  requestedFontSize: number,
+): number {
+  const glyphWidthAtOnePixel = [...label].reduce(
+    (width, character) => width + (character === ' ' ? 0.35 : 0.7),
+    0,
+  );
+  if (glyphWidthAtOnePixel === 0) return Math.max(0, requestedFontSize);
+  const availableTextWidth = Math.max(0, buttonWidth - 8);
+  return Math.min(
+    Math.max(0, requestedFontSize),
+    availableTextWidth / glyphWidthAtOnePixel,
+  );
+}
+
 export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
   const usableLeft = Math.min(
     layout.width,

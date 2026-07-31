@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clampPauseActionWidth,
   createPauseMenuActionLayout,
+  fitPauseActionFontSize,
   isPointInBounds,
   pauseButtonBounds,
 } from '../../../logic/pauseMenu';
@@ -55,6 +56,15 @@ describe('pause menu input boundary', () => {
     expect(width).toBe(152);
     expect(centerX - width / 2).toBe(left);
     expect(centerX + width / 2).toBe(right);
+  });
+
+  it('fits action labels inside a clamped narrow button', () => {
+    const fontSize = fitPauseActionFontSize('MAIN MENU', 32, 16);
+    const estimatedTextWidth = fontSize * (8 * 0.7 + 0.35);
+
+    expect(fontSize).toBeLessThan(16);
+    expect(estimatedTextWidth).toBeLessThanOrEqual(24);
+    expect(fitPauseActionFontSize('RESUME', 220, 16)).toBe(16);
   });
 
   it('clamps the mobile pause button to both horizontal safe edges', () => {
