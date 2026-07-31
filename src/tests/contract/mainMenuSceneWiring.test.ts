@@ -19,5 +19,7 @@ describe('MainMenuScene wiring', () => {
     expect(menuScene).toContain(
       'this.registry.set(GAME_REGISTRY_KEYS.characterClassId, requestedClassId)',
     );
+    expect(menuScene).toContain("this.view = 'main';");
+    expect(menuScene).toContain('this.gameStartPending = false;');
   });
 });

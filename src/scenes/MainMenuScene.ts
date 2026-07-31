@@ -47,6 +47,11 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.view = 'main';
+    this.selectedClassId = null;
+    this.gameStartPending = false;
+    this.portraitLoadStarted = false;
+    this.portraitLoadFinished = false;
     document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
     if (debugUrl.searchParams.has('zombieAppearanceDebug')) {
