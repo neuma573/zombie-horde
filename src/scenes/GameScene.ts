@@ -539,7 +539,10 @@ export class GameScene extends Phaser.Scene {
     for (let step = 0; step < fixedSteps.stepCount; step += 1) {
       this.updateCameraZoom(SIMULATION_CONFIG.fixedStepMs);
       this.refreshStationaryMouseAim();
-      const simulation = this.advanceSimulationStep(SIMULATION_CONFIG.fixedStepMs);
+      const simulation = this.advanceSimulationStep(
+        SIMULATION_CONFIG.fixedStepMs,
+        step * SIMULATION_CONFIG.fixedStepMs,
+      );
       playerDamageEventCount += simulation.damageEventCount;
       if (simulation.died) {
         playerDied = true;
@@ -562,6 +565,7 @@ export class GameScene extends Phaser.Scene {
       this.sessionState = transition.state;
 
       if (transition.changed) {
+        this.weaponAudio?.cancelReload();
         this.events.emit('player-died');
       }
 
@@ -581,7 +585,10 @@ export class GameScene extends Phaser.Scene {
     this.playPlayerHitEffects(playerDamageEventCount);
   }
 
-  private advanceSimulationStep(deltaMs: number): { died: boolean; damageEventCount: number } {
+  private advanceSimulationStep(
+    deltaMs: number,
+    audioDelayMs = 0,
+  ): { died: boolean; damageEventCount: number } {
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
       this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
@@ -595,9 +602,9 @@ export class GameScene extends Phaser.Scene {
     for (const pickup of this.itemPickups) {
       pickup.advanceVisual(deltaMs);
     }
-    const burstShots = this.weapon.update(deltaMs);
-    for (let index = 0; index < burstShots; index += 1) {
-      this.resolveHitscanShot();
+    const burstShotOffsets = this.weapon.updateBurst(deltaMs);
+    for (const burstShotOffset of burstShotOffsets) {
+      this.resolveHitscanShot(audioDelayMs + burstShotOffset);
     }
     this.startMobileAutoReloadIfNeeded();
 
@@ -777,10 +784,10 @@ export class GameScene extends Phaser.Scene {
     this.resolveHitscanShot();
   }
 
-  private resolveHitscanShot(): void {
+  private resolveHitscanShot(audioDelayMs = 0): void {
     const aimDirection = this.refreshAimAssist();
     const weaponDefinition = this.weapon.getDefinition();
-    this.weaponAudio?.playShot(weaponDefinition.id);
+    this.weaponAudio?.playShot(weaponDefinition.id, audioDelayMs);
     const weaponConfig = weaponDefinition.config;
     const firstShot = consumeFirstShotAccuracy(this.firstShotAccuracy);
     this.firstShotAccuracy = firstShot.state;

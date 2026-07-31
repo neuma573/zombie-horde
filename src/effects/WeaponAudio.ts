@@ -6,10 +6,25 @@ import {
 } from '../config/weaponAudioConfig';
 import type { WeaponId } from '../logic/weapon';
 
+interface AudioTimer {
+  remove(dispatchCallback?: boolean): void;
+}
+
+interface WeaponAudioRuntime {
+  sound: {
+    play(key: string, config: { volume: number }): unknown;
+    stopByKey(key: string): unknown;
+  };
+  time: {
+    delayedCall(delay: number, callback: () => void): AudioTimer;
+  };
+}
+
 export class WeaponAudio {
-  private readonly scene: Phaser.Scene;
+  private readonly scene: WeaponAudioRuntime;
   private readonly variationIndices = new Map<WeaponId, number>();
-  private reloadTimers: Phaser.Time.TimerEvent[] = [];
+  private shotTimers: AudioTimer[] = [];
+  private reloadTimers: AudioTimer[] = [];
   private activeTailKey?: string;
 
   static preload(scene: Phaser.Scene): void {
@@ -20,11 +35,24 @@ export class WeaponAudio {
     }
   }
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: WeaponAudioRuntime) {
     this.scene = scene;
   }
 
-  playShot(weaponId: WeaponId): void {
+  playShot(weaponId: WeaponId, delayMs = 0): void {
+    const delay = Math.max(0, delayMs);
+    if (delay === 0) {
+      this.playShotNow(weaponId);
+      return;
+    }
+    const timer = this.scene.time.delayedCall(delay, () => {
+      this.shotTimers = this.shotTimers.filter((queued) => queued !== timer);
+      this.playShotNow(weaponId);
+    });
+    this.shotTimers.push(timer);
+  }
+
+  private playShotNow(weaponId: WeaponId): void {
     const definition = WEAPON_AUDIO_CONFIG.weapons[weaponId];
     const variationIndex = this.variationIndices.get(weaponId) ?? 0;
     const shotKey = definition.shotKeys[variationIndex % definition.shotKeys.length];
@@ -75,6 +103,10 @@ export class WeaponAudio {
   }
 
   destroy(): void {
+    for (const timer of this.shotTimers) {
+      timer.remove(false);
+    }
+    this.shotTimers = [];
     this.cancelReload();
     if (this.activeTailKey) {
       this.scene.sound.stopByKey(this.activeTailKey);
