@@ -8,4 +8,10 @@ describe('zombie balance', () => {
     expect(ZOMBIE_CONFIG.contactDamage).toBe(10);
     expect(ZOMBIE_CONFIG.attackIntervalMs).toBe(800);
   });
+
+  it('runs fast zombies at no less than twice normal speed', () => {
+    expect(ZOMBIE_CONFIG.fast.minimumSpeedMultiplier).toBeGreaterThanOrEqual(2);
+    expect(ZOMBIE_CONFIG.fast.maximumSpeedMultiplier)
+      .toBeGreaterThanOrEqual(ZOMBIE_CONFIG.fast.minimumSpeedMultiplier);
+  });
 });
