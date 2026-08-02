@@ -64,6 +64,7 @@ export class Zombie extends Phaser.GameObjects.Container {
       0,
     ),
     health: number = ZOMBIE_CONFIG.health,
+    readonly kind: 'normal' | 'fast' = 'normal',
   ) {
     const shadow = new Phaser.GameObjects.Ellipse(
       scene,

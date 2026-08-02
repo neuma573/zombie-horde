@@ -13,6 +13,7 @@ import { createZombieAppearance } from '../logic/zombieAppearance';
 import type { MovementBounds } from '../logic/movement';
 import type { Position } from '../logic/movement';
 import type { RectangleObstacle } from '../logic/obstacleCollision';
+import { fastZombieRandom, isFastZombieSpawn } from '../logic/fastZombie';
 
 export class SpawnSystem {
   private nextZombieId = 1;
@@ -32,6 +33,7 @@ export class SpawnSystem {
     playerPosition: Position,
     cameraView: SpawnExclusionRectangle,
     obstacles: readonly RectangleObstacle[],
+    waveNumber: number,
   ): Zombie | null {
     const id = this.nextZombieId;
     const position = getOffscreenEdgeSpawnPosition(
@@ -60,6 +62,11 @@ export class SpawnSystem {
         PISTOL_WEAPON.config.damage,
         ZOMBIE_CONFIG.durabilityShots,
       ),
+      isFastZombieSpawn(
+        waveNumber,
+        fastZombieRandom(this.seed, id - 1, 2),
+        ZOMBIE_CONFIG.fast,
+      ) ? 'fast' : 'normal',
     );
   }
 }
