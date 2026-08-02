@@ -137,7 +137,15 @@ import {
   type SupplyTriggerState,
 } from '../logic/supplyDrop';
 import { muzzleLightExposure } from '../logic/playerVisual';
-import type { ZombieAppearance } from '../logic/zombieAppearance';
+import {
+  zombieAppearanceSeedFromId,
+  type ZombieAppearance,
+} from '../logic/zombieAppearance';
+import {
+  advanceFastZombieRun,
+  createFastZombieRunState,
+  type FastZombieRunState,
+} from '../logic/fastZombie';
 import {
   resolveHitscan,
   type HitscanBlocker,
@@ -249,6 +257,7 @@ export class GameScene extends Phaser.Scene {
   private zombies: Zombie[] = [];
   private pathfindingGrid!: PathfindingGrid;
   private readonly zombieNavigation = new Map<string, ZombieNavigationState>();
+  private readonly fastZombieRuns = new Map<string, FastZombieRunState>();
   private pendingZombieSpawns = 0;
   private killCount = 0;
   private shotSequence = 0;
@@ -383,6 +392,7 @@ export class GameScene extends Phaser.Scene {
     this.timeBasedLighting.resize(this.viewport.width, this.viewport.height);
     this.zombies = [];
     this.zombieNavigation.clear();
+    this.fastZombieRuns.clear();
     this.killCount = 0;
     this.shotSequence = 0;
     this.recoilSeed = Math.floor(Math.random() * 0x1_0000_0000);
@@ -703,6 +713,19 @@ export class GameScene extends Phaser.Scene {
     );
 
     for (const zombie of this.zombies) {
+      let zombieSpeed = ZOMBIE_CONFIG.speed;
+      if (zombie.kind === 'fast') {
+        const run = advanceFastZombieRun(
+          this.fastZombieRuns.get(zombie.id)
+            ?? createFastZombieRunState(ZOMBIE_CONFIG.fast),
+          deltaMs,
+          Math.hypot(zombie.x - this.player.x, zombie.y - this.player.y),
+          zombieAppearanceSeedFromId(zombie.id),
+          ZOMBIE_CONFIG.fast,
+        );
+        this.fastZombieRuns.set(zombie.id, run.state);
+        if (run.isRunning) zombieSpeed *= run.state.speedMultiplier;
+      }
       const navigation = updateZombieNavigation(
         this.zombieNavigation.get(zombie.id) ?? createZombieNavigationState(),
         zombie,
@@ -721,7 +744,7 @@ export class GameScene extends Phaser.Scene {
       const velocity = zombieVelocityWithCrowdSpacing(
         zombie,
         navigation.target,
-        ZOMBIE_CONFIG.speed,
+        zombieSpeed,
         separationVelocity,
       );
       const desiredZombiePosition = moveZombieWithCrowdSpacing(
@@ -804,6 +827,7 @@ export class GameScene extends Phaser.Scene {
             this.cameras.main.zoom,
           ),
           movementObstacles,
+          this.wave.getState().waveNumber,
         );
         if (!zombie) break;
         this.zombies.push(zombie);
@@ -924,6 +948,7 @@ export class GameScene extends Phaser.Scene {
       this.killCount += deadIds.size;
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
       for (const id of deadIds) this.zombieNavigation.delete(id);
+      for (const id of deadIds) this.fastZombieRuns.delete(id);
 
       if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
         this.aimTargetId = null;

@@ -18,8 +18,8 @@ const darknessAt = (minuteOfDay: number): number => darknessAlphaForTime(
 describe('time-based lighting', () => {
   it('keeps daytime brighter than evening and night', () => {
     expect(darknessAt(12 * 60)).toBeCloseTo(0.08);
-    expect(darknessAt(19 * 60)).toBeCloseTo(0.43);
-    expect(darknessAt(23 * 60)).toBeCloseTo(0.78);
+    expect(darknessAt(19 * 60)).toBeCloseTo(0.52);
+    expect(darknessAt(23 * 60)).toBeCloseTo(0.96);
   });
 
   it('changes smoothly through dawn and dusk', () => {
@@ -78,8 +78,8 @@ describe('time-based lighting', () => {
   });
 
   it('disables darkness when the renderer cannot provide light masks', () => {
-    expect(renderableDarknessAlpha(0.78, false)).toBe(0);
-    expect(renderableDarknessAlpha(0.78, true)).toBe(0.78);
+    expect(renderableDarknessAlpha(0.96, false)).toBe(0);
+    expect(renderableDarknessAlpha(0.96, true)).toBe(0.96);
   });
 
   it('decays transient muzzle light using deltaMs', () => {
