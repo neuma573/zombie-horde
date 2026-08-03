@@ -7,6 +7,7 @@ import {
   isPointInBounds,
   pauseButtonBounds,
 } from '../../../logic/pauseMenu';
+import { createHudLayout } from '../../../logic/hud';
 
 describe('pause menu input boundary', () => {
   it('places the pause dead zone inside the mobile safe area', () => {
@@ -16,8 +17,8 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 12, right: 8, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 332, right: 370, top: 23, bottom: 57 });
-    expect(isPointInBounds({ x: 351, y: 40 }, bounds)).toBe(true);
+    expect(bounds).toEqual({ left: 322, right: 370, top: 75, bottom: 123 });
+    expect(isPointInBounds({ x: 346, y: 99 }, bounds)).toBe(true);
   });
 
   it('does not consume aiming immediately outside the pause button', () => {
@@ -27,8 +28,16 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 12, right: 8, bottom: 0, left: 0 },
     });
 
-    expect(isPointInBounds({ x: 331, y: 40 }, bounds)).toBe(false);
-    expect(isPointInBounds({ x: 351, y: 58 }, bounds)).toBe(false);
+    expect(isPointInBounds({ x: 321, y: 99 }, bounds)).toBe(false);
+    expect(isPointInBounds({ x: 346, y: 124 }, bounds)).toBe(false);
+  });
+
+  it('positions the mobile pause target below the ammunition HUD', () => {
+    const safeArea = { top: 12, right: 8, bottom: 0, left: 0 };
+    const hud = createHudLayout(390, 844, safeArea);
+    const pause = pauseButtonBounds({ width: 390, height: 844, safeArea });
+
+    expect(pause.top).toBeGreaterThan(hud.ammo.y + 24);
   });
 
   it('keeps compact pause actions inside a 240px viewport safe area', () => {
@@ -82,7 +91,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 30, right: 68, top: 11, bottom: 45 });
+    expect(bounds).toEqual({ left: 20, right: 68, top: 63, bottom: 111 });
   });
 
   it('shrinks the mobile pause button between vertical safe edges', () => {
@@ -92,7 +101,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 340, right: 378, top: 11, bottom: 37 });
+    expect(bounds).toEqual({ left: 330, right: 378, top: 11, bottom: 37 });
   });
 
   it('shrinks the mobile pause control on an extremely narrow viewport', () => {
@@ -101,6 +110,6 @@ describe('pause menu input boundary', () => {
       height: 844,
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
-    expect(bounds).toEqual({ left: 12, right: 18, top: 11, bottom: 45 });
+    expect(bounds).toEqual({ left: 12, right: 18, top: 63, bottom: 111 });
   });
 });

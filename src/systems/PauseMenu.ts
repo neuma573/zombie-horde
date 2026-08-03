@@ -110,23 +110,34 @@ export class PauseMenu {
     const bounds = pauseButtonBounds(this.layout);
     const x = (bounds.left + bounds.right) / 2;
     const y = (bounds.top + bounds.bottom) / 2;
+    const buttonWidth = bounds.right - bounds.left;
+    const buttonHeight = bounds.bottom - bounds.top;
+    const hitTarget = this.scene.add.rectangle(
+      x,
+      y,
+      buttonWidth,
+      buttonHeight,
+      COLORS.panel,
+      0.001,
+    )
+      .setInteractive({ useHandCursor: true })
+      .on('pointerup', () => this.show());
+    this.pauseButton.add(hitTarget);
+    const visualWidth = Math.min(38, buttonWidth);
+    const visualHeight = Math.min(34, buttonHeight);
     const background = this.scene.add.rectangle(
       x,
       y,
-      bounds.right - bounds.left,
-      bounds.bottom - bounds.top,
+      visualWidth,
+      visualHeight,
       COLORS.panel,
       0.9,
     )
-      .setStrokeStyle(1, COLORS.accent)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerup', () => this.show());
+      .setStrokeStyle(1, COLORS.accent);
     this.pauseButton.add(background);
-    const buttonWidth = bounds.right - bounds.left;
-    const buttonHeight = bounds.bottom - bounds.top;
-    const barWidth = Math.min(4, buttonWidth * 0.16);
-    const barHeight = Math.min(14, buttonHeight * 0.45);
-    const barGap = Math.min(5, buttonWidth * 0.2);
+    const barWidth = Math.min(4, visualWidth * 0.16);
+    const barHeight = Math.min(14, visualHeight * 0.45);
+    const barGap = Math.min(5, visualWidth * 0.2);
     if (barWidth > 0 && barHeight > 0) {
       const barOffset = barGap / 2 + barWidth / 2;
       this.pauseButton.add([
