@@ -121,30 +121,52 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
     bottom: initialButtonTop + buttonHeight,
   };
   const hud = createHudLayout(layout.width, layout.height, layout.safeArea);
-  const overlappingSlotBottom = hud.weaponSlots.reduce((bottom, slot) => {
-    const slotBounds = {
+  const slotBounds = hud.weaponSlots.map((slot) => ({
       left: slot.x - slot.width / 2,
       right: slot.x + slot.width / 2,
       top: slot.y - slot.height / 2,
       bottom: slot.y + slot.height / 2,
-    };
-    const overlaps = initialBounds.left < slotBounds.right
-      && initialBounds.right > slotBounds.left
-      && initialBounds.top < slotBounds.bottom
-      && initialBounds.bottom > slotBounds.top;
-    return overlaps ? Math.max(bottom, slotBounds.bottom) : bottom;
-  }, 0);
-  const buttonTop = overlappingSlotBottom > 0
-    ? Math.min(overlappingSlotBottom + 8, usableBottom - buttonHeight)
-    : initialButtonTop;
-  const centerY = buttonTop + buttonHeight / 2;
+  }));
+  const overlapsWeaponSlot = (bounds: RectangleBounds): boolean => (
+    slotBounds.some((slot) => (
+      bounds.left < slot.right
+      && bounds.right > slot.left
+      && bounds.top < slot.bottom
+      && bounds.bottom > slot.top
+    ))
+  );
+  if (!overlapsWeaponSlot(initialBounds)) return initialBounds;
 
-  return {
-    left: centerX - buttonWidth / 2,
-    right: centerX + buttonWidth / 2,
-    top: centerY - buttonHeight / 2,
-    bottom: centerY + buttonHeight / 2,
-  };
+  const lowestSlotBottom = Math.max(...slotBounds.map((slot) => slot.bottom));
+  const safeRight = Math.max(
+    0,
+    Math.min(layout.width, layout.width - layout.safeArea.right),
+  );
+  const fallbackCandidates: RectangleBounds[] = [
+    {
+      ...initialBounds,
+      top: lowestSlotBottom + 8,
+      bottom: lowestSlotBottom + 8 + buttonHeight,
+    },
+    {
+      left: safeRight - buttonWidth,
+      right: safeRight,
+      top: usableBottom - buttonHeight,
+      bottom: usableBottom,
+    },
+    {
+      left: safeRight - buttonWidth,
+      right: safeRight,
+      top: usableTop,
+      bottom: usableTop + buttonHeight,
+    },
+  ];
+  return fallbackCandidates.find((candidate) => (
+    candidate.left >= Math.max(0, layout.safeArea.left)
+    && candidate.top >= usableTop
+    && candidate.bottom <= usableBottom
+    && !overlapsWeaponSlot(candidate)
+  )) ?? initialBounds;
 }
 
 export function isPointInBounds(

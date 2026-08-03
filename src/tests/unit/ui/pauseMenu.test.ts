@@ -51,6 +51,22 @@ describe('pause menu input boundary', () => {
     );
   });
 
+  it('moves the pause target beside weapon slots when space below is short', () => {
+    const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
+    const hud = createHudLayout(200, 160, safeArea);
+    const pause = pauseButtonBounds({ width: 200, height: 160, safeArea });
+    const secondSlot = hud.weaponSlots[1];
+    const secondSlotBounds = {
+      left: secondSlot.x - secondSlot.width / 2,
+      right: secondSlot.x + secondSlot.width / 2,
+      top: secondSlot.y - secondSlot.height / 2,
+      bottom: secondSlot.y + secondSlot.height / 2,
+    };
+
+    expect(pause).toEqual({ left: 152, right: 200, top: 101, bottom: 149 });
+    expect(pause.left).toBeGreaterThanOrEqual(secondSlotBounds.right);
+  });
+
   it('keeps compact pause actions inside a 240px viewport safe area', () => {
     const top = 24;
     const bottom = 216;
