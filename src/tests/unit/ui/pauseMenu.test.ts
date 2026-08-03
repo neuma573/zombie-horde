@@ -92,6 +92,18 @@ describe('pause menu input boundary', () => {
     );
   });
 
+  it('uses the reserved pause column in very short views', () => {
+    const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
+    const hud = createHudLayout(200, 100, safeArea);
+    const pause = pauseButtonBounds({ width: 200, height: 100, safeArea });
+
+    expect(pause).toEqual({ left: 152, right: 200, top: 41, bottom: 89 });
+    expect(pause.left).toBeGreaterThanOrEqual(hud.topHudBounds.right);
+    expect(pause.left).toBeGreaterThanOrEqual(
+      hud.weaponSlots[1].x + hud.weaponSlots[1].width / 2,
+    );
+  });
+
   it('keeps compact pause actions inside a 240px viewport safe area', () => {
     const top = 24;
     const bottom = 216;
@@ -153,7 +165,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 330, right: 378, top: 11, bottom: 37 });
+    expect(bounds).toEqual({ left: 342, right: 390, top: 11, bottom: 37 });
   });
 
   it('shrinks the mobile pause control on an extremely narrow viewport', () => {

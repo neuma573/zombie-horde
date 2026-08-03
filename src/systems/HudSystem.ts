@@ -202,7 +202,9 @@ export class HudSystem {
     const layout = createHudLayout(width, height, safeArea);
 
     this.statusText.setPosition(layout.status.x, layout.status.y);
-    this.ammoText.setPosition(layout.ammo.x, layout.ammo.y);
+    this.ammoText
+      .setOrigin(layout.ammo.originX, 0)
+      .setPosition(layout.ammo.x, layout.ammo.y);
     this.drawWatch(layout.time);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;

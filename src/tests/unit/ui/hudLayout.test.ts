@@ -6,7 +6,7 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
 
     expect(layout.status).toEqual({ x: 114, y: 42 });
-    expect(layout.ammo).toEqual({ x: 246, y: 56 });
+    expect(layout.ammo).toEqual({ x: 246, y: 56, originX: 0 });
     expect(layout.time).toEqual({ x: 180, y: 42, width: 116, height: 48 });
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
@@ -28,7 +28,7 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
     expect(layout.status).toEqual({ x: 414, y: 12 });
-    expect(layout.ammo).toEqual({ x: 546, y: 26 });
+    expect(layout.ammo).toEqual({ x: 546, y: 26, originX: 0 });
     expect(layout.time).toEqual({ x: 480, y: 12, width: 116, height: 48 });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
     expect(layout.reload.x).toBeCloseTo(329.04);
@@ -61,5 +61,22 @@ describe('createHudLayout', () => {
     expect(secondSlot.x + secondSlot.width / 2).toBeLessThanOrEqual(111);
     expect(layout.weaponSlots[0].width).toBe(46);
     expect(layout.weaponSlots[1].width).toBe(46);
+  });
+
+  it('reserves the pause column from the top HUD in very short views', () => {
+    const layout = createHudLayout(
+      200,
+      100,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.time).toEqual({ x: 78, y: 12, width: 116, height: 48 });
+    expect(layout.ammo).toEqual({ x: 144, y: 26, originX: 1 });
+    expect(layout.topHudBounds).toEqual({
+      left: 0,
+      right: 152,
+      top: 12,
+      bottom: 60,
+    });
   });
 });
