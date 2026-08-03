@@ -4,8 +4,10 @@ import rifleIconUrl from '../assets/weapons/rifle.png';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../config/weaponAudioConfig';
 
+export const PEDESTRIAN_ARROW_TEXTURE_KEY = 'pedestrian-arrow';
+
 export const GAME_IMAGE_ASSETS = {
-  'pedestrian-arrow': pedestrianArrowUrl,
+  [PEDESTRIAN_ARROW_TEXTURE_KEY]: pedestrianArrowUrl,
   'weapon-pistol': pistolIconUrl,
   'weapon-rifle': rifleIconUrl,
 } as const;
