@@ -71,7 +71,7 @@ function pauseBounds(
   })), ...(mobileLayout ? [
     circleBounds(mobileLayout.fireGuard),
     circleBounds(mobileLayout.reloadGuard),
-    circleBounds(mobileLayout.interactionGuard),
+    circleBounds(mobileLayout.interactionHit),
     circleBounds(mobileLayout.joystick),
   ] : [])];
   const initialTop = Math.min(top + 52, bottom - height);

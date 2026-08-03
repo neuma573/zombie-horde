@@ -46,6 +46,7 @@ describe('createGameUiLayout', () => {
 
   it.each([
     [320, 360, { top: 0, right: 0, bottom: 0, left: 0 }],
+    [360, 360, { top: 0, right: 0, bottom: 0, left: 0 }],
     [390, 844, { top: 47, right: 0, bottom: 34, left: 0 }],
     [844, 390, { top: 0, right: 24, bottom: 21, left: 24 }],
   ])('keeps the mobile pause target clear at %dx%d', (width, height, safeArea) => {
@@ -65,7 +66,7 @@ describe('createGameUiLayout', () => {
         top: slot.y - slot.height / 2,
         bottom: slot.y + slot.height / 2,
       })),
-      ...[controls.fireGuard, controls.reloadGuard, controls.interactionGuard, controls.joystick]
+      ...[controls.fireGuard, controls.reloadGuard, controls.interactionHit, controls.joystick]
         .map((control) => ({
           left: control.x - control.radius,
           right: control.x + control.radius,
