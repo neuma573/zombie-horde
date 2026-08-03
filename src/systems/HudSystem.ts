@@ -3,8 +3,10 @@ import Phaser from 'phaser';
 import {
   constrainTooltipWidths,
   createHudLayout,
+  fitClockRenderScale,
   handleWeaponSlotPress,
   positionTooltip,
+  type HudLayout,
   type HudViewModel,
   type SafeAreaInsets,
   type TooltipPlacement,
@@ -32,6 +34,7 @@ const RARITY_COLORS = {
   epic: 0xb96cff,
   legendary: 0xffa63d,
 } as const;
+const WATCH_RENDER_HEIGHT = 48;
 
 export class HudSystem {
   private readonly statusText: Phaser.GameObjects.Text;
@@ -45,6 +48,7 @@ export class HudSystem {
   private readonly waveAnnouncementText: Phaser.GameObjects.Text;
   private readonly weaponSlotGraphics: Phaser.GameObjects.Graphics;
   private readonly weaponIcons: Phaser.GameObjects.Image[];
+  private weaponSlotLayout?: ReturnType<typeof createHudLayout>['weaponSlots'];
   private readonly pickupPanel: Phaser.GameObjects.Container;
   private readonly pickupPanelGraphics: Phaser.GameObjects.Graphics;
   private readonly pickupText: Phaser.GameObjects.Text;
@@ -54,6 +58,10 @@ export class HudSystem {
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
+  private statusMaxWidth: number | null = null;
+  private statusMaxHeight: number | null = null;
+  private ammoMaxWidth: number | null = null;
+  private ammoMaxHeight: number | null = null;
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -163,9 +171,11 @@ export class HudSystem {
   update(viewModel: HudViewModel): void {
     if (this.current?.statusText !== viewModel.statusText) {
       this.statusText.setText(viewModel.statusText);
+      this.fitStatusText();
     }
     if (this.current?.ammoText !== viewModel.ammoText) {
       this.ammoText.setText(viewModel.ammoText);
+      this.fitAmmoText();
     }
     if (this.current?.timeText !== viewModel.timeText) {
       this.clockText = viewModel.timeText;
@@ -194,21 +204,40 @@ export class HudSystem {
     this.showHoveredWeaponTooltip();
   }
 
-  resize(width: number, height: number, safeArea: SafeAreaInsets): void {
+  resize(
+    width: number,
+    height: number,
+    safeArea: SafeAreaInsets,
+    resolvedLayout?: HudLayout,
+  ): void {
     this.viewportWidth = width;
     this.viewportHeight = height;
     this.safeArea = { ...safeArea };
-    const layout = createHudLayout(width, height, safeArea);
+    const layout = resolvedLayout ?? createHudLayout(width, height, safeArea);
 
-    this.statusText.setPosition(layout.status.x, layout.status.y);
-    this.ammoText.setPosition(layout.ammo.x, layout.ammo.y);
+    this.statusText
+      .setOrigin(layout.status.originX, 0)
+      .setPosition(layout.status.x, layout.status.y)
+      .setVisible(layout.topHudVisible);
+    this.statusMaxWidth = layout.status.maxWidth;
+    this.statusMaxHeight = layout.status.maxHeight;
+    this.fitStatusText();
+    this.ammoText
+      .setOrigin(layout.ammo.originX, 0)
+      .setPosition(layout.ammo.x, layout.ammo.y)
+      .setVisible(layout.topHudVisible);
+    this.ammoMaxWidth = layout.ammo.maxWidth;
+    this.ammoMaxHeight = layout.ammo.maxHeight;
+    this.fitAmmoText();
     this.drawWatch(layout.time);
+    this.timeGraphics.setVisible(layout.topHudVisible);
+    this.timeMetaText.setVisible(layout.topHudVisible);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);
     this.waveBannerText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
     this.waveAnnouncementText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
-    this.positionWeaponSlots(layout.time.x, layout.time.y + layout.time.height + 30);
+    this.positionWeaponSlots(layout.weaponSlots);
     this.pickupPanelDefaultPosition = {
       x: width / 2,
       y: Math.min(height - 125, height * 0.68),
@@ -221,6 +250,22 @@ export class HudSystem {
       this.current?.reloadProgress ?? null,
       this.current?.reloadPrompt ?? null,
     );
+  }
+
+  setMobileInputMode(enabled: boolean): void {
+    if (enabled && this.hoveredWeaponSlot !== null) {
+      this.hoveredWeaponSlot = null;
+      this.showWeaponPickup(null);
+    }
+  }
+
+  applyLayout(
+    width: number,
+    height: number,
+    safeArea: SafeAreaInsets,
+    layout: HudLayout,
+  ): void {
+    this.resize(width, height, safeArea, layout);
   }
 
   destroy(): void {
@@ -318,7 +363,7 @@ export class HudSystem {
     this.watchLayout = layout;
     const { x, y, width, height } = layout;
     const left = x - width / 2;
-    const inset = 6;
+    const inset = Math.min(6, height / 4);
 
     this.timeGraphics
       .clear()
@@ -334,27 +379,56 @@ export class HudSystem {
         height - inset * 2,
         2,
       );
-    this.timeMetaText.setPosition(x, y + 8);
-    this.drawSegmentTime(x, y + 17);
+    this.timeMetaText.setPosition(x, y + height * (8 / WATCH_RENDER_HEIGHT));
+    const renderScale = Math.min(
+      fitClockRenderScale(width),
+      height / WATCH_RENDER_HEIGHT,
+    );
+    this.timeMetaText.setScale(renderScale);
+    this.drawSegmentTime(
+      x,
+      y + height * (17 / WATCH_RENDER_HEIGHT),
+      renderScale,
+    );
   }
 
-  private drawSegmentTime(centerX: number, top: number): void {
+  private fitAmmoText(): void {
+    this.ammoText.setScale(1);
+    if (this.ammoText.width === 0 || this.ammoText.height === 0) return;
+    this.ammoText.setScale(Math.min(
+      1,
+      this.ammoMaxWidth === null ? 1 : this.ammoMaxWidth / this.ammoText.width,
+      this.ammoMaxHeight === null ? 1 : this.ammoMaxHeight / this.ammoText.height,
+    ));
+  }
+
+  private fitStatusText(): void {
+    this.statusText.setScale(1);
+    if (this.statusText.width === 0 || this.statusText.height === 0) return;
+    this.statusText.setScale(Math.min(
+      1,
+      this.statusMaxWidth === null ? 1 : this.statusMaxWidth / this.statusText.width,
+      this.statusMaxHeight === null ? 1 : this.statusMaxHeight / this.statusText.height,
+    ));
+  }
+
+  private drawSegmentTime(centerX: number, top: number, scale: number): void {
     const digits = this.clockText.replace(':', '').padStart(4, '0').slice(-4);
-    const digitWidth = 13;
-    const digitGap = 3;
-    const colonWidth = 6;
+    const digitWidth = 13 * scale;
+    const digitGap = 3 * scale;
+    const colonWidth = 6 * scale;
     const totalWidth = digitWidth * 4 + digitGap * 3 + colonWidth;
     let x = centerX - totalWidth / 2;
 
     for (let index = 0; index < digits.length; index += 1) {
-      this.drawSegmentDigit(x, top, digits[index]);
+      this.drawSegmentDigit(x, top, digits[index], scale);
       x += digitWidth;
 
       if (index === 1) {
         x += colonWidth / 2;
         this.timeGraphics.fillStyle(0x151a13, this.clockColonVisible ? 0.9 : 0.1);
-        this.timeGraphics.fillCircle(x, top + 7, 1.3);
-        this.timeGraphics.fillCircle(x, top + 15, 1.3);
+        this.timeGraphics.fillCircle(x, top + 7 * scale, 1.3 * scale);
+        this.timeGraphics.fillCircle(x, top + 15 * scale, 1.3 * scale);
         x += colonWidth / 2;
       }
 
@@ -362,26 +436,36 @@ export class HudSystem {
     }
   }
 
-  private drawSegmentDigit(x: number, y: number, digit: string): void {
+  private drawSegmentDigit(
+    x: number,
+    y: number,
+    digit: string,
+    scale: number,
+  ): void {
     const active = new Set(segmentsForDigit(digit));
 
     for (const segment of SEVEN_SEGMENTS) {
       this.timeGraphics.fillStyle(0x151a13, active.has(segment) ? 0.92 : 0.1);
-      this.drawSegment(x, y, segment);
+      this.drawSegment(x, y, segment, scale);
     }
   }
 
-  private drawSegment(x: number, y: number, segment: SevenSegment): void {
+  private drawSegment(
+    x: number,
+    y: number,
+    segment: SevenSegment,
+    scale: number,
+  ): void {
     const horizontal = {
-      a: { x: x + 2, y, width: 9, height: 3 },
-      g: { x: x + 2, y: y + 10, width: 9, height: 3 },
-      d: { x: x + 2, y: y + 20, width: 9, height: 3 },
+      a: { x: x + 2 * scale, y, width: 9 * scale, height: 3 * scale },
+      g: { x: x + 2 * scale, y: y + 10 * scale, width: 9 * scale, height: 3 * scale },
+      d: { x: x + 2 * scale, y: y + 20 * scale, width: 9 * scale, height: 3 * scale },
     } as const;
     const vertical = {
-      f: { x, y: y + 2, width: 3, height: 8 },
-      b: { x: x + 10, y: y + 2, width: 3, height: 8 },
-      e: { x, y: y + 12, width: 3, height: 8 },
-      c: { x: x + 10, y: y + 12, width: 3, height: 8 },
+      f: { x, y: y + 2 * scale, width: 3 * scale, height: 8 * scale },
+      b: { x: x + 10 * scale, y: y + 2 * scale, width: 3 * scale, height: 8 * scale },
+      e: { x, y: y + 12 * scale, width: 3 * scale, height: 8 * scale },
+      c: { x: x + 10 * scale, y: y + 12 * scale, width: 3 * scale, height: 8 * scale },
     } as const;
     const bounds = segment === 'a' || segment === 'g' || segment === 'd'
       ? horizontal[segment]
@@ -426,21 +510,23 @@ export class HudSystem {
     this.reloadText.setVisible(true);
   }
 
-  private positionWeaponSlots(centerX: number, centerY: number): void {
-    const gap = 8;
-    const size = 46;
-    this.weaponIcons[0].setPosition(centerX - size / 2 - gap / 2, centerY);
-    this.weaponIcons[1].setPosition(centerX + size / 2 + gap / 2, centerY);
+  private positionWeaponSlots(
+    slots: ReturnType<typeof createHudLayout>['weaponSlots'],
+  ): void {
+    this.weaponSlotLayout = slots;
+    this.weaponIcons[0].setPosition(slots[0].x, slots[0].y);
+    this.weaponIcons[1].setPosition(slots[1].x, slots[1].y);
     this.drawWeaponSlots(this.current);
   }
 
   private drawWeaponSlots(viewModel?: HudViewModel): void {
-    if (!viewModel) return;
-    const size = 46;
+    if (!viewModel || !this.weaponSlotLayout) return;
     this.weaponSlotGraphics.clear();
 
     viewModel.weaponSlots.forEach((weapon, index) => {
       const icon = this.weaponIcons[index];
+      const slot = this.weaponSlotLayout![index];
+      const size = slot.width;
       const x = icon.x;
       const y = icon.y;
       const active = index === viewModel.activeWeaponSlot;
@@ -451,9 +537,10 @@ export class HudSystem {
         .lineStyle(active ? 3 : 1, active ? 0x65b5ff : 0x7d8790, 1)
         .strokeRoundedRect(x - size / 2, y - size / 2, size, size, 4);
       if (weapon) {
+        const iconSize = size <= 44 ? size : Math.min(38, size - 8);
         icon
           .setTexture(weapon.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle')
-          .setDisplaySize(38, 38)
+          .setDisplaySize(iconSize, iconSize)
           .setVisible(true);
       } else {
         icon.setVisible(false);

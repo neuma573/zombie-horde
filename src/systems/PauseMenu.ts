@@ -10,6 +10,7 @@ import {
   isPointInBounds,
   pauseButtonBounds,
 } from '../logic/pauseMenu';
+import type { UiBounds } from '../logic/gameUiLayout';
 
 type PauseMenuView = 'main' | 'settings';
 
@@ -20,6 +21,7 @@ const COLORS = {
   accent: 0xd7b45a,
   text: '#eef4f7',
   muted: '#9aabb5',
+  icon: 0xeef4f7,
 } as const;
 
 export interface PauseMenuLayout {
@@ -39,6 +41,7 @@ export class PauseMenu {
   private view: PauseMenuView = 'main';
   private open = false;
   private mobileVisible = false;
+  private resolvedPauseBounds?: UiBounds | null;
 
   constructor(
     scene: Phaser.Scene,
@@ -65,7 +68,11 @@ export class PauseMenu {
   blocksGameplayPointer(x: number, y: number): boolean {
     return this.open || (
       this.mobileVisible
-      && isPointInBounds({ x, y }, pauseButtonBounds(this.layout))
+      && this.resolvedPauseBounds !== null
+      && isPointInBounds(
+        { x, y },
+        this.resolvedPauseBounds ?? pauseButtonBounds(this.layout),
+      )
     );
   }
 
@@ -74,8 +81,9 @@ export class PauseMenu {
     this.pauseButton.setVisible(visible && !this.open);
   }
 
-  resize(layout: PauseMenuLayout): void {
+  resize(layout: PauseMenuLayout, pauseBounds?: UiBounds | null): void {
     this.layout = layout;
+    this.resolvedPauseBounds = pauseBounds;
     this.renderPauseButton();
     if (this.open) this.renderOverlay();
   }
@@ -106,31 +114,59 @@ export class PauseMenu {
 
   private renderPauseButton(): void {
     this.pauseButton.removeAll(true);
-    const bounds = pauseButtonBounds(this.layout);
+    if (this.resolvedPauseBounds === null) {
+      this.pauseButton.setVisible(false);
+      return;
+    }
+    const bounds = this.resolvedPauseBounds ?? pauseButtonBounds(this.layout);
     const x = (bounds.left + bounds.right) / 2;
     const y = (bounds.top + bounds.bottom) / 2;
+    const buttonWidth = bounds.right - bounds.left;
+    const buttonHeight = bounds.bottom - bounds.top;
+    const hitTarget = this.scene.add.rectangle(
+      x,
+      y,
+      buttonWidth,
+      buttonHeight,
+      COLORS.panel,
+      0.001,
+    )
+      .setInteractive({ useHandCursor: true })
+      .on('pointerup', () => this.show());
+    this.pauseButton.add(hitTarget);
+    const visualWidth = Math.min(38, buttonWidth);
+    const visualHeight = Math.min(34, buttonHeight);
     const background = this.scene.add.rectangle(
       x,
       y,
-      bounds.right - bounds.left,
-      bounds.bottom - bounds.top,
+      visualWidth,
+      visualHeight,
       COLORS.panel,
       0.9,
     )
-      .setStrokeStyle(1, COLORS.accent)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerup', () => this.show());
+      .setStrokeStyle(1, COLORS.accent);
     this.pauseButton.add(background);
-    const buttonWidth = bounds.right - bounds.left;
-    const labelFontSize = fitPauseTextFontSize('PAUSE', buttonWidth, 12);
-    if (labelFontSize > 0) {
-      const label = this.scene.add.text(x, y, 'PAUSE', {
-        color: COLORS.text,
-        fontFamily: 'Arial, sans-serif',
-        fontSize: `${labelFontSize}px`,
-        fontStyle: 'bold',
-      }).setOrigin(0.5);
-      this.pauseButton.add(label);
+    const barWidth = Math.min(4, visualWidth * 0.16);
+    const barHeight = Math.min(14, visualHeight * 0.45);
+    const barGap = Math.min(5, visualWidth * 0.2);
+    if (barWidth > 0 && barHeight > 0) {
+      const barOffset = barGap / 2 + barWidth / 2;
+      this.pauseButton.add([
+        this.scene.add.rectangle(
+          x - barOffset,
+          y,
+          barWidth,
+          barHeight,
+          COLORS.icon,
+        ),
+        this.scene.add.rectangle(
+          x + barOffset,
+          y,
+          barWidth,
+          barHeight,
+          COLORS.icon,
+        ),
+      ]);
     }
     this.pauseButton.setVisible(this.mobileVisible && !this.open);
   }

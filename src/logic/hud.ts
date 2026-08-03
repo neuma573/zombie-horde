@@ -148,12 +148,24 @@ export interface SafeAreaInsets {
 }
 
 export interface HudLayout {
-  status: { x: number; y: number };
-  ammo: { x: number; y: number };
+  status: {
+    x: number; y: number; originX: 0 | 1;
+    maxWidth: number | null; maxHeight: number | null;
+  };
+  ammo: {
+    x: number; y: number; originX: 0 | 1;
+    maxWidth: number | null; maxHeight: number | null;
+  };
   time: { x: number; y: number; width: number; height: number };
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
   waveBanner: { x: number; y: number };
+  topHudVisible: boolean;
+  topHudBounds: { left: number; right: number; top: number; bottom: number };
+  weaponSlots: readonly [
+    { x: number; y: number; width: number; height: number },
+    { x: number; y: number; width: number; height: number },
+  ];
 }
 
 const HUD_MARGIN = 12;
@@ -165,6 +177,18 @@ const RELOAD_HEIGHT = 10;
 const WATCH_WIDTH = 116;
 const WATCH_HEIGHT = 48;
 const WAVE_BANNER_HALF_HEIGHT = 24;
+const WEAPON_SLOT_SIZE = 46;
+const WEAPON_SLOT_GAP = 8;
+const MIN_WEAPON_SLOT_SIZE = 44;
+const PAUSE_TOUCH_TARGET_SIZE = 48;
+const CLOCK_RENDER_WIDTH = 67;
+
+export function fitClockRenderScale(watchWidth: number): number {
+  return Math.min(
+    1,
+    Math.max(0, watchWidth / CLOCK_RENDER_WIDTH),
+  );
+}
 
 export function createHudViewModel(state: HudState): HudViewModel {
   const remainingEnemies = Math.max(0, state.remainingToSpawn)
@@ -210,15 +234,53 @@ export function createHudLayout(
   width: number,
   height: number,
   safeArea: SafeAreaInsets,
+  options: { reserveMobilePause?: boolean } = {},
 ): HudLayout {
   const safeLeft = Math.max(0, safeArea.left) + HUD_MARGIN;
   const safeRight = Math.max(safeLeft, width - Math.max(0, safeArea.right) - HUD_MARGIN);
   const safeTop = Math.max(0, safeArea.top) + HUD_MARGIN;
   const safeBottom = Math.max(safeTop, height - Math.max(0, safeArea.bottom) - HUD_MARGIN);
   const usableWidth = Math.max(0, safeRight - safeLeft);
+  const viewportSafeLeft = Math.max(0, safeArea.left);
+  const viewportSafeRight = Math.max(
+    viewportSafeLeft,
+    width - Math.max(0, safeArea.right),
+  );
+  const pauseTargetLeft = options.reserveMobilePause === false
+    ? viewportSafeRight
+    : Math.max(viewportSafeLeft, viewportSafeRight - PAUSE_TOUCH_TARGET_SIZE);
+  const constrainedTopHud = options.reserveMobilePause !== false && safeBottom - safeTop
+    < WATCH_HEIGHT + PAUSE_TOUCH_TARGET_SIZE;
+  const integratedMobileLayout = options.reserveMobilePause === true;
+  const topHudRight = integratedMobileLayout || constrainedTopHud
+    ? Math.max(safeLeft, pauseTargetLeft - WATCH_SIDE_GAP)
+    : safeRight;
+  const topHudUsableWidth = Math.max(0, topHudRight - safeLeft);
+  const constrainedTopHudGap = constrainedTopHud
+    ? Math.min(WATCH_SIDE_GAP, topHudUsableWidth / 10)
+    : WATCH_SIDE_GAP;
+  const constrainedStatusWidth = constrainedTopHud
+    ? Math.min(96, topHudUsableWidth * 0.3)
+    : 0;
+  const constrainedAmmoWidth = constrainedTopHud
+    ? Math.min(64, topHudUsableWidth * 0.3)
+    : 0;
   const gameOverY = Math.min(safeBottom, Math.max(safeTop, (safeTop + safeBottom) / 2));
-  const watchWidth = Math.min(WATCH_WIDTH, usableWidth);
-  const watchCenterX = safeLeft + usableWidth / 2;
+  const watchWidth = Math.min(
+    WATCH_WIDTH,
+    constrainedTopHud
+      ? Math.max(
+        0,
+        topHudUsableWidth
+          - constrainedStatusWidth
+          - constrainedAmmoWidth
+          - constrainedTopHudGap * 2,
+      )
+      : topHudUsableWidth,
+  );
+  const watchCenterX = constrainedTopHud
+    ? safeLeft + constrainedStatusWidth + constrainedTopHudGap + watchWidth / 2
+    : safeLeft + topHudUsableWidth / 2;
   const waveBannerMinY = Math.min(safeBottom, safeTop + WAVE_BANNER_HALF_HEIGHT);
   const waveBannerMaxY = Math.max(
     waveBannerMinY,
@@ -233,21 +295,94 @@ export function createHudLayout(
     Math.max(RELOAD_MIN_WIDTH, usableWidth * RELOAD_WIDTH_RATIO),
     usableWidth,
   ));
+  const weaponSlotY = safeTop + WATCH_HEIGHT + 30;
+  const weaponSlotAvailableWidth = Math.max(
+    0,
+    pauseTargetLeft - viewportSafeLeft,
+  );
+  const fullWeaponRowWidth = WEAPON_SLOT_SIZE * 2 + WEAPON_SLOT_GAP;
+  const minimumWeaponRowWidth = MIN_WEAPON_SLOT_SIZE * 2;
+  const useFullWeaponRow = weaponSlotAvailableWidth >= fullWeaponRowWidth;
+  const useCompactWeaponRow = weaponSlotAvailableWidth >= minimumWeaponRowWidth;
+  const stackWeaponSlots = !useCompactWeaponRow;
+  const weaponSlotGap = useFullWeaponRow
+    ? WEAPON_SLOT_GAP
+    : useCompactWeaponRow
+      ? Math.min(
+        WEAPON_SLOT_GAP,
+        weaponSlotAvailableWidth - minimumWeaponRowWidth,
+      )
+      : WEAPON_SLOT_GAP;
+  const weaponSlotSize = useFullWeaponRow
+    ? WEAPON_SLOT_SIZE
+    : MIN_WEAPON_SLOT_SIZE;
+  const weaponGroupHalfWidth = weaponSlotSize + weaponSlotGap / 2;
+  const minimumWeaponCenterX = viewportSafeLeft + weaponGroupHalfWidth;
+  const maximumWeaponCenterX = Math.max(
+    minimumWeaponCenterX,
+    pauseTargetLeft - weaponGroupHalfWidth,
+  );
+  const weaponSlotCenterX = stackWeaponSlots
+    ? Math.min(
+      viewportSafeRight - weaponSlotSize / 2,
+      viewportSafeLeft + weaponSlotSize / 2,
+    )
+    : Math.min(
+      maximumWeaponCenterX,
+      Math.max(minimumWeaponCenterX, watchCenterX),
+    );
+  const weaponSlotOffset = stackWeaponSlots
+    ? 0
+    : weaponSlotSize / 2 + weaponSlotGap / 2;
+  const stackedWeaponHeight = weaponSlotSize * 2 + weaponSlotGap;
+  const viewportSafeTop = Math.max(0, safeArea.top);
+  const viewportSafeBottom = Math.max(
+    viewportSafeTop,
+    height - Math.max(0, safeArea.bottom),
+  );
+  const topHudHeight = stackWeaponSlots
+    ? Math.min(
+      WATCH_HEIGHT,
+      Math.max(
+        1,
+        viewportSafeBottom - safeTop - stackedWeaponHeight - 4,
+      ),
+    )
+    : WATCH_HEIGHT;
+  const preferredStackTop = safeTop + WATCH_HEIGHT + 52;
+  const minimumStackTopBelowHud = safeTop + topHudHeight + 4;
+  const stackedWeaponTop = stackWeaponSlots
+    ? Math.min(
+      preferredStackTop,
+      Math.max(minimumStackTopBelowHud, viewportSafeBottom - stackedWeaponHeight),
+    )
+    : preferredStackTop;
+  const stackedWeaponSlotY = stackedWeaponTop + weaponSlotSize / 2;
 
   return {
     status: {
-      x: watchCenterX - watchWidth / 2 - WATCH_SIDE_GAP,
+      x: constrainedTopHud
+        ? safeLeft
+        : watchCenterX - watchWidth / 2 - WATCH_SIDE_GAP,
       y: safeTop,
+      originX: constrainedTopHud ? 0 : 1,
+      maxWidth: constrainedTopHud ? constrainedStatusWidth : null,
+      maxHeight: topHudHeight,
     },
     ammo: {
-      x: watchCenterX + watchWidth / 2 + WATCH_SIDE_GAP,
-      y: safeTop + 14,
+      x: constrainedTopHud
+        ? topHudRight
+        : watchCenterX + watchWidth / 2 + WATCH_SIDE_GAP,
+      y: safeTop + Math.min(14, topHudHeight * 0.3),
+      originX: constrainedTopHud ? 1 : 0,
+      maxWidth: constrainedTopHud ? constrainedAmmoWidth : null,
+      maxHeight: topHudHeight,
     },
     time: {
       x: watchCenterX,
       y: safeTop,
       width: watchWidth,
-      height: WATCH_HEIGHT,
+      height: topHudHeight,
     },
     gameOver: {
       x: safeLeft + usableWidth / 2,
@@ -263,5 +398,30 @@ export function createHudLayout(
       x: safeLeft + usableWidth / 2,
       y: waveBannerY,
     },
+    topHudVisible: true,
+    topHudBounds: {
+      left: viewportSafeLeft,
+      right: integratedMobileLayout
+        ? topHudRight
+        : constrainedTopHud ? pauseTargetLeft : viewportSafeRight,
+      top: safeTop,
+      bottom: safeTop + topHudHeight,
+    },
+    weaponSlots: [
+      {
+        x: weaponSlotCenterX - weaponSlotOffset,
+        y: stackWeaponSlots ? stackedWeaponSlotY : weaponSlotY,
+        width: weaponSlotSize,
+        height: weaponSlotSize,
+      },
+      {
+        x: weaponSlotCenterX + weaponSlotOffset,
+        y: stackWeaponSlots
+          ? stackedWeaponSlotY + weaponSlotSize + weaponSlotGap
+          : weaponSlotY,
+        width: weaponSlotSize,
+        height: weaponSlotSize,
+      },
+    ],
   };
 }

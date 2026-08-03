@@ -1,3 +1,5 @@
+import { createLegacyPauseButtonBounds } from './gameUiLayout';
+
 export interface PauseButtonLayout {
   width: number;
   height: number;
@@ -89,33 +91,7 @@ export function fitPauseTextFontSize(
 }
 
 export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
-  const usableLeft = Math.min(
-    layout.width,
-    Math.max(0, layout.safeArea.left + 12),
-  );
-  const usableRight = Math.max(
-    usableLeft,
-    Math.min(layout.width, layout.width - layout.safeArea.right - 12),
-  );
-  const buttonWidth = Math.min(76, usableRight - usableLeft);
-  const centerX = usableRight - buttonWidth / 2;
-  const usableTop = Math.min(
-    layout.height,
-    Math.max(0, layout.safeArea.top + 11),
-  );
-  const usableBottom = Math.max(
-    usableTop,
-    Math.min(layout.height, layout.height - layout.safeArea.bottom - 11),
-  );
-  const buttonHeight = Math.min(38, usableBottom - usableTop);
-  const centerY = usableTop + buttonHeight / 2;
-
-  return {
-    left: centerX - buttonWidth / 2,
-    right: centerX + buttonWidth / 2,
-    top: centerY - buttonHeight / 2,
-    bottom: centerY + buttonHeight / 2,
-  };
+  return createLegacyPauseButtonBounds(layout);
 }
 
 export function isPointInBounds(
