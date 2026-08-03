@@ -165,7 +165,6 @@ import {
   canStartPinchFromRole,
   canRestartWithMobileTouch,
   classifyMobilePointer,
-  createMobileControlLayout,
   createMobilePointerOwnership,
   didViewportOrientationChange,
   getViewportOrientation,
@@ -208,6 +207,7 @@ import { GameplayKeyStateGuard } from '../systems/gameplayKeyState';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
 import { PauseMenu } from '../systems/PauseMenu';
+import { ResponsiveUiSystem } from '../systems/ResponsiveUiSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
@@ -238,6 +238,7 @@ export class GameScene extends Phaser.Scene {
   private mobileControlsEnabled = false;
   private mobileControls?: MobileControls;
   private pauseMenu?: PauseMenu;
+  private responsiveUi?: ResponsiveUiSystem;
   private coarsePointerQuery?: MediaQueryList;
   private viewportOrientation?: ViewportOrientation;
   private readonly activeMobilePointers = new Set<number>();
@@ -412,6 +413,11 @@ export class GameScene extends Phaser.Scene {
         this.scene.start('MainMenuScene');
       },
     );
+    this.responsiveUi = new ResponsiveUiSystem(
+      this.hud,
+      this.pauseMenu,
+      this.mobileControls,
+    );
     this.supplyDropVisual = new SupplyDropVisual(this);
     this.uiCamera = this.cameras.add(
       0,
@@ -424,7 +430,6 @@ export class GameScene extends Phaser.Scene {
     this.syncCameraLayers();
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
-    this.resizeHud();
     this.updateHud();
     this.updateSupplyDropVisual();
 
@@ -1591,11 +1596,6 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setViewport(0, 0, gameSize.width, gameSize.height);
     this.cameras.main.setBounds(0, 0, this.playArea.width, this.playArea.height);
     this.uiCamera?.setViewport(0, 0, gameSize.width, gameSize.height);
-    this.pauseMenu?.resize({
-      width: gameSize.width,
-      height: gameSize.height,
-      safeArea: this.readSafeArea(),
-    });
     const minimumZoom = this.minimumAllowedZoom();
     this.setTargetZoom(this.targetZoom);
     if (this.cameras.main.zoom < minimumZoom) {
@@ -1630,7 +1630,6 @@ export class GameScene extends Phaser.Scene {
     this.updateCameraPosition();
     this.updateTimeBasedLighting();
 
-    this.resizeHud();
     this.refreshInputMode();
   }
 
@@ -1671,20 +1670,20 @@ export class GameScene extends Phaser.Scene {
     this.hud?.update(viewModel);
   }
 
-  private resizeHud(): void {
-    this.hud?.resize(this.viewport.width, this.viewport.height, this.readSafeArea());
-  }
-
   private refreshInputMode(): void {
     const wasEnabled = this.mobileControlsEnabled;
     this.mobileControlsEnabled = shouldShowMobileControls(
       navigator.maxTouchPoints,
       this.coarsePointerQuery?.matches ?? window.matchMedia('(pointer: coarse)').matches,
     );
-    this.mobileControls?.setVisible(this.mobileControlsEnabled);
-    this.pauseMenu?.setMobileVisible(
-      this.mobileControlsEnabled && isPlaying(this.sessionState),
-    );
+    const safeArea = this.readSafeArea();
+    const pauseVisible = this.mobileControlsEnabled && isPlaying(this.sessionState);
+    const uiLayout = this.responsiveUi?.apply({
+      width: this.viewport.width,
+      height: this.viewport.height,
+      safeArea,
+      mobileControls: this.mobileControlsEnabled,
+    }, pauseVisible);
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled
@@ -1693,12 +1692,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.mobileControlsEnabled) {
       if (!wasEnabled) this.aimSource = 'mobile';
-      this.mobileLayout = createMobileControlLayout(
-        this.viewport.width,
-        this.viewport.height,
-        this.readSafeArea(),
-      );
-      this.mobileControls?.setLayout(this.mobileLayout);
+      this.mobileLayout = uiLayout?.mobileControlsLayout ?? undefined;
     } else {
       this.aimSource = 'mouse';
       this.mobileLayout = undefined;

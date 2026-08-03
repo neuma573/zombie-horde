@@ -1,4 +1,4 @@
-import { createHudLayout } from './hud';
+import { createLegacyPauseButtonBounds } from './gameUiLayout';
 
 export interface PauseButtonLayout {
   width: number;
@@ -91,84 +91,7 @@ export function fitPauseTextFontSize(
 }
 
 export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
-  const usableLeft = Math.min(
-    layout.width,
-    Math.max(0, layout.safeArea.left + 12),
-  );
-  const usableRight = Math.max(
-    usableLeft,
-    Math.min(layout.width, layout.width - layout.safeArea.right - 12),
-  );
-  const buttonWidth = Math.min(48, usableRight - usableLeft);
-  const centerX = usableRight - buttonWidth / 2;
-  const usableTop = Math.min(
-    layout.height,
-    Math.max(0, layout.safeArea.top + 11),
-  );
-  const usableBottom = Math.max(
-    usableTop,
-    Math.min(layout.height, layout.height - layout.safeArea.bottom - 11),
-  );
-  const buttonHeight = Math.min(48, usableBottom - usableTop);
-  const initialButtonTop = Math.min(
-    usableTop + 52,
-    usableBottom - buttonHeight,
-  );
-  const initialBounds = {
-    left: centerX - buttonWidth / 2,
-    right: centerX + buttonWidth / 2,
-    top: initialButtonTop,
-    bottom: initialButtonTop + buttonHeight,
-  };
-  const hud = createHudLayout(layout.width, layout.height, layout.safeArea);
-  const reservedHudBounds = [hud.topHudBounds, ...hud.weaponSlots.map((slot) => ({
-      left: slot.x - slot.width / 2,
-      right: slot.x + slot.width / 2,
-      top: slot.y - slot.height / 2,
-      bottom: slot.y + slot.height / 2,
-  }))];
-  const overlapsReservedHud = (bounds: RectangleBounds): boolean => (
-    reservedHudBounds.some((reserved) => (
-      bounds.left < reserved.right
-      && bounds.right > reserved.left
-      && bounds.top < reserved.bottom
-      && bounds.bottom > reserved.top
-    ))
-  );
-  if (!overlapsReservedHud(initialBounds)) return initialBounds;
-
-  const lowestSlotBottom = Math.max(
-    ...reservedHudBounds.slice(1).map((slot) => slot.bottom),
-  );
-  const safeRight = Math.max(
-    0,
-    Math.min(layout.width, layout.width - layout.safeArea.right),
-  );
-  const fallbackCandidates: RectangleBounds[] = [
-    {
-      ...initialBounds,
-      top: lowestSlotBottom + 8,
-      bottom: lowestSlotBottom + 8 + buttonHeight,
-    },
-    {
-      left: safeRight - buttonWidth,
-      right: safeRight,
-      top: usableBottom - buttonHeight,
-      bottom: usableBottom,
-    },
-    {
-      left: safeRight - buttonWidth,
-      right: safeRight,
-      top: usableTop,
-      bottom: usableTop + buttonHeight,
-    },
-  ];
-  return fallbackCandidates.find((candidate) => (
-    candidate.left >= Math.max(0, layout.safeArea.left)
-    && candidate.top >= usableTop
-    && candidate.bottom <= usableBottom
-    && !overlapsReservedHud(candidate)
-  )) ?? initialBounds;
+  return createLegacyPauseButtonBounds(layout);
 }
 
 export function isPointInBounds(

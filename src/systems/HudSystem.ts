@@ -6,6 +6,7 @@ import {
   fitClockRenderScale,
   handleWeaponSlotPress,
   positionTooltip,
+  type HudLayout,
   type HudViewModel,
   type SafeAreaInsets,
   type TooltipPlacement,
@@ -203,11 +204,16 @@ export class HudSystem {
     this.showHoveredWeaponTooltip();
   }
 
-  resize(width: number, height: number, safeArea: SafeAreaInsets): void {
+  resize(
+    width: number,
+    height: number,
+    safeArea: SafeAreaInsets,
+    resolvedLayout?: HudLayout,
+  ): void {
     this.viewportWidth = width;
     this.viewportHeight = height;
     this.safeArea = { ...safeArea };
-    const layout = createHudLayout(width, height, safeArea);
+    const layout = resolvedLayout ?? createHudLayout(width, height, safeArea);
 
     this.statusText
       .setOrigin(layout.status.originX, 0)
@@ -244,6 +250,22 @@ export class HudSystem {
       this.current?.reloadProgress ?? null,
       this.current?.reloadPrompt ?? null,
     );
+  }
+
+  setMobileInputMode(enabled: boolean): void {
+    if (enabled && this.hoveredWeaponSlot !== null) {
+      this.hoveredWeaponSlot = null;
+      this.showWeaponPickup(null);
+    }
+  }
+
+  applyLayout(
+    width: number,
+    height: number,
+    safeArea: SafeAreaInsets,
+    layout: HudLayout,
+  ): void {
+    this.resize(width, height, safeArea, layout);
   }
 
   destroy(): void {

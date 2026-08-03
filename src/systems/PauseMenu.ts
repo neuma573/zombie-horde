@@ -10,6 +10,7 @@ import {
   isPointInBounds,
   pauseButtonBounds,
 } from '../logic/pauseMenu';
+import type { UiBounds } from '../logic/gameUiLayout';
 
 type PauseMenuView = 'main' | 'settings';
 
@@ -40,6 +41,7 @@ export class PauseMenu {
   private view: PauseMenuView = 'main';
   private open = false;
   private mobileVisible = false;
+  private resolvedPauseBounds?: UiBounds | null;
 
   constructor(
     scene: Phaser.Scene,
@@ -66,7 +68,11 @@ export class PauseMenu {
   blocksGameplayPointer(x: number, y: number): boolean {
     return this.open || (
       this.mobileVisible
-      && isPointInBounds({ x, y }, pauseButtonBounds(this.layout))
+      && this.resolvedPauseBounds !== null
+      && isPointInBounds(
+        { x, y },
+        this.resolvedPauseBounds ?? pauseButtonBounds(this.layout),
+      )
     );
   }
 
@@ -75,8 +81,9 @@ export class PauseMenu {
     this.pauseButton.setVisible(visible && !this.open);
   }
 
-  resize(layout: PauseMenuLayout): void {
+  resize(layout: PauseMenuLayout, pauseBounds?: UiBounds | null): void {
     this.layout = layout;
+    this.resolvedPauseBounds = pauseBounds;
     this.renderPauseButton();
     if (this.open) this.renderOverlay();
   }
@@ -107,7 +114,11 @@ export class PauseMenu {
 
   private renderPauseButton(): void {
     this.pauseButton.removeAll(true);
-    const bounds = pauseButtonBounds(this.layout);
+    if (this.resolvedPauseBounds === null) {
+      this.pauseButton.setVisible(false);
+      return;
+    }
+    const bounds = this.resolvedPauseBounds ?? pauseButtonBounds(this.layout);
     const x = (bounds.left + bounds.right) / 2;
     const y = (bounds.top + bounds.bottom) / 2;
     const buttonWidth = bounds.right - bounds.left;

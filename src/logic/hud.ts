@@ -234,6 +234,7 @@ export function createHudLayout(
   width: number,
   height: number,
   safeArea: SafeAreaInsets,
+  options: { reserveMobilePause?: boolean } = {},
 ): HudLayout {
   const safeLeft = Math.max(0, safeArea.left) + HUD_MARGIN;
   const safeRight = Math.max(safeLeft, width - Math.max(0, safeArea.right) - HUD_MARGIN);
@@ -245,13 +246,13 @@ export function createHudLayout(
     viewportSafeLeft,
     width - Math.max(0, safeArea.right),
   );
-  const pauseTargetLeft = Math.max(
-    viewportSafeLeft,
-    viewportSafeRight - PAUSE_TOUCH_TARGET_SIZE,
-  );
-  const constrainedTopHud = safeBottom - safeTop
+  const pauseTargetLeft = options.reserveMobilePause === false
+    ? viewportSafeRight
+    : Math.max(viewportSafeLeft, viewportSafeRight - PAUSE_TOUCH_TARGET_SIZE);
+  const constrainedTopHud = options.reserveMobilePause !== false && safeBottom - safeTop
     < WATCH_HEIGHT + PAUSE_TOUCH_TARGET_SIZE;
-  const topHudRight = constrainedTopHud
+  const integratedMobileLayout = options.reserveMobilePause === true;
+  const topHudRight = integratedMobileLayout || constrainedTopHud
     ? Math.max(safeLeft, pauseTargetLeft - WATCH_SIDE_GAP)
     : safeRight;
   const topHudUsableWidth = Math.max(0, topHudRight - safeLeft);
@@ -400,7 +401,9 @@ export function createHudLayout(
     topHudVisible: true,
     topHudBounds: {
       left: viewportSafeLeft,
-      right: constrainedTopHud ? pauseTargetLeft : viewportSafeRight,
+      right: integratedMobileLayout
+        ? topHudRight
+        : constrainedTopHud ? pauseTargetLeft : viewportSafeRight,
       top: safeTop,
       bottom: safeTop + topHudHeight,
     },
