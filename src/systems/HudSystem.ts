@@ -208,15 +208,19 @@ export class HudSystem {
 
     this.statusText
       .setOrigin(layout.status.originX, 0)
-      .setPosition(layout.status.x, layout.status.y);
+      .setPosition(layout.status.x, layout.status.y)
+      .setVisible(layout.topHudVisible);
     this.statusMaxWidth = layout.status.maxWidth;
     this.fitStatusText();
     this.ammoText
       .setOrigin(layout.ammo.originX, 0)
-      .setPosition(layout.ammo.x, layout.ammo.y);
+      .setPosition(layout.ammo.x, layout.ammo.y)
+      .setVisible(layout.topHudVisible);
     this.ammoMaxWidth = layout.ammo.maxWidth;
     this.fitAmmoText();
     this.drawWatch(layout.time);
+    this.timeGraphics.setVisible(layout.topHudVisible);
+    this.timeMetaText.setVisible(layout.topHudVisible);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);

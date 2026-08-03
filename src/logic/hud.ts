@@ -154,6 +154,7 @@ export interface HudLayout {
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
   waveBanner: { x: number; y: number };
+  topHudVisible: boolean;
   topHudBounds: { left: number; right: number; top: number; bottom: number };
   weaponSlots: readonly [
     { x: number; y: number; width: number; height: number },
@@ -323,10 +324,16 @@ export function createHudLayout(
     height - Math.max(0, safeArea.bottom),
   );
   const preferredStackTop = safeTop + WATCH_HEIGHT + 52;
-  const stackedWeaponTop = Math.min(
-    preferredStackTop,
-    Math.max(viewportSafeTop, viewportSafeBottom - stackedWeaponHeight),
-  );
+  const minimumStackTopBelowHud = safeTop + WATCH_HEIGHT + 4;
+  const canFitStackBelowTopHud = !stackWeaponSlots
+    || viewportSafeBottom - minimumStackTopBelowHud >= stackedWeaponHeight;
+  const topHudVisible = !stackWeaponSlots || canFitStackBelowTopHud;
+  const stackedWeaponTop = canFitStackBelowTopHud
+    ? Math.min(
+      preferredStackTop,
+      Math.max(minimumStackTopBelowHud, viewportSafeBottom - stackedWeaponHeight),
+    )
+    : Math.max(viewportSafeTop, viewportSafeBottom - stackedWeaponHeight);
   const stackedWeaponSlotY = stackedWeaponTop + weaponSlotSize / 2;
 
   return {
@@ -366,11 +373,12 @@ export function createHudLayout(
       x: safeLeft + usableWidth / 2,
       y: waveBannerY,
     },
+    topHudVisible,
     topHudBounds: {
       left: viewportSafeLeft,
       right: constrainedTopHud ? pauseTargetLeft : viewportSafeRight,
-      top: safeTop,
-      bottom: safeTop + WATCH_HEIGHT,
+      top: topHudVisible ? safeTop : viewportSafeTop,
+      bottom: topHudVisible ? safeTop + WATCH_HEIGHT : viewportSafeTop,
     },
     weaponSlots: [
       {

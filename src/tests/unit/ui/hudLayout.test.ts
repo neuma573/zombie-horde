@@ -168,5 +168,22 @@ describe('createHudLayout', () => {
 
     expect(layout.weaponSlots[0].y - 22).toBe(24);
     expect(layout.weaponSlots[1].y + 22).toBe(120);
+    expect(layout.topHudVisible).toBe(false);
+    expect(layout.topHudBounds.bottom).toBeLessThanOrEqual(
+      layout.weaponSlots[0].y - 22,
+    );
+  });
+
+  it('keeps the top HUD when the stacked slots fit below it', () => {
+    const layout = createHudLayout(
+      100,
+      160,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.topHudVisible).toBe(true);
+    expect(layout.weaponSlots[0].y - 22).toBeGreaterThanOrEqual(
+      layout.topHudBounds.bottom,
+    );
   });
 });
