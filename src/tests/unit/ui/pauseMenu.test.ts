@@ -67,6 +67,19 @@ describe('pause menu input boundary', () => {
     expect(pause.left).toBeGreaterThanOrEqual(secondSlotBounds.right);
   });
 
+  it('keeps constrained pause fallbacks clear of the top HUD', () => {
+    const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
+    const hud = createHudLayout(195, 160, safeArea);
+    const pause = pauseButtonBounds({ width: 195, height: 160, safeArea });
+    const secondSlot = hud.weaponSlots[1];
+
+    expect(pause).toEqual({ left: 147, right: 195, top: 101, bottom: 149 });
+    expect(pause.left).toBeGreaterThanOrEqual(
+      secondSlot.x + secondSlot.width / 2,
+    );
+    expect(pause.top).toBeGreaterThanOrEqual(hud.topHudBounds.bottom);
+  });
+
   it('keeps compact pause actions inside a 240px viewport safe area', () => {
     const top = 24;
     const bottom = 216;

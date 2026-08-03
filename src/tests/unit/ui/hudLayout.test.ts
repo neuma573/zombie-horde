@@ -16,6 +16,12 @@ describe('createHudLayout', () => {
       { x: 153, y: 120, width: 46, height: 46 },
       { x: 207, y: 120, width: 46, height: 46 },
     ]);
+    expect(layout.topHudBounds).toEqual({
+      left: 0,
+      right: 360,
+      top: 42,
+      bottom: 90,
+    });
   });
 
   it('splits status blocks across a wide landscape safe area', () => {

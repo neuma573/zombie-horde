@@ -121,23 +121,25 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
     bottom: initialButtonTop + buttonHeight,
   };
   const hud = createHudLayout(layout.width, layout.height, layout.safeArea);
-  const slotBounds = hud.weaponSlots.map((slot) => ({
+  const reservedHudBounds = [hud.topHudBounds, ...hud.weaponSlots.map((slot) => ({
       left: slot.x - slot.width / 2,
       right: slot.x + slot.width / 2,
       top: slot.y - slot.height / 2,
       bottom: slot.y + slot.height / 2,
-  }));
-  const overlapsWeaponSlot = (bounds: RectangleBounds): boolean => (
-    slotBounds.some((slot) => (
-      bounds.left < slot.right
-      && bounds.right > slot.left
-      && bounds.top < slot.bottom
-      && bounds.bottom > slot.top
+  }))];
+  const overlapsReservedHud = (bounds: RectangleBounds): boolean => (
+    reservedHudBounds.some((reserved) => (
+      bounds.left < reserved.right
+      && bounds.right > reserved.left
+      && bounds.top < reserved.bottom
+      && bounds.bottom > reserved.top
     ))
   );
-  if (!overlapsWeaponSlot(initialBounds)) return initialBounds;
+  if (!overlapsReservedHud(initialBounds)) return initialBounds;
 
-  const lowestSlotBottom = Math.max(...slotBounds.map((slot) => slot.bottom));
+  const lowestSlotBottom = Math.max(
+    ...reservedHudBounds.slice(1).map((slot) => slot.bottom),
+  );
   const safeRight = Math.max(
     0,
     Math.min(layout.width, layout.width - layout.safeArea.right),
@@ -165,7 +167,7 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
     candidate.left >= Math.max(0, layout.safeArea.left)
     && candidate.top >= usableTop
     && candidate.bottom <= usableBottom
-    && !overlapsWeaponSlot(candidate)
+    && !overlapsReservedHud(candidate)
   )) ?? initialBounds;
 }
 

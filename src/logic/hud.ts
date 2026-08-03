@@ -154,6 +154,7 @@ export interface HudLayout {
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
   waveBanner: { x: number; y: number };
+  topHudBounds: { left: number; right: number; top: number; bottom: number };
   weaponSlots: readonly [
     { x: number; y: number; width: number; height: number },
     { x: number; y: number; width: number; height: number },
@@ -171,6 +172,7 @@ const WATCH_HEIGHT = 48;
 const WAVE_BANNER_HALF_HEIGHT = 24;
 const WEAPON_SLOT_SIZE = 46;
 const WEAPON_SLOT_GAP = 8;
+const PAUSE_TOUCH_TARGET_SIZE = 48;
 
 export function createHudViewModel(state: HudState): HudViewModel {
   const remainingEnemies = Math.max(0, state.remainingToSpawn)
@@ -241,6 +243,17 @@ export function createHudLayout(
   ));
   const weaponSlotY = safeTop + WATCH_HEIGHT + 30;
   const weaponSlotOffset = WEAPON_SLOT_SIZE / 2 + WEAPON_SLOT_GAP / 2;
+  const weaponGroupHalfWidth = WEAPON_SLOT_SIZE + WEAPON_SLOT_GAP / 2;
+  const viewportSafeRight = Math.max(
+    safeLeft,
+    width - Math.max(0, safeArea.right),
+  );
+  const pauseTargetLeft = viewportSafeRight - PAUSE_TOUCH_TARGET_SIZE;
+  const canReservePauseColumn = pauseTargetLeft - safeLeft
+    >= weaponGroupHalfWidth * 2;
+  const weaponSlotCenterX = canReservePauseColumn
+    ? Math.min(watchCenterX, pauseTargetLeft - weaponGroupHalfWidth)
+    : watchCenterX;
 
   return {
     status: {
@@ -271,15 +284,21 @@ export function createHudLayout(
       x: safeLeft + usableWidth / 2,
       y: waveBannerY,
     },
+    topHudBounds: {
+      left: Math.max(0, safeArea.left),
+      right: viewportSafeRight,
+      top: safeTop,
+      bottom: safeTop + WATCH_HEIGHT,
+    },
     weaponSlots: [
       {
-        x: watchCenterX - weaponSlotOffset,
+        x: weaponSlotCenterX - weaponSlotOffset,
         y: weaponSlotY,
         width: WEAPON_SLOT_SIZE,
         height: WEAPON_SLOT_SIZE,
       },
       {
-        x: watchCenterX + weaponSlotOffset,
+        x: weaponSlotCenterX + weaponSlotOffset,
         y: weaponSlotY,
         width: WEAPON_SLOT_SIZE,
         height: WEAPON_SLOT_SIZE,
