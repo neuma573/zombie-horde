@@ -97,7 +97,7 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
     usableLeft,
     Math.min(layout.width, layout.width - layout.safeArea.right - 12),
   );
-  const buttonWidth = Math.min(76, usableRight - usableLeft);
+  const buttonWidth = Math.min(38, usableRight - usableLeft);
   const centerX = usableRight - buttonWidth / 2;
   const usableTop = Math.min(
     layout.height,
@@ -107,7 +107,7 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
     usableTop,
     Math.min(layout.height, layout.height - layout.safeArea.bottom - 11),
   );
-  const buttonHeight = Math.min(38, usableBottom - usableTop);
+  const buttonHeight = Math.min(34, usableBottom - usableTop);
   const centerY = usableTop + buttonHeight / 2;
 
   return {

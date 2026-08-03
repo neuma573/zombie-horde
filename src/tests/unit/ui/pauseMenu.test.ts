@@ -16,8 +16,8 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 12, right: 8, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 294, right: 370, top: 23, bottom: 61 });
-    expect(isPointInBounds({ x: 332, y: 42 }, bounds)).toBe(true);
+    expect(bounds).toEqual({ left: 332, right: 370, top: 23, bottom: 57 });
+    expect(isPointInBounds({ x: 351, y: 40 }, bounds)).toBe(true);
   });
 
   it('does not consume aiming immediately outside the pause button', () => {
@@ -27,8 +27,8 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 12, right: 8, bottom: 0, left: 0 },
     });
 
-    expect(isPointInBounds({ x: 293, y: 42 }, bounds)).toBe(false);
-    expect(isPointInBounds({ x: 332, y: 62 }, bounds)).toBe(false);
+    expect(isPointInBounds({ x: 331, y: 40 }, bounds)).toBe(false);
+    expect(isPointInBounds({ x: 351, y: 58 }, bounds)).toBe(false);
   });
 
   it('keeps compact pause actions inside a 240px viewport safe area', () => {
@@ -82,7 +82,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 12, right: 68, top: 11, bottom: 49 });
+    expect(bounds).toEqual({ left: 30, right: 68, top: 11, bottom: 45 });
   });
 
   it('shrinks the mobile pause button between vertical safe edges', () => {
@@ -92,18 +92,15 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 302, right: 378, top: 11, bottom: 37 });
+    expect(bounds).toEqual({ left: 340, right: 378, top: 11, bottom: 37 });
   });
 
-  it('hides the mobile pause label when the control has no text room', () => {
+  it('shrinks the mobile pause control on an extremely narrow viewport', () => {
     const bounds = pauseButtonBounds({
       width: 30,
       height: 844,
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
-    const buttonWidth = bounds.right - bounds.left;
-
-    expect(buttonWidth).toBe(6);
-    expect(fitPauseTextFontSize('PAUSE', buttonWidth, 12)).toBe(0);
+    expect(bounds).toEqual({ left: 12, right: 18, top: 11, bottom: 45 });
   });
 });

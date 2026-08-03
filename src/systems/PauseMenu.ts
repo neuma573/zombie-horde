@@ -20,6 +20,7 @@ const COLORS = {
   accent: 0xd7b45a,
   text: '#eef4f7',
   muted: '#9aabb5',
+  icon: 0xeef4f7,
 } as const;
 
 export interface PauseMenuLayout {
@@ -122,15 +123,28 @@ export class PauseMenu {
       .on('pointerup', () => this.show());
     this.pauseButton.add(background);
     const buttonWidth = bounds.right - bounds.left;
-    const labelFontSize = fitPauseTextFontSize('PAUSE', buttonWidth, 12);
-    if (labelFontSize > 0) {
-      const label = this.scene.add.text(x, y, 'PAUSE', {
-        color: COLORS.text,
-        fontFamily: 'Arial, sans-serif',
-        fontSize: `${labelFontSize}px`,
-        fontStyle: 'bold',
-      }).setOrigin(0.5);
-      this.pauseButton.add(label);
+    const buttonHeight = bounds.bottom - bounds.top;
+    const barWidth = Math.min(4, buttonWidth * 0.16);
+    const barHeight = Math.min(14, buttonHeight * 0.45);
+    const barGap = Math.min(5, buttonWidth * 0.2);
+    if (barWidth > 0 && barHeight > 0) {
+      const barOffset = barGap / 2 + barWidth / 2;
+      this.pauseButton.add([
+        this.scene.add.rectangle(
+          x - barOffset,
+          y,
+          barWidth,
+          barHeight,
+          COLORS.icon,
+        ),
+        this.scene.add.rectangle(
+          x + barOffset,
+          y,
+          barWidth,
+          barHeight,
+          COLORS.icon,
+        ),
+      ]);
     }
     this.pauseButton.setVisible(this.mobileVisible && !this.open);
   }
