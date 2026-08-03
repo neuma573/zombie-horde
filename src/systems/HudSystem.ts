@@ -56,6 +56,7 @@ export class HudSystem {
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
+  private ammoMaxWidth: number | null = null;
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -168,6 +169,7 @@ export class HudSystem {
     }
     if (this.current?.ammoText !== viewModel.ammoText) {
       this.ammoText.setText(viewModel.ammoText);
+      this.fitAmmoText();
     }
     if (this.current?.timeText !== viewModel.timeText) {
       this.clockText = viewModel.timeText;
@@ -206,6 +208,8 @@ export class HudSystem {
     this.ammoText
       .setOrigin(layout.ammo.originX, 0)
       .setPosition(layout.ammo.x, layout.ammo.y);
+    this.ammoMaxWidth = layout.ammo.maxWidth;
+    this.fitAmmoText();
     this.drawWatch(layout.time);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
@@ -342,6 +346,12 @@ export class HudSystem {
     const renderScale = fitClockRenderScale(width);
     this.timeMetaText.setScale(renderScale);
     this.drawSegmentTime(x, y + 17, renderScale);
+  }
+
+  private fitAmmoText(): void {
+    this.ammoText.setScale(1);
+    if (this.ammoMaxWidth === null || this.ammoText.width === 0) return;
+    this.ammoText.setScale(Math.min(1, this.ammoMaxWidth / this.ammoText.width));
   }
 
   private drawSegmentTime(centerX: number, top: number, scale: number): void {

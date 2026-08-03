@@ -6,7 +6,12 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
 
     expect(layout.status).toEqual({ x: 114, y: 42 });
-    expect(layout.ammo).toEqual({ x: 246, y: 56, originX: 0 });
+    expect(layout.ammo).toEqual({
+      x: 246,
+      y: 56,
+      originX: 0,
+      maxWidth: null,
+    });
     expect(layout.time).toEqual({ x: 180, y: 42, width: 116, height: 48 });
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
@@ -28,7 +33,12 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
     expect(layout.status).toEqual({ x: 414, y: 12 });
-    expect(layout.ammo).toEqual({ x: 546, y: 26, originX: 0 });
+    expect(layout.ammo).toEqual({
+      x: 546,
+      y: 26,
+      originX: 0,
+      maxWidth: null,
+    });
     expect(layout.time).toEqual({ x: 480, y: 12, width: 116, height: 48 });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
     expect(layout.reload.x).toBeCloseTo(329.04);
@@ -70,8 +80,14 @@ describe('createHudLayout', () => {
       { top: 0, right: 0, bottom: 0, left: 0 },
     );
 
-    expect(layout.time).toEqual({ x: 78, y: 12, width: 116, height: 48 });
-    expect(layout.ammo).toEqual({ x: 144, y: 26, originX: 1 });
+    expect(layout.time.x).toBeCloseTo(47.6);
+    expect(layout.time.y).toBe(12);
+    expect(layout.time.width).toBeCloseTo(71.2);
+    expect(layout.time.height).toBe(48);
+    expect(layout.ammo.x).toBe(144);
+    expect(layout.ammo.y).toBe(26);
+    expect(layout.ammo.originX).toBe(1);
+    expect(layout.ammo.maxWidth).toBeCloseTo(52.8);
     expect(layout.topHudBounds).toEqual({
       left: 0,
       right: 152,
@@ -88,8 +104,8 @@ describe('createHudLayout', () => {
     );
     const renderScale = fitClockRenderScale(layout.time.width);
 
-    expect(layout.time.width).toBe(32);
-    expect(67 * renderScale).toBeLessThanOrEqual(layout.time.width - 12);
+    expect(layout.time.width).toBeCloseTo(11.2);
+    expect(67 * renderScale).toBeLessThanOrEqual(layout.time.width);
   });
 
   it('stacks weapon slots without shrinking their touch targets', () => {
@@ -105,5 +121,16 @@ describe('createHudLayout', () => {
     expect(layout.weaponSlots[1].y).toBeGreaterThan(
       layout.weaponSlots[0].y + layout.weaponSlots[0].height / 2,
     );
+  });
+
+  it('keeps stacked weapon slots inside short viewports', () => {
+    const layout = createHudLayout(
+      100,
+      160,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.weaponSlots[0].y - 22).toBeGreaterThanOrEqual(0);
+    expect(layout.weaponSlots[1].y + 22).toBeLessThanOrEqual(160);
   });
 });
