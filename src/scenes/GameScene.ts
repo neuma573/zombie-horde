@@ -36,17 +36,12 @@ import { BuildingVisual } from '../effects/BuildingVisual';
 import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
-import {
-  PEDESTRIAN_ARROW_TEXTURE_KEY,
-  WorldBackdrop,
-} from '../effects/WorldBackdrop';
+import { WorldBackdrop } from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import { SupplyDropVisual } from '../effects/SupplyDropVisual';
 import { WeaponAudio } from '../effects/WeaponAudio';
 import { syncSoundEnabled } from '../effects/audioSettings';
-import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
-import pistolIconUrl from '../assets/weapons/pistol.png';
-import rifleIconUrl from '../assets/weapons/rifle.png';
+import { preloadGameAssets } from '../effects/gameAssetPreloader';
 import { WeaponPickup, WEAPON_PICKUP_RADIUS } from '../entities/WeaponPickup';
 import { ItemPickup } from '../entities/ItemPickup';
 import {
@@ -296,16 +291,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    WeaponAudio.preload(this);
-    if (!this.textures.exists(PEDESTRIAN_ARROW_TEXTURE_KEY)) {
-      this.load.image(PEDESTRIAN_ARROW_TEXTURE_KEY, pedestrianArrowUrl);
-    }
-    if (!this.textures.exists('weapon-pistol')) {
-      this.load.image('weapon-pistol', pistolIconUrl);
-    }
-    if (!this.textures.exists('weapon-rifle')) {
-      this.load.image('weapon-rifle', rifleIconUrl);
-    }
+    preloadGameAssets(this);
   }
 
   create(): void {

@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 describe('MainMenuScene wiring', () => {
-  it('connects lazy loading, responsive resize, and class selection', async () => {
+  it('connects eager asset loading, responsive resize, and class selection', async () => {
     const menuScenePath = new URL('../../scenes/MainMenuScene.ts', import.meta.url);
     const menuScene = await readFile(menuScenePath, 'utf8');
 
@@ -11,7 +11,9 @@ describe('MainMenuScene wiring', () => {
     // recreating the browser and Phaser runtime. TESTING.md permits a source
     // contract when a structured value cannot be imported or executed.
     expect(menuScene).toContain("await import('./GameScene')");
-    expect(menuScene).not.toMatch(/preload\(\): void[\s\S]*this\.load\.image/);
+    expect(menuScene).toContain('preload(): void {\n    preloadGameAssets(this);\n  }');
+    expect(menuScene).not.toContain('this.load.start()');
+    expect(menuScene).not.toContain('LOADING SURVIVORS...');
     expect(menuScene).toContain('new ResizeObserver');
     expect(menuScene).toContain("window.visualViewport?.addEventListener(\n      'resize'");
     expect(menuScene).toContain('this.scale.resize(width, height)');

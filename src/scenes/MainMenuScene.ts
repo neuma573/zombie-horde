@@ -14,6 +14,7 @@ import {
   toggleSound,
 } from '../logic/menu';
 import { syncSoundEnabled } from '../effects/audioSettings';
+import { preloadGameAssets } from '../effects/gameAssetPreloader';
 
 type MenuView = 'main' | 'settings' | 'classSelect';
 
@@ -36,8 +37,6 @@ export class MainMenuScene extends Phaser.Scene {
   private view: MenuView = 'main';
   private selectedClassId: CharacterClassId | null = null;
   private ui?: Phaser.GameObjects.Container;
-  private portraitLoadStarted = false;
-  private portraitLoadFinished = false;
   private gameStartPending = false;
   private resizeObserver?: ResizeObserver;
   private resizeFrame?: number;
@@ -46,12 +45,14 @@ export class MainMenuScene extends Phaser.Scene {
     super('MainMenuScene');
   }
 
+  preload(): void {
+    preloadGameAssets(this);
+  }
+
   create(): void {
     this.view = 'main';
     this.selectedClassId = null;
     this.gameStartPending = false;
-    this.portraitLoadStarted = false;
-    this.portraitLoadFinished = false;
     document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
     if (debugUrl.searchParams.has('zombieAppearanceDebug')) {
@@ -185,7 +186,6 @@ export class MainMenuScene extends Phaser.Scene {
     );
     this.addButton(centerX, centerY, 'START GAME', () => {
       this.view = 'classSelect';
-      this.startPortraitLoading();
       this.render();
     });
     this.addButton(centerX, centerY + 64, 'SETTINGS', () => {
@@ -232,9 +232,7 @@ export class MainMenuScene extends Phaser.Scene {
     this.addText(
       centerX,
       top + 56,
-      this.portraitLoadStarted && !this.portraitLoadFinished
-        ? 'LOADING SURVIVORS...'
-        : 'CHOOSE YOUR SURVIVOR',
+      'CHOOSE YOUR SURVIVOR',
       13,
       false,
       COLORS.muted,
@@ -514,30 +512,6 @@ export class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.ui?.add(object);
     return object;
-  }
-
-  private startPortraitLoading(): void {
-    if (this.portraitLoadStarted) return;
-
-    const unloadedOptions = CHARACTER_CLASS_OPTIONS.filter((option) => (
-      option.portraitUrl
-      && !this.textures.exists(option.portraitTextureKey)
-    ));
-    if (unloadedOptions.length === 0) {
-      this.portraitLoadStarted = true;
-      this.portraitLoadFinished = true;
-      return;
-    }
-
-    this.portraitLoadStarted = true;
-    for (const option of unloadedOptions) {
-      this.load.image(option.portraitTextureKey, option.portraitUrl!);
-    }
-    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
-      this.portraitLoadFinished = true;
-      if (this.scene.isActive()) this.render();
-    });
-    this.load.start();
   }
 
   private async startAppearanceDebug(debugUrl: URL): Promise<void> {
