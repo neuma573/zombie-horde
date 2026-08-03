@@ -5,7 +5,12 @@ describe('createHudLayout', () => {
   it('stacks status blocks inside portrait safe areas', () => {
     const layout = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
 
-    expect(layout.status).toEqual({ x: 114, y: 42 });
+    expect(layout.status).toEqual({
+      x: 114,
+      y: 42,
+      originX: 1,
+      maxWidth: null,
+    });
     expect(layout.ammo).toEqual({
       x: 246,
       y: 56,
@@ -32,7 +37,12 @@ describe('createHudLayout', () => {
   it('splits status blocks across a wide landscape safe area', () => {
     const layout = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
-    expect(layout.status).toEqual({ x: 414, y: 12 });
+    expect(layout.status).toEqual({
+      x: 414,
+      y: 12,
+      originX: 1,
+      maxWidth: null,
+    });
     expect(layout.ammo).toEqual({
       x: 546,
       y: 26,
@@ -80,14 +90,14 @@ describe('createHudLayout', () => {
       { top: 0, right: 0, bottom: 0, left: 0 },
     );
 
-    expect(layout.time.x).toBeCloseTo(47.6);
+    expect(layout.time.x).toBeCloseTo(78);
     expect(layout.time.y).toBe(12);
-    expect(layout.time.width).toBeCloseTo(71.2);
+    expect(layout.time.width).toBeCloseTo(36.8);
     expect(layout.time.height).toBe(48);
     expect(layout.ammo.x).toBe(144);
     expect(layout.ammo.y).toBe(26);
     expect(layout.ammo.originX).toBe(1);
-    expect(layout.ammo.maxWidth).toBeCloseTo(52.8);
+    expect(layout.ammo.maxWidth).toBeCloseTo(39.6);
     expect(layout.topHudBounds).toEqual({
       left: 0,
       right: 152,
@@ -104,7 +114,7 @@ describe('createHudLayout', () => {
     );
     const renderScale = fitClockRenderScale(layout.time.width);
 
-    expect(layout.time.width).toBeCloseTo(11.2);
+    expect(layout.time.width).toBeCloseTo(6.4);
     expect(67 * renderScale).toBeLessThanOrEqual(layout.time.width);
   });
 
@@ -132,5 +142,31 @@ describe('createHudLayout', () => {
 
     expect(layout.weaponSlots[0].y - 22).toBeGreaterThanOrEqual(0);
     expect(layout.weaponSlots[1].y + 22).toBeLessThanOrEqual(160);
+  });
+
+  it('keeps constrained status text inside its allocated region', () => {
+    const layout = createHudLayout(
+      360,
+      100,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.status.x).toBeGreaterThanOrEqual(0);
+    expect(layout.status.originX).toBe(0);
+    expect(layout.status.maxWidth).toBeGreaterThan(0);
+    expect(layout.status.x + layout.status.maxWidth!).toBeLessThanOrEqual(
+      layout.time.x - layout.time.width / 2,
+    );
+  });
+
+  it('uses vertical safe insets when clamping stacked weapon slots', () => {
+    const layout = createHudLayout(
+      140,
+      120,
+      { left: 40, top: 0, right: 0, bottom: 0 },
+    );
+
+    expect(layout.weaponSlots[0].y - 22).toBe(24);
+    expect(layout.weaponSlots[1].y + 22).toBe(120);
   });
 });

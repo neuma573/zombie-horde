@@ -148,7 +148,7 @@ export interface SafeAreaInsets {
 }
 
 export interface HudLayout {
-  status: { x: number; y: number };
+  status: { x: number; y: number; originX: 0 | 1; maxWidth: number | null };
   ammo: { x: number; y: number; originX: 0 | 1; maxWidth: number | null };
   time: { x: number; y: number; width: number; height: number };
   gameOver: { x: number; y: number };
@@ -248,18 +248,30 @@ export function createHudLayout(
     ? Math.max(safeLeft, pauseTargetLeft - WATCH_SIDE_GAP)
     : safeRight;
   const topHudUsableWidth = Math.max(0, topHudRight - safeLeft);
+  const constrainedTopHudGap = constrainedTopHud
+    ? Math.min(WATCH_SIDE_GAP, topHudUsableWidth / 10)
+    : WATCH_SIDE_GAP;
+  const constrainedStatusWidth = constrainedTopHud
+    ? Math.min(96, topHudUsableWidth * 0.3)
+    : 0;
   const constrainedAmmoWidth = constrainedTopHud
-    ? Math.min(64, topHudUsableWidth * 0.4)
+    ? Math.min(64, topHudUsableWidth * 0.3)
     : 0;
   const gameOverY = Math.min(safeBottom, Math.max(safeTop, (safeTop + safeBottom) / 2));
   const watchWidth = Math.min(
     WATCH_WIDTH,
     constrainedTopHud
-      ? Math.max(0, topHudUsableWidth - constrainedAmmoWidth - WATCH_SIDE_GAP)
+      ? Math.max(
+        0,
+        topHudUsableWidth
+          - constrainedStatusWidth
+          - constrainedAmmoWidth
+          - constrainedTopHudGap * 2,
+      )
       : topHudUsableWidth,
   );
   const watchCenterX = constrainedTopHud
-    ? safeLeft + watchWidth / 2
+    ? safeLeft + constrainedStatusWidth + constrainedTopHudGap + watchWidth / 2
     : safeLeft + topHudUsableWidth / 2;
   const waveBannerMinY = Math.min(safeBottom, safeTop + WAVE_BANNER_HALF_HEIGHT);
   const waveBannerMaxY = Math.max(
@@ -293,7 +305,10 @@ export function createHudLayout(
     pauseTargetLeft - weaponGroupHalfWidth,
   );
   const weaponSlotCenterX = stackWeaponSlots
-    ? viewportSafeLeft + (viewportSafeRight - viewportSafeLeft) / 2
+    ? Math.min(
+      viewportSafeRight - weaponSlotSize / 2,
+      viewportSafeLeft + weaponSlotSize / 2,
+    )
     : Math.min(
       maximumWeaponCenterX,
       Math.max(minimumWeaponCenterX, watchCenterX),
@@ -302,21 +317,26 @@ export function createHudLayout(
     ? 0
     : weaponSlotSize / 2 + weaponSlotGap / 2;
   const stackedWeaponHeight = weaponSlotSize * 2 + weaponSlotGap;
+  const viewportSafeTop = Math.max(0, safeArea.top);
   const viewportSafeBottom = Math.max(
-    Math.max(0, safeArea.top),
+    viewportSafeTop,
     height - Math.max(0, safeArea.bottom),
   );
   const preferredStackTop = safeTop + WATCH_HEIGHT + 52;
   const stackedWeaponTop = Math.min(
     preferredStackTop,
-    Math.max(viewportSafeLeft, viewportSafeBottom - stackedWeaponHeight),
+    Math.max(viewportSafeTop, viewportSafeBottom - stackedWeaponHeight),
   );
   const stackedWeaponSlotY = stackedWeaponTop + weaponSlotSize / 2;
 
   return {
     status: {
-      x: watchCenterX - watchWidth / 2 - WATCH_SIDE_GAP,
+      x: constrainedTopHud
+        ? safeLeft
+        : watchCenterX - watchWidth / 2 - WATCH_SIDE_GAP,
       y: safeTop,
+      originX: constrainedTopHud ? 0 : 1,
+      maxWidth: constrainedTopHud ? constrainedStatusWidth : null,
     },
     ammo: {
       x: constrainedTopHud

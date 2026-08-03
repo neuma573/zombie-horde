@@ -56,6 +56,7 @@ export class HudSystem {
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
+  private statusMaxWidth: number | null = null;
   private ammoMaxWidth: number | null = null;
   private clockText = '';
   private clockColonVisible = true;
@@ -166,6 +167,7 @@ export class HudSystem {
   update(viewModel: HudViewModel): void {
     if (this.current?.statusText !== viewModel.statusText) {
       this.statusText.setText(viewModel.statusText);
+      this.fitStatusText();
     }
     if (this.current?.ammoText !== viewModel.ammoText) {
       this.ammoText.setText(viewModel.ammoText);
@@ -204,7 +206,11 @@ export class HudSystem {
     this.safeArea = { ...safeArea };
     const layout = createHudLayout(width, height, safeArea);
 
-    this.statusText.setPosition(layout.status.x, layout.status.y);
+    this.statusText
+      .setOrigin(layout.status.originX, 0)
+      .setPosition(layout.status.x, layout.status.y);
+    this.statusMaxWidth = layout.status.maxWidth;
+    this.fitStatusText();
     this.ammoText
       .setOrigin(layout.ammo.originX, 0)
       .setPosition(layout.ammo.x, layout.ammo.y);
@@ -352,6 +358,12 @@ export class HudSystem {
     this.ammoText.setScale(1);
     if (this.ammoMaxWidth === null || this.ammoText.width === 0) return;
     this.ammoText.setScale(Math.min(1, this.ammoMaxWidth / this.ammoText.width));
+  }
+
+  private fitStatusText(): void {
+    this.statusText.setScale(1);
+    if (this.statusMaxWidth === null || this.statusText.width === 0) return;
+    this.statusText.setScale(Math.min(1, this.statusMaxWidth / this.statusText.width));
   }
 
   private drawSegmentTime(centerX: number, top: number, scale: number): void {
