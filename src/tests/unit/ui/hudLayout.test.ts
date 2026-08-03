@@ -12,6 +12,10 @@ describe('createHudLayout', () => {
     expect(layout.gameOver.y).toBe(325);
     expect(layout.reload.width).toBeGreaterThanOrEqual(150);
     expect(layout.reload.x).toBeGreaterThanOrEqual(12);
+    expect(layout.weaponSlots).toEqual([
+      { x: 153, y: 120, width: 46, height: 46 },
+      { x: 207, y: 120, width: 46, height: 46 },
+    ]);
   });
 
   it('splits status blocks across a wide landscape safe area', () => {

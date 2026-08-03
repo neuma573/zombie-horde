@@ -1,3 +1,5 @@
+import { createHudLayout } from './hud';
+
 export interface PauseButtonLayout {
   width: number;
   height: number;
@@ -108,10 +110,33 @@ export function pauseButtonBounds(layout: PauseButtonLayout): RectangleBounds {
     Math.min(layout.height, layout.height - layout.safeArea.bottom - 11),
   );
   const buttonHeight = Math.min(48, usableBottom - usableTop);
-  const buttonTop = Math.min(
+  const initialButtonTop = Math.min(
     usableTop + 52,
     usableBottom - buttonHeight,
   );
+  const initialBounds = {
+    left: centerX - buttonWidth / 2,
+    right: centerX + buttonWidth / 2,
+    top: initialButtonTop,
+    bottom: initialButtonTop + buttonHeight,
+  };
+  const hud = createHudLayout(layout.width, layout.height, layout.safeArea);
+  const overlappingSlotBottom = hud.weaponSlots.reduce((bottom, slot) => {
+    const slotBounds = {
+      left: slot.x - slot.width / 2,
+      right: slot.x + slot.width / 2,
+      top: slot.y - slot.height / 2,
+      bottom: slot.y + slot.height / 2,
+    };
+    const overlaps = initialBounds.left < slotBounds.right
+      && initialBounds.right > slotBounds.left
+      && initialBounds.top < slotBounds.bottom
+      && initialBounds.bottom > slotBounds.top;
+    return overlaps ? Math.max(bottom, slotBounds.bottom) : bottom;
+  }, 0);
+  const buttonTop = overlappingSlotBottom > 0
+    ? Math.min(overlappingSlotBottom + 8, usableBottom - buttonHeight)
+    : initialButtonTop;
   const centerY = buttonTop + buttonHeight / 2;
 
   return {

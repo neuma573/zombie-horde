@@ -154,6 +154,10 @@ export interface HudLayout {
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
   waveBanner: { x: number; y: number };
+  weaponSlots: readonly [
+    { x: number; y: number; width: number; height: number },
+    { x: number; y: number; width: number; height: number },
+  ];
 }
 
 const HUD_MARGIN = 12;
@@ -165,6 +169,8 @@ const RELOAD_HEIGHT = 10;
 const WATCH_WIDTH = 116;
 const WATCH_HEIGHT = 48;
 const WAVE_BANNER_HALF_HEIGHT = 24;
+const WEAPON_SLOT_SIZE = 46;
+const WEAPON_SLOT_GAP = 8;
 
 export function createHudViewModel(state: HudState): HudViewModel {
   const remainingEnemies = Math.max(0, state.remainingToSpawn)
@@ -233,6 +239,8 @@ export function createHudLayout(
     Math.max(RELOAD_MIN_WIDTH, usableWidth * RELOAD_WIDTH_RATIO),
     usableWidth,
   ));
+  const weaponSlotY = safeTop + WATCH_HEIGHT + 30;
+  const weaponSlotOffset = WEAPON_SLOT_SIZE / 2 + WEAPON_SLOT_GAP / 2;
 
   return {
     status: {
@@ -263,5 +271,19 @@ export function createHudLayout(
       x: safeLeft + usableWidth / 2,
       y: waveBannerY,
     },
+    weaponSlots: [
+      {
+        x: watchCenterX - weaponSlotOffset,
+        y: weaponSlotY,
+        width: WEAPON_SLOT_SIZE,
+        height: WEAPON_SLOT_SIZE,
+      },
+      {
+        x: watchCenterX + weaponSlotOffset,
+        y: weaponSlotY,
+        width: WEAPON_SLOT_SIZE,
+        height: WEAPON_SLOT_SIZE,
+      },
+    ],
   };
 }

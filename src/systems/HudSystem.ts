@@ -208,7 +208,7 @@ export class HudSystem {
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);
     this.waveBannerText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
     this.waveAnnouncementText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
-    this.positionWeaponSlots(layout.time.x, layout.time.y + layout.time.height + 30);
+    this.positionWeaponSlots(layout.weaponSlots);
     this.pickupPanelDefaultPosition = {
       x: width / 2,
       y: Math.min(height - 125, height * 0.68),
@@ -426,11 +426,11 @@ export class HudSystem {
     this.reloadText.setVisible(true);
   }
 
-  private positionWeaponSlots(centerX: number, centerY: number): void {
-    const gap = 8;
-    const size = 46;
-    this.weaponIcons[0].setPosition(centerX - size / 2 - gap / 2, centerY);
-    this.weaponIcons[1].setPosition(centerX + size / 2 + gap / 2, centerY);
+  private positionWeaponSlots(
+    slots: ReturnType<typeof createHudLayout>['weaponSlots'],
+  ): void {
+    this.weaponIcons[0].setPosition(slots[0].x, slots[0].y);
+    this.weaponIcons[1].setPosition(slots[1].x, slots[1].y);
     this.drawWeaponSlots(this.current);
   }
 
