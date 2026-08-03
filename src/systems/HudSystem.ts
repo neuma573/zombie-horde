@@ -33,6 +33,7 @@ const RARITY_COLORS = {
   epic: 0xb96cff,
   legendary: 0xffa63d,
 } as const;
+const WATCH_RENDER_HEIGHT = 48;
 
 export class HudSystem {
   private readonly statusText: Phaser.GameObjects.Text;
@@ -57,7 +58,9 @@ export class HudSystem {
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
   private statusMaxWidth: number | null = null;
+  private statusMaxHeight: number | null = null;
   private ammoMaxWidth: number | null = null;
+  private ammoMaxHeight: number | null = null;
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -211,12 +214,14 @@ export class HudSystem {
       .setPosition(layout.status.x, layout.status.y)
       .setVisible(layout.topHudVisible);
     this.statusMaxWidth = layout.status.maxWidth;
+    this.statusMaxHeight = layout.status.maxHeight;
     this.fitStatusText();
     this.ammoText
       .setOrigin(layout.ammo.originX, 0)
       .setPosition(layout.ammo.x, layout.ammo.y)
       .setVisible(layout.topHudVisible);
     this.ammoMaxWidth = layout.ammo.maxWidth;
+    this.ammoMaxHeight = layout.ammo.maxHeight;
     this.fitAmmoText();
     this.drawWatch(layout.time);
     this.timeGraphics.setVisible(layout.topHudVisible);
@@ -336,7 +341,7 @@ export class HudSystem {
     this.watchLayout = layout;
     const { x, y, width, height } = layout;
     const left = x - width / 2;
-    const inset = 6;
+    const inset = Math.min(6, height / 4);
 
     this.timeGraphics
       .clear()
@@ -352,22 +357,37 @@ export class HudSystem {
         height - inset * 2,
         2,
       );
-    this.timeMetaText.setPosition(x, y + 8);
-    const renderScale = fitClockRenderScale(width);
+    this.timeMetaText.setPosition(x, y + height * (8 / WATCH_RENDER_HEIGHT));
+    const renderScale = Math.min(
+      fitClockRenderScale(width),
+      height / WATCH_RENDER_HEIGHT,
+    );
     this.timeMetaText.setScale(renderScale);
-    this.drawSegmentTime(x, y + 17, renderScale);
+    this.drawSegmentTime(
+      x,
+      y + height * (17 / WATCH_RENDER_HEIGHT),
+      renderScale,
+    );
   }
 
   private fitAmmoText(): void {
     this.ammoText.setScale(1);
-    if (this.ammoMaxWidth === null || this.ammoText.width === 0) return;
-    this.ammoText.setScale(Math.min(1, this.ammoMaxWidth / this.ammoText.width));
+    if (this.ammoText.width === 0 || this.ammoText.height === 0) return;
+    this.ammoText.setScale(Math.min(
+      1,
+      this.ammoMaxWidth === null ? 1 : this.ammoMaxWidth / this.ammoText.width,
+      this.ammoMaxHeight === null ? 1 : this.ammoMaxHeight / this.ammoText.height,
+    ));
   }
 
   private fitStatusText(): void {
     this.statusText.setScale(1);
-    if (this.statusMaxWidth === null || this.statusText.width === 0) return;
-    this.statusText.setScale(Math.min(1, this.statusMaxWidth / this.statusText.width));
+    if (this.statusText.width === 0 || this.statusText.height === 0) return;
+    this.statusText.setScale(Math.min(
+      1,
+      this.statusMaxWidth === null ? 1 : this.statusMaxWidth / this.statusText.width,
+      this.statusMaxHeight === null ? 1 : this.statusMaxHeight / this.statusText.height,
+    ));
   }
 
   private drawSegmentTime(centerX: number, top: number, scale: number): void {

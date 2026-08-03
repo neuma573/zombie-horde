@@ -148,8 +148,14 @@ export interface SafeAreaInsets {
 }
 
 export interface HudLayout {
-  status: { x: number; y: number; originX: 0 | 1; maxWidth: number | null };
-  ammo: { x: number; y: number; originX: 0 | 1; maxWidth: number | null };
+  status: {
+    x: number; y: number; originX: 0 | 1;
+    maxWidth: number | null; maxHeight: number | null;
+  };
+  ammo: {
+    x: number; y: number; originX: 0 | 1;
+    maxWidth: number | null; maxHeight: number | null;
+  };
   time: { x: number; y: number; width: number; height: number };
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
@@ -293,12 +299,22 @@ export function createHudLayout(
     0,
     pauseTargetLeft - viewportSafeLeft,
   );
-  const stackWeaponSlots = weaponSlotAvailableWidth
-    < MIN_WEAPON_SLOT_SIZE * 2 + WEAPON_SLOT_GAP;
-  const weaponSlotGap = WEAPON_SLOT_GAP;
-  const weaponSlotSize = stackWeaponSlots
-    ? MIN_WEAPON_SLOT_SIZE
-    : WEAPON_SLOT_SIZE;
+  const fullWeaponRowWidth = WEAPON_SLOT_SIZE * 2 + WEAPON_SLOT_GAP;
+  const minimumWeaponRowWidth = MIN_WEAPON_SLOT_SIZE * 2;
+  const useFullWeaponRow = weaponSlotAvailableWidth >= fullWeaponRowWidth;
+  const useCompactWeaponRow = weaponSlotAvailableWidth >= minimumWeaponRowWidth;
+  const stackWeaponSlots = !useCompactWeaponRow;
+  const weaponSlotGap = useFullWeaponRow
+    ? WEAPON_SLOT_GAP
+    : useCompactWeaponRow
+      ? Math.min(
+        WEAPON_SLOT_GAP,
+        weaponSlotAvailableWidth - minimumWeaponRowWidth,
+      )
+      : WEAPON_SLOT_GAP;
+  const weaponSlotSize = useFullWeaponRow
+    ? WEAPON_SLOT_SIZE
+    : MIN_WEAPON_SLOT_SIZE;
   const weaponGroupHalfWidth = weaponSlotSize + weaponSlotGap / 2;
   const minimumWeaponCenterX = viewportSafeLeft + weaponGroupHalfWidth;
   const maximumWeaponCenterX = Math.max(
@@ -323,17 +339,23 @@ export function createHudLayout(
     viewportSafeTop,
     height - Math.max(0, safeArea.bottom),
   );
+  const topHudHeight = stackWeaponSlots
+    ? Math.min(
+      WATCH_HEIGHT,
+      Math.max(
+        1,
+        viewportSafeBottom - safeTop - stackedWeaponHeight - 4,
+      ),
+    )
+    : WATCH_HEIGHT;
   const preferredStackTop = safeTop + WATCH_HEIGHT + 52;
-  const minimumStackTopBelowHud = safeTop + WATCH_HEIGHT + 4;
-  const canFitStackBelowTopHud = !stackWeaponSlots
-    || viewportSafeBottom - minimumStackTopBelowHud >= stackedWeaponHeight;
-  const topHudVisible = !stackWeaponSlots || canFitStackBelowTopHud;
-  const stackedWeaponTop = canFitStackBelowTopHud
+  const minimumStackTopBelowHud = safeTop + topHudHeight + 4;
+  const stackedWeaponTop = stackWeaponSlots
     ? Math.min(
       preferredStackTop,
       Math.max(minimumStackTopBelowHud, viewportSafeBottom - stackedWeaponHeight),
     )
-    : Math.max(viewportSafeTop, viewportSafeBottom - stackedWeaponHeight);
+    : preferredStackTop;
   const stackedWeaponSlotY = stackedWeaponTop + weaponSlotSize / 2;
 
   return {
@@ -344,20 +366,22 @@ export function createHudLayout(
       y: safeTop,
       originX: constrainedTopHud ? 0 : 1,
       maxWidth: constrainedTopHud ? constrainedStatusWidth : null,
+      maxHeight: topHudHeight,
     },
     ammo: {
       x: constrainedTopHud
         ? topHudRight
         : watchCenterX + watchWidth / 2 + WATCH_SIDE_GAP,
-      y: safeTop + 14,
+      y: safeTop + Math.min(14, topHudHeight * 0.3),
       originX: constrainedTopHud ? 1 : 0,
       maxWidth: constrainedTopHud ? constrainedAmmoWidth : null,
+      maxHeight: topHudHeight,
     },
     time: {
       x: watchCenterX,
       y: safeTop,
       width: watchWidth,
-      height: WATCH_HEIGHT,
+      height: topHudHeight,
     },
     gameOver: {
       x: safeLeft + usableWidth / 2,
@@ -373,12 +397,12 @@ export function createHudLayout(
       x: safeLeft + usableWidth / 2,
       y: waveBannerY,
     },
-    topHudVisible,
+    topHudVisible: true,
     topHudBounds: {
       left: viewportSafeLeft,
       right: constrainedTopHud ? pauseTargetLeft : viewportSafeRight,
-      top: topHudVisible ? safeTop : viewportSafeTop,
-      bottom: topHudVisible ? safeTop + WATCH_HEIGHT : viewportSafeTop,
+      top: safeTop,
+      bottom: safeTop + topHudHeight,
     },
     weaponSlots: [
       {

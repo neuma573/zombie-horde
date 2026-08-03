@@ -10,12 +10,14 @@ describe('createHudLayout', () => {
       y: 42,
       originX: 1,
       maxWidth: null,
+      maxHeight: 48,
     });
     expect(layout.ammo).toEqual({
       x: 246,
       y: 56,
       originX: 0,
       maxWidth: null,
+      maxHeight: 48,
     });
     expect(layout.time).toEqual({ x: 180, y: 42, width: 116, height: 48 });
     expect(layout.gameOver.x).toBe(180);
@@ -42,12 +44,14 @@ describe('createHudLayout', () => {
       y: 12,
       originX: 1,
       maxWidth: null,
+      maxHeight: 48,
     });
     expect(layout.ammo).toEqual({
       x: 546,
       y: 26,
       originX: 0,
       maxWidth: null,
+      maxHeight: 48,
     });
     expect(layout.time).toEqual({ x: 480, y: 12, width: 116, height: 48 });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
@@ -168,7 +172,7 @@ describe('createHudLayout', () => {
 
     expect(layout.weaponSlots[0].y - 22).toBe(24);
     expect(layout.weaponSlots[1].y + 22).toBe(120);
-    expect(layout.topHudVisible).toBe(false);
+    expect(layout.topHudVisible).toBe(true);
     expect(layout.topHudBounds.bottom).toBeLessThanOrEqual(
       layout.weaponSlots[0].y - 22,
     );
