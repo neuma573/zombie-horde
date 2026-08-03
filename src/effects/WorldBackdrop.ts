@@ -2,8 +2,7 @@ import Phaser from 'phaser';
 
 import type { UrbanRoad } from '../config/urbanMapConfig';
 import type { RectangleObstacle } from '../logic/obstacleCollision';
-
-export const PEDESTRIAN_ARROW_TEXTURE_KEY = 'pedestrian-direction-arrow';
+import { PEDESTRIAN_ARROW_TEXTURE_KEY } from './gameAssetPreloader';
 
 export class WorldBackdrop {
   private readonly scene: Phaser.Scene;
