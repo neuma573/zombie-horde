@@ -389,6 +389,7 @@ export class GameScene extends Phaser.Scene {
     this.itemPickups = [];
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
+    this.timeBasedLighting.resize(this.viewport.width, this.viewport.height);
     this.zombies = [];
     this.zombieNavigation.clear();
     this.fastZombieRuns.clear();

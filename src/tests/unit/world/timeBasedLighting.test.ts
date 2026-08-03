@@ -5,6 +5,7 @@ import {
   decayTransientLight,
   dampValue,
   darknessAlphaForTime,
+  lightingOverlayBounds,
   renderableDarknessAlpha,
   resolveFlashlightEnabled,
 } from '../../../logic/timeBasedLighting';
@@ -92,4 +93,18 @@ describe('time-based lighting', () => {
     expect(second).toBeCloseTo(whole);
   });
 
+  it('overscans the darkness overlay beyond every viewport edge', () => {
+    expect(lightingOverlayBounds(390, 844)).toEqual({
+      x: -2,
+      y: -2,
+      width: 394,
+      height: 848,
+    });
+    expect(lightingOverlayBounds(1_920, 1_080)).toEqual({
+      x: -2,
+      y: -2,
+      width: 1_924,
+      height: 1_084,
+    });
+  });
 });
