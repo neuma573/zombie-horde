@@ -45,6 +45,7 @@ export class HudSystem {
   private readonly waveAnnouncementText: Phaser.GameObjects.Text;
   private readonly weaponSlotGraphics: Phaser.GameObjects.Graphics;
   private readonly weaponIcons: Phaser.GameObjects.Image[];
+  private weaponSlotLayout?: ReturnType<typeof createHudLayout>['weaponSlots'];
   private readonly pickupPanel: Phaser.GameObjects.Container;
   private readonly pickupPanelGraphics: Phaser.GameObjects.Graphics;
   private readonly pickupText: Phaser.GameObjects.Text;
@@ -429,18 +430,20 @@ export class HudSystem {
   private positionWeaponSlots(
     slots: ReturnType<typeof createHudLayout>['weaponSlots'],
   ): void {
+    this.weaponSlotLayout = slots;
     this.weaponIcons[0].setPosition(slots[0].x, slots[0].y);
     this.weaponIcons[1].setPosition(slots[1].x, slots[1].y);
     this.drawWeaponSlots(this.current);
   }
 
   private drawWeaponSlots(viewModel?: HudViewModel): void {
-    if (!viewModel) return;
-    const size = 46;
+    if (!viewModel || !this.weaponSlotLayout) return;
     this.weaponSlotGraphics.clear();
 
     viewModel.weaponSlots.forEach((weapon, index) => {
       const icon = this.weaponIcons[index];
+      const slot = this.weaponSlotLayout![index];
+      const size = slot.width;
       const x = icon.x;
       const y = icon.y;
       const active = index === viewModel.activeWeaponSlot;
@@ -453,7 +456,10 @@ export class HudSystem {
       if (weapon) {
         icon
           .setTexture(weapon.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle')
-          .setDisplaySize(38, 38)
+          .setDisplaySize(
+            Math.max(0, Math.min(38, size - 8)),
+            Math.max(0, Math.min(38, size - 8)),
+          )
           .setVisible(true);
       } else {
         icon.setVisible(false);

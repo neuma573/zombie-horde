@@ -49,4 +49,17 @@ describe('createHudLayout', () => {
     expect(layout.waveBanner.y - 24).toBeGreaterThanOrEqual(12);
     expect(layout.waveBanner.y + 24).toBeLessThanOrEqual(88);
   });
+
+  it('fits weapon slots beside a reserved pause column on narrow screens', () => {
+    const layout = createHudLayout(
+      159,
+      160,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+    const secondSlot = layout.weaponSlots[1];
+
+    expect(secondSlot.x + secondSlot.width / 2).toBeLessThanOrEqual(111);
+    expect(layout.weaponSlots[0].width).toBe(46);
+    expect(layout.weaponSlots[1].width).toBe(46);
+  });
 });

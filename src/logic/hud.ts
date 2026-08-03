@@ -242,18 +242,38 @@ export function createHudLayout(
     usableWidth,
   ));
   const weaponSlotY = safeTop + WATCH_HEIGHT + 30;
-  const weaponSlotOffset = WEAPON_SLOT_SIZE / 2 + WEAPON_SLOT_GAP / 2;
-  const weaponGroupHalfWidth = WEAPON_SLOT_SIZE + WEAPON_SLOT_GAP / 2;
+  const viewportSafeLeft = Math.max(0, safeArea.left);
   const viewportSafeRight = Math.max(
-    safeLeft,
+    viewportSafeLeft,
     width - Math.max(0, safeArea.right),
   );
-  const pauseTargetLeft = viewportSafeRight - PAUSE_TOUCH_TARGET_SIZE;
-  const canReservePauseColumn = pauseTargetLeft - safeLeft
-    >= weaponGroupHalfWidth * 2;
-  const weaponSlotCenterX = canReservePauseColumn
-    ? Math.min(watchCenterX, pauseTargetLeft - weaponGroupHalfWidth)
-    : watchCenterX;
+  const pauseTargetLeft = Math.max(
+    viewportSafeLeft,
+    viewportSafeRight - PAUSE_TOUCH_TARGET_SIZE,
+  );
+  const weaponSlotAvailableWidth = Math.max(
+    0,
+    pauseTargetLeft - viewportSafeLeft,
+  );
+  const weaponSlotGap = Math.min(
+    WEAPON_SLOT_GAP,
+    weaponSlotAvailableWidth / 3,
+  );
+  const weaponSlotSize = Math.min(
+    WEAPON_SLOT_SIZE,
+    Math.max(0, (weaponSlotAvailableWidth - weaponSlotGap) / 2),
+  );
+  const weaponGroupHalfWidth = weaponSlotSize + weaponSlotGap / 2;
+  const minimumWeaponCenterX = viewportSafeLeft + weaponGroupHalfWidth;
+  const maximumWeaponCenterX = Math.max(
+    minimumWeaponCenterX,
+    pauseTargetLeft - weaponGroupHalfWidth,
+  );
+  const weaponSlotCenterX = Math.min(
+    maximumWeaponCenterX,
+    Math.max(minimumWeaponCenterX, watchCenterX),
+  );
+  const weaponSlotOffset = weaponSlotSize / 2 + weaponSlotGap / 2;
 
   return {
     status: {
@@ -285,7 +305,7 @@ export function createHudLayout(
       y: waveBannerY,
     },
     topHudBounds: {
-      left: Math.max(0, safeArea.left),
+      left: viewportSafeLeft,
       right: viewportSafeRight,
       top: safeTop,
       bottom: safeTop + WATCH_HEIGHT,
@@ -294,14 +314,14 @@ export function createHudLayout(
       {
         x: weaponSlotCenterX - weaponSlotOffset,
         y: weaponSlotY,
-        width: WEAPON_SLOT_SIZE,
-        height: WEAPON_SLOT_SIZE,
+        width: weaponSlotSize,
+        height: weaponSlotSize,
       },
       {
         x: weaponSlotCenterX + weaponSlotOffset,
         y: weaponSlotY,
-        width: WEAPON_SLOT_SIZE,
-        height: WEAPON_SLOT_SIZE,
+        width: weaponSlotSize,
+        height: weaponSlotSize,
       },
     ],
   };

@@ -80,6 +80,18 @@ describe('pause menu input boundary', () => {
     expect(pause.top).toBeGreaterThanOrEqual(hud.topHudBounds.bottom);
   });
 
+  it('reserves a non-overlapping pause column below 160px wide', () => {
+    const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
+    const hud = createHudLayout(159, 160, safeArea);
+    const pause = pauseButtonBounds({ width: 159, height: 160, safeArea });
+    const secondSlot = hud.weaponSlots[1];
+
+    expect(pause).toEqual({ left: 111, right: 159, top: 101, bottom: 149 });
+    expect(pause.left).toBeGreaterThanOrEqual(
+      secondSlot.x + secondSlot.width / 2,
+    );
+  });
+
   it('keeps compact pause actions inside a 240px viewport safe area', () => {
     const top = 24;
     const bottom = 216;
@@ -131,7 +143,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 20, right: 68, top: 121, bottom: 169 });
+    expect(bounds).toEqual({ left: 20, right: 68, top: 104, bottom: 152 });
   });
 
   it('shrinks the mobile pause button between vertical safe edges', () => {
