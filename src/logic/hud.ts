@@ -172,7 +172,17 @@ const WATCH_HEIGHT = 48;
 const WAVE_BANNER_HALF_HEIGHT = 24;
 const WEAPON_SLOT_SIZE = 46;
 const WEAPON_SLOT_GAP = 8;
+const MIN_WEAPON_SLOT_SIZE = 44;
 const PAUSE_TOUCH_TARGET_SIZE = 48;
+const CLOCK_HORIZONTAL_INSET = 6;
+const CLOCK_RENDER_WIDTH = 67;
+
+export function fitClockRenderScale(watchWidth: number): number {
+  return Math.min(
+    1,
+    Math.max(0, (watchWidth - CLOCK_HORIZONTAL_INSET * 2) / CLOCK_RENDER_WIDTH),
+  );
+}
 
 export function createHudViewModel(state: HudState): HudViewModel {
   const remainingEnemies = Math.max(0, state.remainingToSpawn)
@@ -261,25 +271,28 @@ export function createHudLayout(
     0,
     pauseTargetLeft - viewportSafeLeft,
   );
-  const weaponSlotGap = Math.min(
-    WEAPON_SLOT_GAP,
-    weaponSlotAvailableWidth / 3,
-  );
-  const weaponSlotSize = Math.min(
-    WEAPON_SLOT_SIZE,
-    Math.max(0, (weaponSlotAvailableWidth - weaponSlotGap) / 2),
-  );
+  const stackWeaponSlots = weaponSlotAvailableWidth
+    < MIN_WEAPON_SLOT_SIZE * 2 + WEAPON_SLOT_GAP;
+  const weaponSlotGap = WEAPON_SLOT_GAP;
+  const weaponSlotSize = stackWeaponSlots
+    ? MIN_WEAPON_SLOT_SIZE
+    : WEAPON_SLOT_SIZE;
   const weaponGroupHalfWidth = weaponSlotSize + weaponSlotGap / 2;
   const minimumWeaponCenterX = viewportSafeLeft + weaponGroupHalfWidth;
   const maximumWeaponCenterX = Math.max(
     minimumWeaponCenterX,
     pauseTargetLeft - weaponGroupHalfWidth,
   );
-  const weaponSlotCenterX = Math.min(
-    maximumWeaponCenterX,
-    Math.max(minimumWeaponCenterX, watchCenterX),
-  );
-  const weaponSlotOffset = weaponSlotSize / 2 + weaponSlotGap / 2;
+  const weaponSlotCenterX = stackWeaponSlots
+    ? viewportSafeLeft + (viewportSafeRight - viewportSafeLeft) / 2
+    : Math.min(
+      maximumWeaponCenterX,
+      Math.max(minimumWeaponCenterX, watchCenterX),
+    );
+  const weaponSlotOffset = stackWeaponSlots
+    ? 0
+    : weaponSlotSize / 2 + weaponSlotGap / 2;
+  const stackedWeaponSlotY = safeTop + WATCH_HEIGHT + 74;
 
   return {
     status: {
@@ -322,13 +335,15 @@ export function createHudLayout(
     weaponSlots: [
       {
         x: weaponSlotCenterX - weaponSlotOffset,
-        y: weaponSlotY,
+        y: stackWeaponSlots ? stackedWeaponSlotY : weaponSlotY,
         width: weaponSlotSize,
         height: weaponSlotSize,
       },
       {
         x: weaponSlotCenterX + weaponSlotOffset,
-        y: weaponSlotY,
+        y: stackWeaponSlots
+          ? stackedWeaponSlotY + weaponSlotSize + weaponSlotGap
+          : weaponSlotY,
         width: weaponSlotSize,
         height: weaponSlotSize,
       },

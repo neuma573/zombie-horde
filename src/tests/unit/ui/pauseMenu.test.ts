@@ -155,7 +155,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 20, right: 68, top: 104, bottom: 152 });
+    expect(bounds).toEqual({ left: 20, right: 68, top: 63, bottom: 111 });
   });
 
   it('shrinks the mobile pause button between vertical safe edges', () => {

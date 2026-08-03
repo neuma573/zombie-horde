@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHudLayout } from '../../../logic/hud';
+import { createHudLayout, fitClockRenderScale } from '../../../logic/hud';
 
 describe('createHudLayout', () => {
   it('stacks status blocks inside portrait safe areas', () => {
@@ -78,5 +78,32 @@ describe('createHudLayout', () => {
       top: 12,
       bottom: 60,
     });
+  });
+
+  it('scales the clock contents to its constrained background width', () => {
+    const layout = createHudLayout(
+      100,
+      100,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+    const renderScale = fitClockRenderScale(layout.time.width);
+
+    expect(layout.time.width).toBe(32);
+    expect(67 * renderScale).toBeLessThanOrEqual(layout.time.width - 12);
+  });
+
+  it('stacks weapon slots without shrinking their touch targets', () => {
+    const layout = createHudLayout(
+      60,
+      844,
+      { top: 0, right: 0, bottom: 0, left: 0 },
+    );
+
+    expect(layout.weaponSlots[0].width).toBe(44);
+    expect(layout.weaponSlots[1].width).toBe(44);
+    expect(layout.weaponSlots[0].x).toBe(layout.weaponSlots[1].x);
+    expect(layout.weaponSlots[1].y).toBeGreaterThan(
+      layout.weaponSlots[0].y + layout.weaponSlots[0].height / 2,
+    );
   });
 });

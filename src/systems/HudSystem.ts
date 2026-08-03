@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import {
   constrainTooltipWidths,
   createHudLayout,
+  fitClockRenderScale,
   handleWeaponSlotPress,
   positionTooltip,
   type HudViewModel,
@@ -338,26 +339,28 @@ export class HudSystem {
         2,
       );
     this.timeMetaText.setPosition(x, y + 8);
-    this.drawSegmentTime(x, y + 17);
+    const renderScale = fitClockRenderScale(width);
+    this.timeMetaText.setScale(renderScale);
+    this.drawSegmentTime(x, y + 17, renderScale);
   }
 
-  private drawSegmentTime(centerX: number, top: number): void {
+  private drawSegmentTime(centerX: number, top: number, scale: number): void {
     const digits = this.clockText.replace(':', '').padStart(4, '0').slice(-4);
-    const digitWidth = 13;
-    const digitGap = 3;
-    const colonWidth = 6;
+    const digitWidth = 13 * scale;
+    const digitGap = 3 * scale;
+    const colonWidth = 6 * scale;
     const totalWidth = digitWidth * 4 + digitGap * 3 + colonWidth;
     let x = centerX - totalWidth / 2;
 
     for (let index = 0; index < digits.length; index += 1) {
-      this.drawSegmentDigit(x, top, digits[index]);
+      this.drawSegmentDigit(x, top, digits[index], scale);
       x += digitWidth;
 
       if (index === 1) {
         x += colonWidth / 2;
         this.timeGraphics.fillStyle(0x151a13, this.clockColonVisible ? 0.9 : 0.1);
-        this.timeGraphics.fillCircle(x, top + 7, 1.3);
-        this.timeGraphics.fillCircle(x, top + 15, 1.3);
+        this.timeGraphics.fillCircle(x, top + 7 * scale, 1.3 * scale);
+        this.timeGraphics.fillCircle(x, top + 15 * scale, 1.3 * scale);
         x += colonWidth / 2;
       }
 
@@ -365,26 +368,36 @@ export class HudSystem {
     }
   }
 
-  private drawSegmentDigit(x: number, y: number, digit: string): void {
+  private drawSegmentDigit(
+    x: number,
+    y: number,
+    digit: string,
+    scale: number,
+  ): void {
     const active = new Set(segmentsForDigit(digit));
 
     for (const segment of SEVEN_SEGMENTS) {
       this.timeGraphics.fillStyle(0x151a13, active.has(segment) ? 0.92 : 0.1);
-      this.drawSegment(x, y, segment);
+      this.drawSegment(x, y, segment, scale);
     }
   }
 
-  private drawSegment(x: number, y: number, segment: SevenSegment): void {
+  private drawSegment(
+    x: number,
+    y: number,
+    segment: SevenSegment,
+    scale: number,
+  ): void {
     const horizontal = {
-      a: { x: x + 2, y, width: 9, height: 3 },
-      g: { x: x + 2, y: y + 10, width: 9, height: 3 },
-      d: { x: x + 2, y: y + 20, width: 9, height: 3 },
+      a: { x: x + 2 * scale, y, width: 9 * scale, height: 3 * scale },
+      g: { x: x + 2 * scale, y: y + 10 * scale, width: 9 * scale, height: 3 * scale },
+      d: { x: x + 2 * scale, y: y + 20 * scale, width: 9 * scale, height: 3 * scale },
     } as const;
     const vertical = {
-      f: { x, y: y + 2, width: 3, height: 8 },
-      b: { x: x + 10, y: y + 2, width: 3, height: 8 },
-      e: { x, y: y + 12, width: 3, height: 8 },
-      c: { x: x + 10, y: y + 12, width: 3, height: 8 },
+      f: { x, y: y + 2 * scale, width: 3 * scale, height: 8 * scale },
+      b: { x: x + 10 * scale, y: y + 2 * scale, width: 3 * scale, height: 8 * scale },
+      e: { x, y: y + 12 * scale, width: 3 * scale, height: 8 * scale },
+      c: { x: x + 10 * scale, y: y + 12 * scale, width: 3 * scale, height: 8 * scale },
     } as const;
     const bounds = segment === 'a' || segment === 'g' || segment === 'd'
       ? horizontal[segment]
@@ -456,12 +469,10 @@ export class HudSystem {
         .lineStyle(active ? 3 : 1, active ? 0x65b5ff : 0x7d8790, 1)
         .strokeRoundedRect(x - size / 2, y - size / 2, size, size, 4);
       if (weapon) {
+        const iconSize = size <= 44 ? size : Math.min(38, size - 8);
         icon
           .setTexture(weapon.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle')
-          .setDisplaySize(
-            Math.max(0, Math.min(38, size - 8)),
-            Math.max(0, Math.min(38, size - 8)),
-          )
+          .setDisplaySize(iconSize, iconSize)
           .setVisible(true);
       } else {
         icon.setVisible(false);
