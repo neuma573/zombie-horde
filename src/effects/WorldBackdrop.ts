@@ -2,13 +2,13 @@ import Phaser from 'phaser';
 
 import type { UrbanRoad } from '../config/urbanMapConfig';
 import type { RectangleObstacle } from '../logic/obstacleCollision';
-import { PEDESTRIAN_ARROW_TEXTURE_KEY } from './gameAssetPreloader';
+import { CROSSWALK_TEXTURE_KEY } from './gameAssetPreloader';
 
 export class WorldBackdrop {
   private readonly scene: Phaser.Scene;
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly roadLabels: Phaser.GameObjects.Text[] = [];
-  private readonly directionArrows: Phaser.GameObjects.Image[] = [];
+  private readonly crosswalks: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -31,8 +31,8 @@ export class WorldBackdrop {
     for (const label of this.roadLabels.splice(0)) {
       label.destroy();
     }
-    for (const arrow of this.directionArrows.splice(0)) {
-      arrow.destroy();
+    for (const crosswalk of this.crosswalks.splice(0)) {
+      crosswalk.destroy();
     }
 
     this.graphics
@@ -106,8 +106,8 @@ export class WorldBackdrop {
     for (const label of this.roadLabels.splice(0)) {
       label.destroy();
     }
-    for (const arrow of this.directionArrows.splice(0)) {
-      arrow.destroy();
+    for (const crosswalk of this.crosswalks.splice(0)) {
+      crosswalk.destroy();
     }
     this.graphics.destroy();
   }
@@ -301,10 +301,6 @@ export class WorldBackdrop {
     const laneDividerLength = 112;
     const crosswalkNearInset = 16;
     const crosswalkFarInset = 256;
-    const crosswalkStripeWidth = 16;
-    const crosswalkStripeGap = 14;
-    const crosswalkFlowGap = 16;
-    const crosswalkArrowReserve = 68;
     const intersectionClearance = 420;
 
     this.graphics.lineStyle(7, 0xf0f1eb, 0.9);
@@ -419,7 +415,6 @@ export class WorldBackdrop {
     }
 
     const crosswalkDepth = crosswalkFarInset - crosswalkNearInset;
-    const crosswalkFlowDepth = (crosswalkDepth - crosswalkFlowGap) / 2;
     const crosswalkClearPadding = 8;
     this.graphics
       .fillStyle(0x202329, 1)
@@ -449,176 +444,36 @@ export class WorldBackdrop {
       )
       .fillStyle(0xf0f1eb, 0.88);
 
-    for (
-      let y = horizontal.y + edgeInset;
-      y <= horizontal.y + horizontal.height - edgeInset
-        - crosswalkArrowReserve - crosswalkStripeWidth;
-      y += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        vertical.x - crosswalkFarInset,
-        y,
-        crosswalkFlowDepth,
-        crosswalkStripeWidth,
-      );
-    }
-    for (
-      let y = horizontal.y + edgeInset + crosswalkArrowReserve;
-      y <= horizontal.y + horizontal.height - edgeInset - crosswalkStripeWidth;
-      y += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        vertical.x - crosswalkNearInset - crosswalkFlowDepth,
-        y,
-        crosswalkFlowDepth,
-        crosswalkStripeWidth,
-      );
-    }
-    for (
-      let y = horizontal.y + edgeInset;
-      y <= horizontal.y + horizontal.height - edgeInset
-        - crosswalkArrowReserve - crosswalkStripeWidth;
-      y += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        vertical.x + vertical.width + crosswalkNearInset,
-        y,
-        crosswalkFlowDepth,
-        crosswalkStripeWidth,
-      );
-    }
-    for (
-      let y = horizontal.y + edgeInset + crosswalkArrowReserve;
-      y <= horizontal.y + horizontal.height - edgeInset - crosswalkStripeWidth;
-      y += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        vertical.x + vertical.width + crosswalkFarInset - crosswalkFlowDepth,
-        y,
-        crosswalkFlowDepth,
-        crosswalkStripeWidth,
-      );
-    }
-    for (
-      let x = vertical.x + edgeInset;
-      x <= vertical.x + vertical.width - edgeInset
-        - crosswalkArrowReserve - crosswalkStripeWidth;
-      x += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        x,
-        horizontal.y - crosswalkFarInset,
-        crosswalkStripeWidth,
-        crosswalkFlowDepth,
-      );
-    }
-    for (
-      let x = vertical.x + edgeInset + crosswalkArrowReserve;
-      x <= vertical.x + vertical.width - edgeInset - crosswalkStripeWidth;
-      x += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        x,
-        horizontal.y - crosswalkNearInset - crosswalkFlowDepth,
-        crosswalkStripeWidth,
-        crosswalkFlowDepth,
-      );
-    }
-    for (
-      let x = vertical.x + edgeInset;
-      x <= vertical.x + vertical.width - edgeInset
-        - crosswalkArrowReserve - crosswalkStripeWidth;
-      x += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        x,
-        horizontal.y + horizontal.height + crosswalkNearInset,
-        crosswalkStripeWidth,
-        crosswalkFlowDepth,
-      );
-    }
-    for (
-      let x = vertical.x + edgeInset + crosswalkArrowReserve;
-      x <= vertical.x + vertical.width - edgeInset - crosswalkStripeWidth;
-      x += crosswalkStripeWidth + crosswalkStripeGap
-    ) {
-      this.graphics.fillRect(
-        x,
-        horizontal.y + horizontal.height + crosswalkFarInset - crosswalkFlowDepth,
-        crosswalkStripeWidth,
-        crosswalkFlowDepth,
-      );
-    }
+    const horizontalCrosswalkX = vertical.x - crosswalkFarInset + crosswalkDepth / 2;
+    const oppositeHorizontalCrosswalkX = vertical.x + vertical.width
+      + crosswalkNearInset + crosswalkDepth / 2;
+    const verticalCrosswalkY = horizontal.y - crosswalkFarInset + crosswalkDepth / 2;
+    const oppositeVerticalCrosswalkY = horizontal.y + horizontal.height
+      + crosswalkNearInset + crosswalkDepth / 2;
 
-    const westOuterFlowX = vertical.x - crosswalkFarInset + crosswalkFlowDepth / 2;
-    const westInnerFlowX = vertical.x - crosswalkNearInset - crosswalkFlowDepth / 2;
-    const eastInnerFlowX = vertical.x + vertical.width
-      + crosswalkNearInset + crosswalkFlowDepth / 2;
-    const eastOuterFlowX = vertical.x + vertical.width
-      + crosswalkFarInset - crosswalkFlowDepth / 2;
-    const northOuterFlowY = horizontal.y - crosswalkFarInset + crosswalkFlowDepth / 2;
-    const northInnerFlowY = horizontal.y - crosswalkNearInset - crosswalkFlowDepth / 2;
-    const southInnerFlowY = horizontal.y + horizontal.height
-      + crosswalkNearInset + crosswalkFlowDepth / 2;
-    const southOuterFlowY = horizontal.y + horizontal.height
-      + crosswalkFarInset - crosswalkFlowDepth / 2;
-    const arrowCenterOffset = edgeInset + crosswalkArrowReserve / 2;
-
-    this.addDoubleDirectionArrow(
-      westOuterFlowX,
-      horizontal.y + horizontal.height - arrowCenterOffset,
+    this.addCrosswalk(
+      horizontalCrosswalkX,
+      horizontal.y + horizontal.height / 2,
+      horizontal.height - edgeInset * 2,
       90,
-      24,
-      0,
     );
-    this.addDoubleDirectionArrow(
-      westInnerFlowX,
-      horizontal.y + arrowCenterOffset,
-      -90,
-      24,
-      0,
-    );
-    this.addDoubleDirectionArrow(
-      eastInnerFlowX,
-      horizontal.y + horizontal.height - arrowCenterOffset,
+    this.addCrosswalk(
+      oppositeHorizontalCrosswalkX,
+      horizontal.y + horizontal.height / 2,
+      horizontal.height - edgeInset * 2,
       90,
-      24,
+    );
+    this.addCrosswalk(
+      vertical.x + vertical.width / 2,
+      verticalCrosswalkY,
+      vertical.width - edgeInset * 2,
       0,
     );
-    this.addDoubleDirectionArrow(
-      eastOuterFlowX,
-      horizontal.y + arrowCenterOffset,
-      -90,
-      24,
+    this.addCrosswalk(
+      vertical.x + vertical.width / 2,
+      oppositeVerticalCrosswalkY,
+      vertical.width - edgeInset * 2,
       0,
-    );
-    this.addDoubleDirectionArrow(
-      vertical.x + vertical.width - arrowCenterOffset,
-      northOuterFlowY,
-      0,
-      0,
-      24,
-    );
-    this.addDoubleDirectionArrow(
-      vertical.x + arrowCenterOffset,
-      northInnerFlowY,
-      180,
-      0,
-      24,
-    );
-    this.addDoubleDirectionArrow(
-      vertical.x + vertical.width - arrowCenterOffset,
-      southInnerFlowY,
-      0,
-      0,
-      24,
-    );
-    this.addDoubleDirectionArrow(
-      vertical.x + arrowCenterOffset,
-      southOuterFlowY,
-      180,
-      0,
-      24,
     );
 
     const labelDistance = 352;
@@ -663,28 +518,25 @@ export class WorldBackdrop {
     this.roadLabels.push(label);
   }
 
-  private addDirectionArrow(
+  private addCrosswalk(
     x: number,
     y: number,
+    width: number,
     angle: number,
   ): void {
-    const arrow = this.scene.add.image(x, y, PEDESTRIAN_ARROW_TEXTURE_KEY)
+    const crosswalk = this.scene.add.image(x, y, CROSSWALK_TEXTURE_KEY)
       .setOrigin(0.5)
       .setAngle(angle)
-      .setScale(1.15)
       .setAlpha(0.9)
       .setDepth(-99);
-    this.directionArrows.push(arrow);
-  }
-
-  private addDoubleDirectionArrow(
-    x: number,
-    y: number,
-    angle: number,
-    spreadX: number,
-    spreadY: number,
-  ): void {
-    this.addDirectionArrow(x - spreadX, y - spreadY, angle);
-    this.addDirectionArrow(x + spreadX, y + spreadY, angle);
+    const displayWidth = Math.round(Math.max(0, width));
+    const displayHeight = Math.round(
+      crosswalk.height * displayWidth / crosswalk.width,
+    );
+    crosswalk.setDisplaySize(
+      displayWidth,
+      displayHeight,
+    );
+    this.crosswalks.push(crosswalk);
   }
 }

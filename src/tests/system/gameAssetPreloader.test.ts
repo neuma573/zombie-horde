@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { CHARACTER_CLASS_OPTIONS } from '../../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../../config/weaponAudioConfig';
 import {
+  CROSSWALK_TEXTURE_KEY,
   GAME_IMAGE_ASSETS,
-  PEDESTRIAN_ARROW_TEXTURE_KEY,
   preloadGameAssets,
 } from '../../effects/gameAssetPreloader';
 
@@ -29,10 +29,8 @@ function createRuntime(
 }
 
 describe('game asset preloader', () => {
-  it('registers the pedestrian arrow under its rendering texture key', () => {
-    expect(GAME_IMAGE_ASSETS[PEDESTRIAN_ARROW_TEXTURE_KEY]).toMatch(
-      /pedestrian-arrow\.png$/,
-    );
+  it('registers the crosswalk under its rendering texture key', () => {
+    expect(GAME_IMAGE_ASSETS[CROSSWALK_TEXTURE_KEY]).toMatch(/sidewalk\.png$/);
   });
 
   it('queues every image and sound required after the main menu', () => {
