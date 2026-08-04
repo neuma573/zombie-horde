@@ -1,13 +1,13 @@
-import pedestrianArrowUrl from '../assets/pedestrian-arrow.png';
+import crosswalkUrl from '../assets/sidewalk.png';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../config/weaponAudioConfig';
 
-export const PEDESTRIAN_ARROW_TEXTURE_KEY = 'pedestrian-arrow';
+export const CROSSWALK_TEXTURE_KEY = 'crosswalk';
 
 export const GAME_IMAGE_ASSETS = {
-  [PEDESTRIAN_ARROW_TEXTURE_KEY]: pedestrianArrowUrl,
+  [CROSSWALK_TEXTURE_KEY]: crosswalkUrl,
   'weapon-pistol': pistolIconUrl,
   'weapon-rifle': rifleIconUrl,
 } as const;
