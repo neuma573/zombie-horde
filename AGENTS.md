@@ -56,4 +56,6 @@
 
 # Commit convention
 
+- 커밋, 푸시, PR 생성 전에는 반드시 `docs/GIT_CONVENTIONS.md`를 확인한다.
+
 Conventional Commits
