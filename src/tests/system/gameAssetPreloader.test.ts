@@ -5,6 +5,8 @@ import { WEAPON_AUDIO_ASSETS } from '../../config/weaponAudioConfig';
 import {
   CROSSWALK_TEXTURE_KEY,
   GAME_IMAGE_ASSETS,
+  NO_STOPPING_ZONE_TEXTURE_KEY,
+  ROAD_DIAMOND_OUTLINE_TEXTURE_KEY,
   preloadGameAssets,
 } from '../../effects/gameAssetPreloader';
 
@@ -31,6 +33,16 @@ function createRuntime(
 describe('game asset preloader', () => {
   it('registers the crosswalk under its rendering texture key', () => {
     expect(GAME_IMAGE_ASSETS[CROSSWALK_TEXTURE_KEY]).toMatch(/sidewalk\.png$/);
+  });
+
+  it('registers the road diamond under its rendering texture key', () => {
+    expect(GAME_IMAGE_ASSETS[ROAD_DIAMOND_OUTLINE_TEXTURE_KEY])
+      .toMatch(/road_diamond_outline\.png$/);
+  });
+
+  it('registers the no-stopping zone under its rendering texture key', () => {
+    expect(GAME_IMAGE_ASSETS[NO_STOPPING_ZONE_TEXTURE_KEY])
+      .toMatch(/^data:image\/svg\+xml,/);
   });
 
   it('queues every image and sound required after the main menu', () => {

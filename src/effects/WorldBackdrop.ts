@@ -2,12 +2,16 @@ import Phaser from 'phaser';
 
 import type { UrbanRoad } from '../config/urbanMapConfig';
 import type { RectangleObstacle } from '../logic/obstacleCollision';
-import { CROSSWALK_TEXTURE_KEY } from './gameAssetPreloader';
+import {
+  CROSSWALK_TEXTURE_KEY,
+  NO_STOPPING_ZONE_TEXTURE_KEY,
+  ROAD_DIAMOND_OUTLINE_TEXTURE_KEY,
+} from './gameAssetPreloader';
 
 export class WorldBackdrop {
   private readonly scene: Phaser.Scene;
   private readonly graphics: Phaser.GameObjects.Graphics;
-  private readonly roadLabels: Phaser.GameObjects.Text[] = [];
+  private readonly roadSymbols: Phaser.GameObjects.Image[] = [];
   private readonly crosswalks: Phaser.GameObjects.Image[] = [];
 
   constructor(scene: Phaser.Scene) {
@@ -28,8 +32,8 @@ export class WorldBackdrop {
     const safeHeight = Math.max(0, height);
     const spacing = Math.max(1, gridSize);
 
-    for (const label of this.roadLabels.splice(0)) {
-      label.destroy();
+    for (const symbol of this.roadSymbols.splice(0)) {
+      symbol.destroy();
     }
     for (const crosswalk of this.crosswalks.splice(0)) {
       crosswalk.destroy();
@@ -103,8 +107,8 @@ export class WorldBackdrop {
   }
 
   destroy(): void {
-    for (const label of this.roadLabels.splice(0)) {
-      label.destroy();
+    for (const symbol of this.roadSymbols.splice(0)) {
+      symbol.destroy();
     }
     for (const crosswalk of this.crosswalks.splice(0)) {
       crosswalk.destroy();
@@ -303,6 +307,8 @@ export class WorldBackdrop {
     const crosswalkFarInset = 256;
     const intersectionClearance = 420;
 
+    this.addNoStoppingZone(verticalCenter, horizontalCenter);
+
     this.graphics.lineStyle(7, 0xf0f1eb, 0.9);
     this.graphics.lineBetween(
       vertical.x - setback,
@@ -476,46 +482,51 @@ export class WorldBackdrop {
       0,
     );
 
-    const labelDistance = 352;
+    const symbolDistance = 376;
     const innerLaneOffset = horizontal.height / 8;
     const outerLaneOffset = horizontal.height * 3 / 8;
 
     for (const laneOffset of [innerLaneOffset, outerLaneOffset]) {
-      this.addStopLabel(
-        vertical.x - labelDistance,
+      this.addRoadDiamond(
+        vertical.x - symbolDistance,
         horizontalCenter + laneOffset,
         90,
       );
-      this.addStopLabel(
-        vertical.x + vertical.width + labelDistance,
+      this.addRoadDiamond(
+        vertical.x + vertical.width + symbolDistance,
         horizontalCenter - laneOffset,
         -90,
       );
-      this.addStopLabel(
+      this.addRoadDiamond(
         verticalCenter - laneOffset,
-        horizontal.y - labelDistance,
+        horizontal.y - symbolDistance,
         180,
       );
-      this.addStopLabel(
+      this.addRoadDiamond(
         verticalCenter + laneOffset,
-        horizontal.y + horizontal.height + labelDistance,
+        horizontal.y + horizontal.height + symbolDistance,
         0,
       );
     }
   }
 
-  private addStopLabel(x: number, y: number, angle: number): void {
-    const label = this.scene.add.text(x, y, 'STOP', {
-      color: '#d8ddda',
-      fontFamily: 'Arial Black, Arial, sans-serif',
-      fontSize: '30px',
-      fontStyle: 'bold',
-    })
+  private addRoadDiamond(x: number, y: number, angle: number): void {
+    const symbol = this.scene.add.image(x, y, ROAD_DIAMOND_OUTLINE_TEXTURE_KEY)
       .setOrigin(0.5)
+      .setDisplaySize(56, 116)
       .setAngle(angle)
       .setAlpha(0.9)
       .setDepth(-99);
-    this.roadLabels.push(label);
+    this.roadSymbols.push(symbol);
+  }
+
+  private addNoStoppingZone(x: number, y: number): void {
+    const symbol = this.scene.add.image(x, y, NO_STOPPING_ZONE_TEXTURE_KEY)
+      .setOrigin(0.5)
+      .setDisplaySize(600, 600)
+      .setAlpha(0.9)
+      .setDepth(-99);
+    this.roadSymbols.push(symbol);
   }
 
   private addCrosswalk(
