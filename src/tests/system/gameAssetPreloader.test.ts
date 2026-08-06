@@ -30,14 +30,27 @@ function createRuntime(
   };
 }
 
+function expectSvgAsset(assetUrl: string, expectedViewBox: string): void {
+  expect(assetUrl).toMatch(/^data:image\/svg\+xml,/);
+
+  const svg = decodeURIComponent(assetUrl.slice(assetUrl.indexOf(',') + 1));
+  const viewBox = svg.match(/viewBox=(['"])([^'"]+)\1/);
+  expect(viewBox?.[2]).toBe(expectedViewBox);
+}
+
 describe('game asset preloader', () => {
   it('registers the crosswalk under its rendering texture key', () => {
-    expect(GAME_IMAGE_ASSETS[CROSSWALK_TEXTURE_KEY]).toMatch(/sidewalk\.png$/);
+    expectSvgAsset(
+      GAME_IMAGE_ASSETS[CROSSWALK_TEXTURE_KEY],
+      '0 0 1194 314',
+    );
   });
 
   it('registers the road diamond under its rendering texture key', () => {
-    expect(GAME_IMAGE_ASSETS[ROAD_DIAMOND_OUTLINE_TEXTURE_KEY])
-      .toMatch(/road_diamond_outline\.png$/);
+    expectSvgAsset(
+      GAME_IMAGE_ASSETS[ROAD_DIAMOND_OUTLINE_TEXTURE_KEY],
+      '0 0 200 414',
+    );
   });
 
   it('registers the no-stopping zone under its rendering texture key', () => {
