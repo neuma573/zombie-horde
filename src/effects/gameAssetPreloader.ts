@@ -1,6 +1,6 @@
-import crosswalkUrl from '../assets/sidewalk.png';
+import crosswalkUrl from '../assets/crosswalk.svg';
 import noStoppingZoneUrl from '../assets/no_stopping_zone_transparent.svg';
-import roadDiamondOutlineUrl from '../assets/road_diamond_outline.png';
+import roadDiamondOutlineUrl from '../assets/road_diamond_outline.svg';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';

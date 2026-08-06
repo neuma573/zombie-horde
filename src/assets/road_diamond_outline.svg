@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="200" height="414" viewBox="0 0 200 414">
+  <path fill="#ffffff" fill-rule="evenodd"
+        d="
+          M 100 3
+          L 197 207
+          L 100 411
+          L 3 207
+          Z
+
+          M 100 51
+          L 171 207
+          L 100 363
+          L 27 207
+          Z
+        "/>
+</svg>

@@ -32,12 +32,12 @@ function createRuntime(
 
 describe('game asset preloader', () => {
   it('registers the crosswalk under its rendering texture key', () => {
-    expect(GAME_IMAGE_ASSETS[CROSSWALK_TEXTURE_KEY]).toMatch(/sidewalk\.png$/);
+    expect(GAME_IMAGE_ASSETS[CROSSWALK_TEXTURE_KEY]).toMatch(/^data:image\/svg\+xml,/);
   });
 
   it('registers the road diamond under its rendering texture key', () => {
     expect(GAME_IMAGE_ASSETS[ROAD_DIAMOND_OUTLINE_TEXTURE_KEY])
-      .toMatch(/road_diamond_outline\.png$/);
+      .toMatch(/^data:image\/svg\+xml,/);
   });
 
   it('registers the no-stopping zone under its rendering texture key', () => {

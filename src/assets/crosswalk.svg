@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1194" height="314" viewBox="0 0 1194 314">
+  <g fill="#ffffff">
+    <rect x="104" y="2" width="34" height="148"/> <rect x="176" y="2" width="34" height="148"/> <rect x="246" y="2" width="34" height="148"/> <rect x="316" y="2" width="34" height="148"/> <rect x="386" y="2" width="34" height="148"/> <rect x="456" y="2" width="34" height="148"/> <rect x="526" y="2" width="34" height="148"/> <rect x="596" y="2" width="34" height="148"/> <rect x="666" y="2" width="36" height="148"/> <rect x="738" y="2" width="34" height="148"/> <rect x="808" y="2" width="34" height="148"/> <rect x="878" y="2" width="34" height="148"/> <rect x="948" y="2" width="34" height="148"/> <rect x="1018" y="2" width="34" height="148"/> <rect x="1088" y="2" width="34" height="148"/> <rect x="1158" y="2" width="34" height="148"/> <rect x="2" y="164" width="34" height="148"/> <rect x="72" y="164" width="34" height="148"/> <rect x="142" y="164" width="34" height="148"/> <rect x="212" y="164" width="34" height="148"/> <rect x="282" y="164" width="34" height="148"/> <rect x="352" y="164" width="34" height="148"/> <rect x="424" y="164" width="34" height="148"/> <rect x="494" y="164" width="34" height="148"/> <rect x="564" y="164" width="34" height="148"/> <rect x="634" y="164" width="34" height="148"/> <rect x="704" y="164" width="34" height="148"/> <rect x="774" y="164" width="34" height="148"/> <rect x="844" y="164" width="34" height="148"/> <rect x="914" y="164" width="36" height="148"/> <rect x="986" y="164" width="34" height="148"/> <rect x="1056" y="164" width="34" height="148"/>
+
+    <!-- 좌측 상단 오른쪽 화살표 -->
+    <path d="M1 27 H47 V7 L86 36.5 L47 67 V47 H1 Z"/>
+
+    <!-- 좌측 중단 오른쪽 화살표 -->
+    <path d="M1 106 H47 V86 L86 116 L47 146 V126 H1 Z"/>
+
+    <!-- 우측 중단 왼쪽 화살표 -->
+    <path d="M1191 191 H1145 V171 L1106 201 L1145 231 V211 H1191 Z"/>
+
+    <!-- 우측 하단 왼쪽 화살표 -->
+    <path d="M1191 270 H1145 V250 L1106 280 L1145 310 V290 H1191 Z"/>
+  </g>
+</svg>
