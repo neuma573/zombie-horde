@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { advanceKnockback, createKnockbackState } from '../../../logic/knockback';
+import {
+  advanceKnockback,
+  combineKnockbacks,
+  createKnockbackState,
+  remainingKnockbackDisplacement,
+} from '../../../logic/knockback';
 
 describe('zombie knockback', () => {
   it('moves quickly at first and eases to rest', () => {
@@ -40,5 +45,26 @@ describe('zombie knockback', () => {
     expect(createKnockbackState({ x: 0, y: 0 }, 54, 200)).toBeNull();
     expect(createKnockbackState({ x: 1, y: 0 }, 0, 200)).toBeNull();
     expect(createKnockbackState({ x: 1, y: 0 }, 54, 0)).toBeNull();
+  });
+
+  it('preserves remaining displacement when another shove lands', () => {
+    const initial = createKnockbackState({ x: 1, y: 0 }, 54, 210)!;
+    const partial = advanceKnockback(initial, 70).state!;
+    const added = createKnockbackState({ x: 1, y: 0 }, 54, 210)!;
+    const remaining = remainingKnockbackDisplacement(partial);
+    const combined = combineKnockbacks(partial, added);
+
+    expect(combined.direction).toEqual({ x: 1, y: 0 });
+    expect(combined.distance).toBeCloseTo(remaining.x + 54);
+  });
+
+  it('combines knockbacks as vectors when their directions differ', () => {
+    const current = createKnockbackState({ x: 1, y: 0 }, 40, 200)!;
+    const added = createKnockbackState({ x: 0, y: 1 }, 30, 200)!;
+    const combined = combineKnockbacks(current, added);
+
+    expect(combined.distance).toBeCloseTo(50);
+    expect(combined.direction.x).toBeCloseTo(0.8);
+    expect(combined.direction.y).toBeCloseTo(0.6);
   });
 });

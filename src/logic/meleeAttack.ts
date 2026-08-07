@@ -31,9 +31,19 @@ export interface ShoveWindupState {
 
 export function startShoveWindup(
   current: ShoveWindupState | null,
+  preInputAccumulatorMs = 0,
 ): { started: boolean; state: ShoveWindupState } {
+  const accumulatorMs = Math.max(
+    0,
+    Number.isFinite(preInputAccumulatorMs) ? preInputAccumulatorMs : 0,
+  );
   return current === null
-    ? { started: true, state: { elapsedMs: 0 } }
+    ? {
+      started: true,
+      state: {
+        elapsedMs: accumulatorMs > 0 ? -accumulatorMs : 0,
+      },
+    }
     : { started: false, state: current };
 }
 

@@ -150,6 +150,7 @@ import {
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import {
   advanceKnockback,
+  combineKnockbacks,
   createKnockbackState,
   type KnockbackState,
 } from '../logic/knockback';
@@ -912,7 +913,10 @@ export class GameScene extends Phaser.Scene {
     const request = consumeShoveRequest(this.playerInput);
     this.playerInput = request.state;
     if (!request.requested || !isPlaying(this.sessionState)) return;
-    const windup = startShoveWindup(this.pendingShove);
+    const windup = startShoveWindup(
+      this.pendingShove,
+      this.simulationStepState.accumulatorMs,
+    );
     if (!windup.started) return;
 
     const result = resolveShove(
@@ -961,7 +965,12 @@ export class GameScene extends Phaser.Scene {
         SHOVE_CONFIG.pushDistance,
         SHOVE_CONFIG.pushDurationMs,
       );
-      if (knockback) this.zombieKnockbacks.set(zombie.id, knockback);
+      if (knockback) {
+        this.zombieKnockbacks.set(
+          zombie.id,
+          combineKnockbacks(this.zombieKnockbacks.get(zombie.id), knockback),
+        );
+      }
     }
   }
 

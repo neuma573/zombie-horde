@@ -16,6 +16,30 @@ function easeOutCubic(progress: number): number {
   return 1 - (1 - progress) ** 3;
 }
 
+export function remainingKnockbackDisplacement(state: KnockbackState): Vector2 {
+  const progress = Math.min(1, Math.max(0, state.elapsedMs / state.durationMs));
+  const remainingDistance = state.distance * (1 - easeOutCubic(progress));
+  return {
+    x: state.direction.x * remainingDistance,
+    y: state.direction.y * remainingDistance,
+  };
+}
+
+export function combineKnockbacks(
+  current: KnockbackState | undefined,
+  added: KnockbackState,
+): KnockbackState {
+  if (!current) return added;
+
+  const remaining = remainingKnockbackDisplacement(current);
+  const combined = {
+    x: remaining.x + added.direction.x * added.distance,
+    y: remaining.y + added.direction.y * added.distance,
+  };
+  return createKnockbackState(combined, Math.hypot(combined.x, combined.y), added.durationMs)
+    ?? added;
+}
+
 export function createKnockbackState(
   direction: Vector2,
   distance: number,
