@@ -402,6 +402,13 @@ export class GameScene extends Phaser.Scene {
     );
     this.weaponPickups = [];
     this.itemPickups = [];
+    if (import.meta.env.DEV) {
+      this.createWeaponPickup(
+        this.playArea.width / 2 + 72,
+        this.playArea.height / 2,
+        createOwnedWeapon(BURST_RIFLE_WEAPON),
+      );
+    }
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.timeBasedLighting.resize(this.viewport.width, this.viewport.height);
@@ -1890,6 +1897,8 @@ export class GameScene extends Phaser.Scene {
       maxStamina: SHOVE_CONFIG.staminaMax,
       magazineAmmo: weapon.magazineAmmo,
       reserveAmmo: weapon.reserveAmmo,
+      weaponId: this.weapon.getDefinition().id,
+      magazineSize: this.weapon.getDefinition().config.magazineSize,
       isReloading: weapon.reloadRemainingMs !== null,
       reloadProgress: reload.normalized,
       waveNumber: wave.waveNumber,

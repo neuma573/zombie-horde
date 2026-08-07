@@ -10,6 +10,8 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 4,
       reserveAmmo: 36,
+      weaponId: 'pistol' as const,
+      magazineSize: 17,
       isReloading: true,
       reloadProgress: 0.5,
       waveNumber: 3,
@@ -25,7 +27,10 @@ describe('createHudViewModel', () => {
     const result = createHudViewModel(state);
 
     expect(result.statusText).toBe('HP 70/100\nST 65/100\nWAVE 3  LEFT 7\nKILLS 5');
-    expect(result.ammoText).toBe('4 / 36');
+    expect(result.ammoText).toBe('+36');
+    expect(result.magazineAmmo).toBe(4);
+    expect(result.magazineSize).toBe(17);
+    expect(result.weaponId).toBe('pistol');
     expect(result.ammoText).not.toContain('AMMO');
     expect(result.timeText).toBe('08:30');
     expect(result.showGameOver).toBe(false);
@@ -43,6 +48,8 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 12,
       reserveAmmo: 48,
+      weaponId: 'pistol',
+      magazineSize: 17,
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 1,
@@ -69,6 +76,8 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 0,
       reserveAmmo: 12,
+      weaponId: 'pistol' as const,
+      magazineSize: 17,
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 1,
@@ -95,6 +104,8 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 12,
       reserveAmmo: 48,
+      weaponId: 'pistol' as const,
+      magazineSize: 17,
       isReloading: false,
       reloadProgress: 0,
       waveNumber: 0,

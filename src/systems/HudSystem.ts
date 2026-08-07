@@ -39,6 +39,7 @@ const WATCH_RENDER_HEIGHT = 48;
 export class HudSystem {
   private readonly statusText: Phaser.GameObjects.Text;
   private readonly ammoText: Phaser.GameObjects.Text;
+  private readonly ammoRounds: Phaser.GameObjects.Image[] = [];
   private readonly timeGraphics: Phaser.GameObjects.Graphics;
   private readonly timeMetaText: Phaser.GameObjects.Text;
   private readonly gameOverText: Phaser.GameObjects.Text;
@@ -62,6 +63,7 @@ export class HudSystem {
   private statusMaxHeight: number | null = null;
   private ammoMaxWidth: number | null = null;
   private ammoMaxHeight: number | null = null;
+  private ammoLayout?: ReturnType<typeof createHudLayout>['ammo'];
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -81,6 +83,7 @@ export class HudSystem {
     }).setDepth(100).setOrigin(1, 0).setScrollFactor(0);
     this.ammoText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
+      fontSize: '12px',
       fontStyle: 'bold',
     }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
@@ -177,6 +180,7 @@ export class HudSystem {
       this.ammoText.setText(viewModel.ammoText);
       this.fitAmmoText();
     }
+    this.updateAmmoRounds(viewModel);
     if (this.current?.timeText !== viewModel.timeText) {
       this.clockText = viewModel.timeText;
       this.renderClockText();
@@ -223,12 +227,22 @@ export class HudSystem {
     this.statusMaxHeight = layout.status.maxHeight;
     this.fitStatusText();
     this.ammoText
-      .setOrigin(layout.ammo.originX, 0)
-      .setPosition(layout.ammo.x, layout.ammo.y)
+      .setOrigin(
+        width >= 720 ? 0 : layout.ammo.originX,
+        width >= 720 ? 0.5 : 1,
+      )
+      .setPosition(
+        width >= 720 ? layout.ammo.x + 190 : layout.ammo.x,
+        width >= 720
+          ? layout.ammo.y + 17
+          : layout.ammo.y + Math.min(layout.ammo.maxHeight ?? 34, 34),
+      )
       .setVisible(layout.topHudVisible);
+    this.ammoLayout = layout.ammo;
     this.ammoMaxWidth = layout.ammo.maxWidth;
     this.ammoMaxHeight = layout.ammo.maxHeight;
     this.fitAmmoText();
+    this.layoutAmmoRounds();
     this.drawWatch(layout.time);
     this.timeGraphics.setVisible(layout.topHudVisible);
     this.timeMetaText.setVisible(layout.topHudVisible);
@@ -272,6 +286,7 @@ export class HudSystem {
     this.clockBlinkEvent.remove(false);
     this.statusText.destroy();
     this.ammoText.destroy();
+    this.ammoRounds.forEach((round) => round.destroy());
     this.timeGraphics.destroy();
     this.timeMetaText.destroy();
     this.gameOverText.destroy();
@@ -400,6 +415,90 @@ export class HudSystem {
       this.ammoMaxWidth === null ? 1 : this.ammoMaxWidth / this.ammoText.width,
       this.ammoMaxHeight === null ? 1 : this.ammoMaxHeight / this.ammoText.height,
     ));
+  }
+
+  private updateAmmoRounds(viewModel: HudViewModel): void {
+    const previous = this.current;
+    const sameWeapon = previous?.weaponId === viewModel.weaponId
+      && previous.activeWeaponSlot === viewModel.activeWeaponSlot;
+    const firedRounds = sameWeapon
+      ? Math.max(0, previous.magazineAmmo - viewModel.magazineAmmo)
+      : 0;
+
+    for (let index = 0; index < firedRounds; index += 1) {
+      const round = this.ammoRounds.pop();
+      if (round) this.animateEjectedRound(round, index);
+    }
+
+    if (!sameWeapon || firedRounds === 0) {
+      while (this.ammoRounds.length > viewModel.magazineAmmo) {
+        this.ammoRounds.pop()?.destroy();
+      }
+    }
+
+    const texture = viewModel.weaponId === 'pistol' ? 'ammo-pistol' : 'ammo-rifle';
+    while (this.ammoRounds.length < viewModel.magazineAmmo) {
+      this.ammoRounds.push(
+        this.scene.add.image(0, 0, texture)
+          .setDepth(101)
+          .setScrollFactor(0)
+          .setRotation(Math.PI / 2),
+      );
+    }
+    this.ammoRounds.forEach((round) => round.setTexture(texture));
+    this.layoutAmmoRounds(viewModel.magazineSize);
+  }
+
+  private layoutAmmoRounds(magazineSize = this.current?.magazineSize ?? 1): void {
+    if (!this.ammoLayout || magazineSize <= 0) return;
+    const { x, y, originX, maxWidth, maxHeight } = this.ammoLayout;
+    const desktop = this.viewportWidth >= 720;
+    const availableWidth = desktop ? 180 : maxWidth ?? 82;
+    const availableHeight = Math.max(8, Math.min(maxHeight ?? 34, 34) - 14);
+    const iconWidth = desktop
+      ? 34
+      : Math.min(23, Math.max(16, availableWidth / 5));
+    const iconHeight = desktop
+      ? 50
+      : Math.min(34, Math.max(26, availableHeight + 14));
+    const step = magazineSize === 1
+      ? 0
+      : Math.max(0, Math.min(
+        desktop ? 9 : 6,
+        (availableWidth - (desktop ? 14 : 10)) / (magazineSize - 1),
+      ));
+    const visibleRoundWidth = desktop ? 14 : 10;
+    const groupWidth = visibleRoundWidth + step * Math.max(0, magazineSize - 1);
+    const left = originX === 1 ? x - groupWidth : x;
+
+    this.ammoRounds.forEach((round, index) => {
+      round
+        .setDisplaySize(iconHeight, iconWidth)
+        .setRotation(Math.PI / 2 - 0.08)
+        .setPosition(
+          left + visibleRoundWidth / 2 + index * step,
+          y + (desktop ? 18 : 12),
+        )
+        .setVisible(true);
+    });
+  }
+
+  private animateEjectedRound(round: Phaser.GameObjects.Image, order: number): void {
+    const targetScaleX = round.scaleX * 0.65;
+    const targetScaleY = round.scaleY * 0.65;
+    this.scene.tweens.add({
+      targets: round,
+      x: round.x + 12 + order * 3,
+      y: round.y + 24 + order * 2,
+      angle: round.angle + 150,
+      alpha: 0,
+      scaleX: targetScaleX,
+      scaleY: targetScaleY,
+      delay: order * 28,
+      duration: 220,
+      ease: 'Quad.In',
+      onComplete: () => round.destroy(),
+    });
   }
 
   private fitStatusText(): void {

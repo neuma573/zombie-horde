@@ -9,6 +9,8 @@ export interface HudState {
   maxStamina: number;
   magazineAmmo: number;
   reserveAmmo: number;
+  weaponId: WeaponId;
+  magazineSize: number;
   isReloading: boolean;
   reloadProgress: number;
   waveNumber: number;
@@ -34,6 +36,9 @@ export interface HudState {
 export interface HudViewModel {
   statusText: string;
   ammoText: string;
+  magazineAmmo: number;
+  magazineSize: number;
+  weaponId: WeaponId;
   timeText: string;
   gameOverText: string;
   showGameOver: boolean;
@@ -213,7 +218,10 @@ export function createHudViewModel(state: HudState): HudViewModel {
       waveStatus,
       `KILLS ${state.killCount}`,
     ].join('\n'),
-    ammoText: `${state.magazineAmmo} / ${state.reserveAmmo}`,
+    ammoText: `+${state.reserveAmmo}`,
+    magazineAmmo: state.magazineAmmo,
+    magazineSize: state.magazineSize,
+    weaponId: state.weaponId,
     timeText: state.gameTimeText,
     gameOverText: 'GAME OVER\nEnter or tap to restart',
     showGameOver: state.sessionPhase === 'gameOver',

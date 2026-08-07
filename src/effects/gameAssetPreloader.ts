@@ -3,6 +3,8 @@ import noStoppingZoneUrl from '../assets/no_stopping_zone_transparent.svg';
 import roadDiamondOutlineUrl from '../assets/road_diamond_outline.svg';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
+import pistolAmmoUrl from '../assets/weapons/ammo-9mm-hud.png';
+import rifleAmmoUrl from '../assets/weapons/ammo-556-hud.png';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../config/weaponAudioConfig';
 
@@ -16,6 +18,8 @@ export const GAME_IMAGE_ASSETS = {
   [ROAD_DIAMOND_OUTLINE_TEXTURE_KEY]: roadDiamondOutlineUrl,
   'weapon-pistol': pistolIconUrl,
   'weapon-rifle': rifleIconUrl,
+  'ammo-pistol': pistolAmmoUrl,
+  'ammo-rifle': rifleAmmoUrl,
 } as const;
 
 interface GameAssetPreloadRuntime {
