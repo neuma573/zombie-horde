@@ -5,6 +5,8 @@ import {
   advanceShoveWindup,
   createStaminaState,
   recoverStamina,
+  recoverStaminaAfterPrepaidTime,
+  recoverStaminaAtInputTime,
   resolveShove,
   resolveShoveTargets,
   startShoveWindup,
@@ -27,6 +29,42 @@ describe('shove stamina', () => {
     expect(recoverStamina(state, 0, SHOVE_CONFIG)).toBe(state);
     expect(recoverStamina(state, -10, SHOVE_CONFIG)).toBe(state);
     expect(recoverStamina(state, Number.NaN, SHOVE_CONFIG)).toBe(state);
+  });
+
+  it('does not recover accumulator time twice after checking input-time stamina', () => {
+    const inputTime = recoverStaminaAtInputTime(
+      { current: 34.8 },
+      10,
+      0,
+      SHOVE_CONFIG,
+    );
+    const nextStep = recoverStaminaAfterPrepaidTime(
+      inputTime.stamina,
+      16,
+      inputTime.prepaidMs,
+      SHOVE_CONFIG,
+    );
+
+    expect(inputTime.stamina.current).toBeGreaterThanOrEqual(SHOVE_CONFIG.staminaCost);
+    expect(nextStep.stamina.current).toBeCloseTo(
+      34.8 + SHOVE_CONFIG.staminaRecoveryPerSecond * 16 / 1_000,
+    );
+    expect(nextStep.remainingPrepaidMs).toBe(0);
+  });
+
+  it('recovers only newly accumulated time across repeated input checks', () => {
+    const firstInput = recoverStaminaAtInputTime({ current: 10 }, 10, 0, SHOVE_CONFIG);
+    const secondInput = recoverStaminaAtInputTime(
+      firstInput.stamina,
+      12,
+      firstInput.prepaidMs,
+      SHOVE_CONFIG,
+    );
+
+    expect(secondInput.stamina.current).toBeCloseTo(
+      10 + SHOVE_CONFIG.staminaRecoveryPerSecond * 12 / 1_000,
+    );
+    expect(secondInput.prepaidMs).toBe(12);
   });
 });
 

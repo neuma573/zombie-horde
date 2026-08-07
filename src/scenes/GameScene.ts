@@ -156,7 +156,8 @@ import {
 import {
   advanceShoveWindup,
   createStaminaState,
-  recoverStamina,
+  recoverStaminaAfterPrepaidTime,
+  recoverStaminaAtInputTime,
   resolveShove,
   resolveShoveTargets,
   startShoveWindup,
@@ -247,6 +248,7 @@ export class GameScene extends Phaser.Scene {
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
+  private prepaidStaminaRecoveryMs = 0;
   private pendingShove: ShoveWindupState | null = null;
   private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
@@ -335,6 +337,7 @@ export class GameScene extends Phaser.Scene {
     this.simulationStepState = createFixedStepState();
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
+    this.prepaidStaminaRecoveryMs = 0;
     this.pendingShove = null;
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
@@ -670,7 +673,14 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
-    this.stamina = recoverStamina(this.stamina, deltaMs, SHOVE_CONFIG);
+    const staminaRecovery = recoverStaminaAfterPrepaidTime(
+      this.stamina,
+      deltaMs,
+      this.prepaidStaminaRecoveryMs,
+      SHOVE_CONFIG,
+    );
+    this.stamina = staminaRecovery.stamina;
+    this.prepaidStaminaRecoveryMs = staminaRecovery.remainingPrepaidMs;
     const shoveImpact = this.advancePendingShove(deltaMs);
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
@@ -976,6 +986,15 @@ export class GameScene extends Phaser.Scene {
       this.simulationStepState.accumulatorMs,
     );
     if (!windup.started) return;
+
+    const inputTimeRecovery = recoverStaminaAtInputTime(
+      this.stamina,
+      this.simulationStepState.accumulatorMs,
+      this.prepaidStaminaRecoveryMs,
+      SHOVE_CONFIG,
+    );
+    this.stamina = inputTimeRecovery.stamina;
+    this.prepaidStaminaRecoveryMs = inputTimeRecovery.prepaidMs;
 
     const result = resolveShove(
       this.stamina,

@@ -130,6 +130,40 @@ export function recoverStamina(
   };
 }
 
+export function recoverStaminaAfterPrepaidTime(
+  state: StaminaState,
+  deltaMs: number,
+  prepaidMs: number,
+  config: Pick<ShoveConfig, 'staminaMax' | 'staminaRecoveryPerSecond'>,
+): { stamina: StaminaState; remainingPrepaidMs: number } {
+  const safeDeltaMs = Number.isFinite(deltaMs) ? Math.max(0, deltaMs) : 0;
+  const safePrepaidMs = Number.isFinite(prepaidMs) ? Math.max(0, prepaidMs) : 0;
+  const consumedPrepaidMs = Math.min(safeDeltaMs, safePrepaidMs);
+
+  return {
+    stamina: recoverStamina(state, safeDeltaMs - consumedPrepaidMs, config),
+    remainingPrepaidMs: safePrepaidMs - consumedPrepaidMs,
+  };
+}
+
+export function recoverStaminaAtInputTime(
+  state: StaminaState,
+  accumulatorMs: number,
+  prepaidMs: number,
+  config: Pick<ShoveConfig, 'staminaMax' | 'staminaRecoveryPerSecond'>,
+): { stamina: StaminaState; prepaidMs: number } {
+  const safeAccumulatorMs = Number.isFinite(accumulatorMs)
+    ? Math.max(0, accumulatorMs)
+    : 0;
+  const safePrepaidMs = Number.isFinite(prepaidMs) ? Math.max(0, prepaidMs) : 0;
+  const unpaidMs = Math.max(0, safeAccumulatorMs - safePrepaidMs);
+
+  return {
+    stamina: recoverStamina(state, unpaidMs, config),
+    prepaidMs: safePrepaidMs + unpaidMs,
+  };
+}
+
 export function resolveShove(
   stamina: StaminaState,
   origin: Vector2,
