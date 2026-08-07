@@ -8,6 +8,7 @@ export class MobileControls {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly fireLabel: Phaser.GameObjects.Text;
   private readonly reloadLabel: Phaser.GameObjects.Text;
+  private readonly shoveLabel: Phaser.GameObjects.Text;
   private readonly interactionLabel: Phaser.GameObjects.Text;
   private layout?: MobileControlLayout;
   private joystickPointer: Position | null = null;
@@ -32,6 +33,10 @@ export class MobileControls {
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(201).setScrollFactor(0);
+    this.shoveLabel = scene.add.text(0, 0, 'PUSH', {
+      color: '#ffffff', fontFamily: 'sans-serif', fontSize: '10px', fontStyle: 'bold',
+      stroke: '#000000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(201).setScrollFactor(0);
     this.interactionLabel = scene.add.text(0, 0, 'OPEN', {
       color: '#ffffff',
       fontFamily: 'sans-serif',
@@ -47,6 +52,7 @@ export class MobileControls {
     this.layout = layout;
     this.fireLabel.setPosition(layout.fire.x, layout.fire.y);
     this.reloadLabel.setPosition(layout.reload.x, layout.reload.y);
+    this.shoveLabel.setPosition(layout.shove.x, layout.shove.y);
     this.interactionLabel.setPosition(
       layout.interaction.x,
       layout.interaction.y,
@@ -64,6 +70,7 @@ export class MobileControls {
     this.graphics.setVisible(visible);
     this.fireLabel.setVisible(visible);
     this.reloadLabel.setVisible(visible);
+    this.shoveLabel.setVisible(visible);
     this.interactionLabel.setVisible(visible && this.interactionVisible);
   }
 
@@ -77,6 +84,7 @@ export class MobileControls {
     this.graphics.destroy();
     this.fireLabel.destroy();
     this.reloadLabel.destroy();
+    this.shoveLabel.destroy();
     this.interactionLabel.destroy();
   }
 
@@ -85,7 +93,7 @@ export class MobileControls {
 
     if (!this.visible || !this.layout) return;
 
-    const { joystick, fire, reload, interaction, knobRadius } = this.layout;
+    const { joystick, fire, reload, shove, interaction, knobRadius } = this.layout;
     const knob = joystickKnobPosition(this.joystickPointer, joystick);
 
     this.graphics.fillStyle(0x111111, 0.38).fillCircle(joystick.x, joystick.y, joystick.radius);
@@ -95,6 +103,8 @@ export class MobileControls {
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(fire.x, fire.y, fire.radius);
     this.graphics.fillStyle(0x304866, 0.62).fillCircle(reload.x, reload.y, reload.radius);
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(reload.x, reload.y, reload.radius);
+    this.graphics.fillStyle(0x8a5a24, 0.7).fillCircle(shove.x, shove.y, shove.radius);
+    this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(shove.x, shove.y, shove.radius);
     if (this.interactionVisible) {
       this.graphics
         .fillStyle(0x41603f, 0.78)

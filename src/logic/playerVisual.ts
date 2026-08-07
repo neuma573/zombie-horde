@@ -4,6 +4,69 @@ export interface SidearmPose {
   rotation: number;
 }
 
+export interface ShoveVisualPose {
+  forwardOffset: number;
+}
+
+export interface ArmJointPose {
+  elbow: { x: number; y: number };
+  hand: { x: number; y: number };
+}
+
+function lerpNumber(start: number, end: number, amount: number): number {
+  return start + (end - start) * amount;
+}
+
+export function resolveShoveVisualPose(
+  elapsedMs: number | null,
+  durationMs: number,
+): ShoveVisualPose {
+  if (elapsedMs === null || !Number.isFinite(elapsedMs) || durationMs <= 0) {
+    return { forwardOffset: 0 };
+  }
+
+  const progress = Math.min(1, Math.max(0, elapsedMs / durationMs));
+  if (progress < 0.27) {
+    return {
+      forwardOffset: lerpNumber(0, 15, progress / 0.27),
+    };
+  }
+  if (progress < 0.48) {
+    return { forwardOffset: 15 };
+  }
+  return {
+    forwardOffset: lerpNumber(15, 0, (progress - 0.48) / 0.52),
+  };
+}
+
+export function resolveShoveArmPose(
+  shoulder: { x: number; y: number },
+  restingElbow: { x: number; y: number },
+  restingHand: { x: number; y: number },
+  shove: ShoveVisualPose,
+  maximumForwardOffset = 15,
+): ArmJointPose {
+  const extension = maximumForwardOffset > 0
+    ? Math.min(1, Math.max(0, shove.forwardOffset / maximumForwardOffset))
+    : 0;
+  const hand = {
+    x: restingHand.x + shove.forwardOffset,
+    y: restingHand.y,
+  };
+  const straightElbow = {
+    x: shoulder.x + (hand.x - shoulder.x) * 0.52,
+    y: shoulder.y + (hand.y - shoulder.y) * 0.52,
+  };
+
+  return {
+    hand,
+    elbow: {
+      x: lerpNumber(restingElbow.x, straightElbow.x, extension),
+      y: lerpNumber(restingElbow.y, straightElbow.y, extension),
+    },
+  };
+}
+
 export interface SidearmHandPose {
   rightHand: { x: number; y: number };
   leftHand: { x: number; y: number };

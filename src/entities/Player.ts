@@ -9,6 +9,8 @@ import {
   clampPonytailRelativeRotation,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
+  resolveShoveArmPose,
+  resolveShoveVisualPose,
   resolveSidearmHandPose,
   resolveSidearmPose,
   SIDEARM_VISUAL,
@@ -51,6 +53,7 @@ const FEMALE_VISUAL_COLORS = {
 } as const;
 const MUZZLE_REFLECTION_DECAY_RATE = 22;
 const WEAPON_RECOIL_DECAY_RATE = 15;
+const SHOVE_VISUAL_DURATION_MS = 260;
 const PONYTAIL_FOLLOW_RATE = 10;
 const PONYTAIL_SWAY_SPEED = 0.012;
 const PONYTAIL_MAX_LAG_RADIANS = Math.PI * 0.4;
@@ -79,6 +82,7 @@ export class Player extends Phaser.GameObjects.Container {
   private muzzleReflectionIntensity = 0;
   private weaponRecoilIntensity = 0;
   private weaponRecoilDistance = 0;
+  private shoveVisualElapsedMs: number | null = null;
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
   private movementAmount = 0;
@@ -175,7 +179,9 @@ export class Player extends Phaser.GameObjects.Container {
       : resolveSidearmPose(isReloading, normalizedProgress);
     this.currentPose = pose;
     const recoilOffset = this.weaponRecoilIntensity * this.weaponRecoilDistance;
-    this.sidearm.setPosition(pose.x - recoilOffset, pose.y).setRotation(pose.rotation);
+    this.sidearm
+      .setPosition(pose.x - recoilOffset, pose.y)
+      .setRotation(pose.rotation);
     const headVisual = this.femaleHead ?? this.head;
     if (this.weaponId === 'pistol' && isReloading) {
       const headIndex = this.getIndex(headVisual);
@@ -191,6 +197,8 @@ export class Player extends Phaser.GameObjects.Container {
         pose.y,
       )
       .setRotation(pose.rotation);
+    this.arms.setX(0);
+    this.rifleUnderArm.setX(0);
     this.drawArms(pose);
     this.drawRifle();
     this.drawRifleReload();
@@ -221,6 +229,10 @@ export class Player extends Phaser.GameObjects.Container {
     this.weaponRecoilIntensity = 1;
   }
 
+  triggerShoveVisual(): void {
+    this.shoveVisualElapsedMs = 0;
+  }
+
   updateVisual(deltaMs: number, isMoving = false): void {
     this.muzzleReflectionIntensity = decayTransientLight(
       this.muzzleReflectionIntensity,
@@ -232,6 +244,12 @@ export class Player extends Phaser.GameObjects.Container {
       deltaMs,
       WEAPON_RECOIL_DECAY_RATE,
     );
+    if (this.shoveVisualElapsedMs !== null && Number.isFinite(deltaMs) && deltaMs > 0) {
+      this.shoveVisualElapsedMs += deltaMs;
+      if (this.shoveVisualElapsedMs >= SHOVE_VISUAL_DURATION_MS) {
+        this.shoveVisualElapsedMs = null;
+      }
+    }
     this.ponytailShotSwayIntensity = decayTransientLight(
       this.ponytailShotSwayIntensity,
       deltaMs,
@@ -276,10 +294,25 @@ export class Player extends Phaser.GameObjects.Container {
     const rightShoulderY = this.appearance === 'female-swat'
       ? 9
       : HUMANOID_VISUAL.shoulderY;
-    const handPose = resolveSidearmHandPose(pose, {
+    const resolvedHandPose = resolveSidearmHandPose(pose, {
       leftY: leftShoulderY,
       rightY: rightShoulderY,
     });
+    const shovePose = resolveShoveVisualPose(
+      this.shoveVisualElapsedMs,
+      SHOVE_VISUAL_DURATION_MS,
+    );
+    const shoveArm = resolveShoveArmPose(
+      { x: 0, y: leftShoulderY },
+      resolvedHandPose.leftElbow,
+      resolvedHandPose.leftHand,
+      shovePose,
+    );
+    const handPose = {
+      ...resolvedHandPose,
+      leftHand: shoveArm.hand,
+      leftElbow: shoveArm.elbow,
+    };
     this.drawArmPath(
       armOutlineWidth,
       0x05080b,
@@ -327,13 +360,16 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private drawRifleArms(): void {
-    const leftHand = this.rifleReloadVisual.leftHand;
+    const shovePose = resolveShoveVisualPose(
+      this.shoveVisualElapsedMs,
+      SHOVE_VISUAL_DURATION_MS,
+    );
     const rightHand = this.rifleReloadVisual.rightHand;
     const reloadAmount = Math.min(
       1,
       Math.abs(this.rifleReloadVisual.pose.rotation) / 0.5,
     );
-    const leftElbow = {
+    const restingLeftElbow = {
       x: 8 - reloadAmount * 5,
       y: -13 - reloadAmount * 5,
     };
@@ -344,6 +380,14 @@ export class Player extends Phaser.GameObjects.Container {
     const rightShoulderY = this.appearance === 'female-swat'
       ? 9
       : HUMANOID_VISUAL.shoulderY;
+    const shoveArm = resolveShoveArmPose(
+      { x: 0, y: leftShoulderY },
+      restingLeftElbow,
+      this.rifleReloadVisual.leftHand,
+      shovePose,
+    );
+    const leftHand = shoveArm.hand;
+    const leftElbow = shoveArm.elbow;
     const armOutlineWidth = this.appearance === 'female-swat' ? 6 : 9;
     const armWidth = this.appearance === 'female-swat' ? 5 : 6;
 

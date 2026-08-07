@@ -9,6 +9,7 @@ import { ITEM_BALANCE_CONFIG } from '../config/itemConfig';
 import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
+import { SHOVE_CONFIG } from '../config/meleeConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
 import {
@@ -148,6 +149,22 @@ import {
 } from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import {
+  advanceKnockbacks,
+  createKnockbackState,
+  type KnockbackState,
+} from '../logic/knockback';
+import {
+  advanceShoveWindup,
+  createStaminaState,
+  recoverStaminaAfterPrepaidTime,
+  recoverStaminaAtInputTime,
+  resolveShove,
+  resolveShoveTargets,
+  startShoveWindup,
+  type ShoveWindupState,
+  type StaminaState,
+} from '../logic/meleeAttack';
+import {
   applyWeaponRecoil,
   advanceFirstShotAccuracy,
   consumeFirstShotAccuracy,
@@ -189,9 +206,11 @@ import {
   clearActiveInput,
   consumeFireRequest,
   consumeReloadRequest,
+  consumeShoveRequest,
   createPlayerInputState,
   requestFire,
   requestReload,
+  requestShove,
   withAimCandidate,
   withMovement,
   type PlayerInputSnapshot,
@@ -215,6 +234,7 @@ import { WeaponSystem } from '../systems/WeaponSystem';
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
 const SUPPLY_CRATE_TARGET_ID = 'supply-drop-crate';
 const SPAWN_OFFSCREEN_WORLD_MARGIN = ZOMBIE_CONFIG.radius * 4 + 1;
+const SHOVE_IMPACT_DELAY_MS = 70;
 
 export class GameScene extends Phaser.Scene {
   private readonly gameplayKeyStateGuard = new GameplayKeyStateGuard();
@@ -222,10 +242,14 @@ export class GameScene extends Phaser.Scene {
   private movementKeys?: MovementKeys;
   private reloadKey?: Phaser.Input.Keyboard.Key;
   private pickupKey?: Phaser.Input.Keyboard.Key;
+  private shoveKey?: Phaser.Input.Keyboard.Key;
   private weaponSlotKeys?: [Phaser.Input.Keyboard.Key, Phaser.Input.Keyboard.Key];
   private restartKey?: Phaser.Input.Keyboard.Key;
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
+  private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
+  private prepaidStaminaRecoveryMs = 0;
+  private pendingShove: ShoveWindupState | null = null;
   private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
   private aimSource: AimSource = 'none';
@@ -272,6 +296,7 @@ export class GameScene extends Phaser.Scene {
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
+  private readonly zombieKnockbacks = new Map<string, KnockbackState[]>();
   private spawn!: SpawnSystem;
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
@@ -311,6 +336,9 @@ export class GameScene extends Phaser.Scene {
     this.previousSupplyDropPosition = null;
     this.simulationStepState = createFixedStepState();
     this.playerInput = createPlayerInputState();
+    this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
+    this.prepaidStaminaRecoveryMs = 0;
+    this.pendingShove = null;
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
     this.aimSource = 'none';
@@ -378,6 +406,7 @@ export class GameScene extends Phaser.Scene {
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
     this.timeBasedLighting.resize(this.viewport.width, this.viewport.height);
     this.zombies = [];
+    this.zombieKnockbacks.clear();
     this.zombieNavigation.clear();
     this.fastZombieRuns.clear();
     this.killCount = 0;
@@ -441,6 +470,7 @@ export class GameScene extends Phaser.Scene {
     }) as MovementKeys | undefined;
     this.reloadKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.pickupKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.shoveKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.weaponSlotKeys = this.input.keyboard ? [
       this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
       this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
@@ -551,6 +581,9 @@ export class GameScene extends Phaser.Scene {
         this.tryPickupWeapon();
       }
     }
+    if (this.shoveKey && Phaser.Input.Keyboard.JustDown(this.shoveKey)) {
+      this.playerInput = requestShove(this.playerInput);
+    }
     if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
       this.selectWeaponSlot(0);
     }
@@ -597,6 +630,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+    if (!playerDied) this.resolveShoveRequest();
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -639,6 +673,15 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
+    const staminaRecovery = recoverStaminaAfterPrepaidTime(
+      this.stamina,
+      deltaMs,
+      this.prepaidStaminaRecoveryMs,
+      SHOVE_CONFIG,
+    );
+    this.stamina = staminaRecovery.stamina;
+    this.prepaidStaminaRecoveryMs = staminaRecovery.remainingPrepaidMs;
+    const shoveImpact = this.advancePendingShove(deltaMs);
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
       this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
@@ -653,13 +696,141 @@ export class GameScene extends Phaser.Scene {
       pickup.advanceVisual(deltaMs);
     }
     this.weaponAudio?.advanceReload(deltaMs, audioDelayMs);
-    const burstShotOffsets = this.weapon.updateBurst(deltaMs);
-    for (const burstShotOffset of burstShotOffsets) {
-      this.resolveHitscanShot(audioDelayMs + burstShotOffset);
-    }
-    this.startMobileAutoReloadIfNeeded();
 
     const playerStart = { x: this.player.x, y: this.player.y };
+    const zombieStarts = new Map(this.zombies.map((zombie) => [
+      zombie.id,
+      { x: zombie.x, y: zombie.y },
+    ]));
+    let contactDied = false;
+    let damageEventCount = 0;
+    if (shoveImpact) {
+      const preImpact = this.advanceActorsThroughBurstShots(
+        shoveImpact.preImpactMs,
+        audioDelayMs,
+        movementObstacles,
+      );
+      contactDied = preImpact.died;
+      damageEventCount += preImpact.damageEventCount;
+      if (!contactDied) {
+        this.refreshStationaryMouseAim();
+        this.refreshAimAssist();
+        this.applyShoveImpact();
+        const postImpact = this.advanceActorsThroughBurstShots(
+          shoveImpact.postImpactMs,
+          audioDelayMs + shoveImpact.preImpactMs,
+          movementObstacles,
+        );
+        contactDied = postImpact.died;
+        damageEventCount += postImpact.damageEventCount;
+      }
+    } else {
+      const simulation = this.advanceActorsThroughBurstShots(
+        deltaMs,
+        audioDelayMs,
+        movementObstacles,
+      );
+      contactDied = simulation.died;
+      damageEventCount = simulation.damageEventCount;
+    }
+    this.startMobileAutoReloadIfNeeded();
+    const nearbyPickup = this.nearestWeaponPickupInRange();
+    if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
+      this.tryPickupWeapon(nearbyPickup);
+    }
+    const playerMovementEnd = { x: this.player.x, y: this.player.y };
+
+    const separation = separatePlayerFromZombies(
+      {
+        position: { x: this.player.x, y: this.player.y },
+        previousPosition: playerStart,
+        radius: this.player.hitRadius,
+      },
+      this.zombies.map((zombie) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        previousPosition: zombieStarts.get(zombie.id) ?? { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius,
+      })),
+      movementObstacles,
+      this.playArea,
+    );
+    this.player.setPosition(separation.playerPosition.x, separation.playerPosition.y);
+    for (const zombie of this.zombies) {
+      const position = separation.zombiePositions.get(zombie.id);
+      if (position) zombie.setPosition(position.x, position.y);
+    }
+    this.cameraFollowState = updateCameraFollow(
+      this.cameraFollowState,
+      this.player,
+      velocityBetween(playerStart, playerMovementEnd, deltaMs),
+      deltaMs,
+      CAMERA_FOLLOW_CONFIG,
+    );
+
+    if (!contactDied) {
+      const waveUpdate = this.wave.update(
+        deltaMs,
+        this.zombies.length + this.pendingZombieSpawns,
+      );
+      this.pendingZombieSpawns += waveUpdate.spawnCount;
+      while (this.pendingZombieSpawns > 0) {
+        const zombie = this.spawn.spawn(
+          this,
+          this.playArea,
+          this.player,
+          cameraWorldView(
+            { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
+            this.viewport,
+            this.cameras.main.zoom,
+          ),
+          movementObstacles,
+          this.wave.getState().waveNumber,
+        );
+        if (!zombie) break;
+        this.zombies.push(zombie);
+        this.pendingZombieSpawns -= 1;
+      }
+      this.tryTriggerSupplyDrop(waveUpdate.waveCleared);
+    }
+
+    return {
+      died: contactDied,
+      damageEventCount,
+    };
+  }
+
+  private resolveContactMovementSegment(
+    playerStart: Vector2,
+    zombieStarts: readonly Vector2[],
+    deltaMs: number,
+  ): { died: boolean; damageEventCount: number } {
+    if (deltaMs <= 0) return { died: false, damageEventCount: 0 };
+    const result = this.damage.resolveZombieContacts(
+      this.player,
+      { start: playerStart, end: { x: this.player.x, y: this.player.y } },
+      this.zombies,
+      this.zombies.map((zombie, index) => ({
+        start: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
+        end: { x: zombie.x, y: zombie.y },
+      })),
+      deltaMs,
+      PLAYER_CONFIG.invulnerabilityMs,
+      ZOMBIE_CONFIG.contactDamage,
+      ZOMBIE_CONFIG.attackWindupMs,
+      ZOMBIE_CONFIG.attackIntervalMs,
+    );
+    return {
+      died: result.died,
+      damageEventCount: result.damageEvents.length,
+    };
+  }
+
+  private advanceActorMovement(
+    deltaMs: number,
+    movementObstacles: readonly RectangleObstacle[],
+  ): void {
+    if (deltaMs <= 0) return;
     const desiredPosition = moveWithinBounds(
       this.player,
       this.playerInput.movement,
@@ -683,13 +854,6 @@ export class GameScene extends Phaser.Scene {
       },
     );
     this.player.setPosition(nextPlayerPosition.x, nextPlayerPosition.y);
-    const nearbyPickup = this.nearestWeaponPickupInRange();
-    if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
-      this.tryPickupWeapon(nearbyPickup);
-    }
-    this.collectNearbyItems();
-    const playerMovementEnd = { x: nextPlayerPosition.x, y: nextPlayerPosition.y };
-    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
     const zombieSpatialEntries = this.zombies.map((zombie) => ({
       id: zombie.id,
       position: { x: zombie.x, y: zombie.y },
@@ -704,6 +868,32 @@ export class GameScene extends Phaser.Scene {
     );
 
     for (const zombie of this.zombies) {
+      const knockbacks = this.zombieKnockbacks.get(zombie.id);
+      if (knockbacks) {
+        const step = advanceKnockbacks(knockbacks, deltaMs);
+        const desiredZombiePosition = {
+          x: zombie.x + step.displacement.x,
+          y: zombie.y + step.displacement.y,
+        };
+        const nextZombiePosition = moveCircleWithObstacles(
+          zombie,
+          desiredZombiePosition,
+          zombie.hitRadius,
+          movementObstacles,
+          {
+            width: this.playArea.width,
+            height: this.playArea.height,
+            padding: zombie.hitRadius,
+          },
+        );
+        zombie.setPosition(nextZombiePosition.x, nextZombiePosition.y);
+        if (step.states.length > 0) {
+          this.zombieKnockbacks.set(zombie.id, step.states);
+        } else {
+          this.zombieKnockbacks.delete(zombie.id);
+        }
+        continue;
+      }
       let zombieSpeed = ZOMBIE_CONFIG.speed;
       if (zombie.kind === 'fast') {
         const run = advanceFastZombieRun(
@@ -757,80 +947,6 @@ export class GameScene extends Phaser.Scene {
       );
       zombie.setPosition(nextZombiePosition.x, nextZombiePosition.y);
     }
-
-    const zombieMovementEnds = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
-    const contactDamage = this.damage.resolveZombieContacts(
-      this.player,
-      { start: playerStart, end: playerMovementEnd },
-      this.zombies,
-      this.zombies.map((_zombie, index) => ({
-        start: zombieStarts[index] ?? zombieMovementEnds[index],
-        end: zombieMovementEnds[index],
-      })),
-      deltaMs,
-      PLAYER_CONFIG.invulnerabilityMs,
-      ZOMBIE_CONFIG.contactDamage,
-      ZOMBIE_CONFIG.attackWindupMs,
-      ZOMBIE_CONFIG.attackIntervalMs,
-    );
-    const separation = separatePlayerFromZombies(
-      {
-        position: { x: this.player.x, y: this.player.y },
-        previousPosition: playerStart,
-        radius: this.player.hitRadius,
-      },
-      this.zombies.map((zombie, index) => ({
-        id: zombie.id,
-        position: { x: zombie.x, y: zombie.y },
-        previousPosition: zombieStarts[index],
-        radius: zombie.hitRadius,
-      })),
-      movementObstacles,
-      this.playArea,
-    );
-    this.player.setPosition(separation.playerPosition.x, separation.playerPosition.y);
-    for (const zombie of this.zombies) {
-      const position = separation.zombiePositions.get(zombie.id);
-      if (position) zombie.setPosition(position.x, position.y);
-    }
-    this.cameraFollowState = updateCameraFollow(
-      this.cameraFollowState,
-      this.player,
-      velocityBetween(playerStart, playerMovementEnd, deltaMs),
-      deltaMs,
-      CAMERA_FOLLOW_CONFIG,
-    );
-
-    if (!contactDamage.died) {
-      const waveUpdate = this.wave.update(
-        deltaMs,
-        this.zombies.length + this.pendingZombieSpawns,
-      );
-      this.pendingZombieSpawns += waveUpdate.spawnCount;
-      while (this.pendingZombieSpawns > 0) {
-        const zombie = this.spawn.spawn(
-          this,
-          this.playArea,
-          this.player,
-          cameraWorldView(
-            { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
-            this.viewport,
-            this.cameras.main.zoom,
-          ),
-          movementObstacles,
-          this.wave.getState().waveNumber,
-        );
-        if (!zombie) break;
-        this.zombies.push(zombie);
-        this.pendingZombieSpawns -= 1;
-      }
-      this.tryTriggerSupplyDrop(waveUpdate.waveCleared);
-    }
-
-    return {
-      died: contactDamage.died,
-      damageEventCount: contactDamage.damageEvents.length,
-    };
   }
 
   private resolveFireRequest(): void {
@@ -847,6 +963,88 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.resolveHitscanShot();
+  }
+
+  private resolveShoveRequest(): void {
+    const request = consumeShoveRequest(this.playerInput);
+    this.playerInput = request.state;
+    if (!request.requested || !isPlaying(this.sessionState)) return;
+    const windup = startShoveWindup(
+      this.pendingShove,
+      this.simulationStepState.accumulatorMs,
+    );
+    if (!windup.started) return;
+
+    const inputTimeRecovery = recoverStaminaAtInputTime(
+      this.stamina,
+      this.simulationStepState.accumulatorMs,
+      this.prepaidStaminaRecoveryMs,
+      SHOVE_CONFIG,
+    );
+    this.stamina = inputTimeRecovery.stamina;
+    this.prepaidStaminaRecoveryMs = inputTimeRecovery.prepaidMs;
+
+    const result = resolveShove(
+      this.stamina,
+      this.player,
+      this.finalAimDirection,
+      [],
+      SHOVE_CONFIG,
+    );
+    this.stamina = result.stamina;
+    if (result.performed) {
+      this.player.triggerShoveVisual();
+      this.pendingShove = windup.state;
+    }
+  }
+
+  private advancePendingShove(
+    deltaMs: number,
+  ): { preImpactMs: number; postImpactMs: number } | null {
+    if (!this.pendingShove) return null;
+    const windup = advanceShoveWindup(
+      this.pendingShove,
+      deltaMs,
+      SHOVE_IMPACT_DELAY_MS,
+    );
+    this.pendingShove = windup.state;
+    if (!windup.impacted) return null;
+    return {
+      preImpactMs: Math.max(0, deltaMs - windup.postImpactMs),
+      postImpactMs: windup.postImpactMs,
+    };
+  }
+
+  private applyShoveImpact(): void {
+    const targets = resolveShoveTargets(
+      this.player,
+      this.finalAimDirection,
+      this.zombies.map((zombie) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius,
+      })),
+      SHOVE_CONFIG,
+      this.activeMovementObstacles(),
+    );
+    for (const pushed of targets) {
+      const zombie = this.zombies.find((candidate) => candidate.id === pushed.id);
+      if (!zombie) continue;
+      const direction = {
+        x: pushed.desiredPosition.x - zombie.x,
+        y: pushed.desiredPosition.y - zombie.y,
+      };
+      zombie.triggerHitReaction(direction);
+      const knockback = createKnockbackState(
+        direction,
+        SHOVE_CONFIG.pushDistance,
+        SHOVE_CONFIG.pushDurationMs,
+      );
+      if (knockback) {
+        const current = this.zombieKnockbacks.get(zombie.id) ?? [];
+        this.zombieKnockbacks.set(zombie.id, [...current, knockback]);
+      }
+    }
   }
 
   private resolveHitscanShot(audioOffsetMs?: number): void {
@@ -937,6 +1135,7 @@ export class GameScene extends Phaser.Scene {
 
     if (deadIds.size > 0) {
       this.killCount += deadIds.size;
+      for (const id of deadIds) this.zombieKnockbacks.delete(id);
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
       for (const id of deadIds) this.zombieNavigation.delete(id);
       for (const id of deadIds) this.fastZombieRuns.delete(id);
@@ -996,6 +1195,48 @@ export class GameScene extends Phaser.Scene {
     }
     this.startMobileAutoReloadIfNeeded();
     this.updateHud();
+  }
+
+  private advanceActorsThroughBurstShots(
+    deltaMs: number,
+    audioDelayMs: number,
+    movementObstacles: readonly RectangleObstacle[],
+  ): { died: boolean; damageEventCount: number } {
+    const burstShotOffsets = this.weapon.updateBurst(deltaMs);
+    let elapsedMs = 0;
+    let damageEventCount = 0;
+
+    for (const burstShotOffset of burstShotOffsets) {
+      const segment = this.advanceActorMovementSegment(
+        burstShotOffset - elapsedMs,
+        movementObstacles,
+      );
+      damageEventCount += segment.damageEventCount;
+      if (segment.died) return { died: true, damageEventCount };
+      this.resolveHitscanShot(audioDelayMs + burstShotOffset);
+      elapsedMs = burstShotOffset;
+    }
+
+    const remainder = this.advanceActorMovementSegment(
+      deltaMs - elapsedMs,
+      movementObstacles,
+    );
+    return {
+      died: remainder.died,
+      damageEventCount: damageEventCount + remainder.damageEventCount,
+    };
+  }
+
+  private advanceActorMovementSegment(
+    deltaMs: number,
+    movementObstacles: readonly RectangleObstacle[],
+  ): { died: boolean; damageEventCount: number } {
+    if (deltaMs <= 0) return { died: false, damageEventCount: 0 };
+    const playerStart = { x: this.player.x, y: this.player.y };
+    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+    this.advanceActorMovement(deltaMs, movementObstacles);
+    this.collectNearbyItems();
+    return this.resolveContactMovementSegment(playerStart, zombieStarts, deltaMs);
   }
 
   private startMobileAutoReloadIfNeeded(): void {
@@ -1453,6 +1694,7 @@ export class GameScene extends Phaser.Scene {
         role === 'movement'
         || role === 'fire'
         || role === 'reload'
+        || role === 'shove'
         || role === 'interaction'
       ) {
         this.guardedMobilePointers.add(pointerId);
@@ -1469,6 +1711,8 @@ export class GameScene extends Phaser.Scene {
       this.resolveFireRequest();
     } else if (role === 'reload') {
       this.playerInput = requestReload(this.playerInput);
+    } else if (role === 'shove') {
+      this.playerInput = requestShove(this.playerInput);
     } else if (role === 'interaction') {
       this.tryOpenSupplyCrate();
     }
@@ -1642,6 +1886,8 @@ export class GameScene extends Phaser.Scene {
     const viewModel = createHudViewModel({
       health: this.player.health,
       maxHealth: PLAYER_CONFIG.health,
+      stamina: this.stamina.current,
+      maxStamina: SHOVE_CONFIG.staminaMax,
       magazineAmmo: weapon.magazineAmmo,
       reserveAmmo: weapon.reserveAmmo,
       isReloading: weapon.reloadRemainingMs !== null,
@@ -1715,6 +1961,7 @@ export class GameScene extends Phaser.Scene {
       ...Object.values(this.movementKeys ?? {}),
       this.reloadKey,
       this.pickupKey,
+      this.shoveKey,
       ...(this.weaponSlotKeys ?? []),
       this.restartKey,
     ];
