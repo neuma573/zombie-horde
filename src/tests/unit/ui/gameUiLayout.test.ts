@@ -66,7 +66,13 @@ describe('createGameUiLayout', () => {
         top: slot.y - slot.height / 2,
         bottom: slot.y + slot.height / 2,
       })),
-      ...[controls.fireGuard, controls.reloadGuard, controls.interactionHit, controls.joystick]
+      ...[
+        controls.fireGuard,
+        controls.reloadGuard,
+        controls.shoveGuard,
+        controls.interactionHit,
+        controls.joystick,
+      ]
         .map((control) => ({
           left: control.x - control.radius,
           right: control.x + control.radius,

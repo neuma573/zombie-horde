@@ -5,6 +5,8 @@ import type { WeaponId, WeaponRarity } from './weapon';
 export interface HudState {
   health: number;
   maxHealth: number;
+  stamina: number;
+  maxStamina: number;
   magazineAmmo: number;
   reserveAmmo: number;
   isReloading: boolean;
@@ -207,6 +209,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
   return {
     statusText: [
       `HP ${state.health}/${state.maxHealth}`,
+      `ST ${Math.floor(state.stamina)}/${state.maxStamina}`,
       waveStatus,
       `KILLS ${state.killCount}`,
     ].join('\n'),

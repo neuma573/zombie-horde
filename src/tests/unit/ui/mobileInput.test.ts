@@ -54,7 +54,7 @@ describe('mobile input', () => {
     const landscape = createMobileControlLayout(844, 390, { top: 0, right: 44, bottom: 21, left: 44 });
 
     for (const [layout, width, height] of [[portrait, 360, 640], [landscape, 844, 390]] as const) {
-      for (const control of [layout.joystick, layout.fire, layout.reload]) {
+      for (const control of [layout.joystick, layout.fire, layout.reload, layout.shove]) {
         expect(control.x - control.radius).toBeGreaterThanOrEqual(0);
         expect(control.x + control.radius).toBeLessThanOrEqual(width);
         expect(control.y - control.radius).toBeGreaterThanOrEqual(0);
@@ -78,6 +78,7 @@ describe('mobile input', () => {
     expect(classifyMobilePointer(layout.joystick, layout)).toBe('movement');
     expect(classifyMobilePointer(layout.fire, layout)).toBe('fire');
     expect(classifyMobilePointer(layout.reload, layout)).toBe('reload');
+    expect(classifyMobilePointer(layout.shove, layout)).toBe('shove');
     expect(classifyMobilePointer(layout.interaction, layout, true)).toBe('interaction');
     expect(classifyMobilePointer(layout.interaction, layout, false)).toBe('aim');
     expect(classifyMobilePointer({ x: 180, y: 10 }, layout)).toBe('aim');
@@ -92,6 +93,7 @@ describe('mobile input', () => {
     expect(isMobileControlPointerRole('movement')).toBe(true);
     expect(isMobileControlPointerRole('fire')).toBe(true);
     expect(isMobileControlPointerRole('reload')).toBe(true);
+    expect(isMobileControlPointerRole('shove')).toBe(true);
     expect(isMobileControlPointerRole('interaction')).toBe(true);
     expect(isMobileControlPointerRole('controlGuard')).toBe(true);
     expect(isMobileControlPointerRole('aim')).toBe(false);
@@ -174,6 +176,7 @@ describe('mobile input', () => {
     expect(lateClaimMobilePointerRole('movement')).toBeNull();
     expect(lateClaimMobilePointerRole('fire')).toBeNull();
     expect(lateClaimMobilePointerRole('reload')).toBeNull();
+    expect(lateClaimMobilePointerRole('shove')).toBeNull();
     expect(lateClaimMobilePointerRole('controlGuard')).toBeNull();
     expect(lateClaimMobilePointerRole(null)).toBeNull();
   });
@@ -183,6 +186,7 @@ describe('mobile input', () => {
     expect(canStartPinchFromRole('movement')).toBe(false);
     expect(canStartPinchFromRole('fire')).toBe(false);
     expect(canStartPinchFromRole('reload')).toBe(false);
+    expect(canStartPinchFromRole('shove')).toBe(false);
     expect(canStartPinchFromRole('controlGuard')).toBe(false);
     expect(canStartPinchFromRole(null)).toBe(false);
   });
@@ -214,6 +218,7 @@ describe('mobile input', () => {
       aim: null,
       fire: 30,
       reload: null,
+      shove: null,
       interaction: null,
     });
   });

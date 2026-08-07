@@ -9,6 +9,7 @@ export const INPUT_CONFIG = {
   reloadButtonRadius: 28,
   reloadHitSlop: 10,
   reloadGuardSlop: 12,
+  shoveButtonRadius: 28,
   edgeMargin: 18,
   controlGap: 14,
   minimumScale: 0.72,

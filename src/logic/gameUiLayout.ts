@@ -71,6 +71,7 @@ function pauseBounds(
   })), ...(mobileLayout ? [
     circleBounds(mobileLayout.fireGuard),
     circleBounds(mobileLayout.reloadGuard),
+    circleBounds(mobileLayout.shoveGuard),
     circleBounds(mobileLayout.interactionHit),
     circleBounds(mobileLayout.joystick),
   ] : [])];

@@ -7,6 +7,7 @@ export interface PlayerInputSnapshot {
   manualAimDirection: Vector2;
   pendingFireCount: number;
   reloadRequested: boolean;
+  shoveRequested: boolean;
 }
 
 export function createPlayerInputState(
@@ -17,6 +18,7 @@ export function createPlayerInputState(
     manualAimDirection: resolveAimDirection(aimDirection, { x: 1, y: 0 }),
     pendingFireCount: 0,
     reloadRequested: false,
+    shoveRequested: false,
   };
 }
 
@@ -45,6 +47,10 @@ export function requestReload(state: PlayerInputSnapshot): PlayerInputSnapshot {
   return { ...state, reloadRequested: true };
 }
 
+export function requestShove(state: PlayerInputSnapshot): PlayerInputSnapshot {
+  return { ...state, shoveRequested: true };
+}
+
 export function consumeFireRequest(
   state: PlayerInputSnapshot,
 ): { requested: boolean; state: PlayerInputSnapshot } {
@@ -65,11 +71,21 @@ export function consumeReloadRequest(
   };
 }
 
+export function consumeShoveRequest(
+  state: PlayerInputSnapshot,
+): { requested: boolean; state: PlayerInputSnapshot } {
+  return {
+    requested: state.shoveRequested,
+    state: state.shoveRequested ? { ...state, shoveRequested: false } : state,
+  };
+}
+
 export function clearActiveInput(state: PlayerInputSnapshot): PlayerInputSnapshot {
   return {
     ...state,
     movement: { x: 0, y: 0 },
     pendingFireCount: 0,
     reloadRequested: false,
+    shoveRequested: false,
   };
 }

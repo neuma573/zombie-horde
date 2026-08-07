@@ -2,7 +2,7 @@ import { INPUT_CONFIG } from '../config/inputConfig';
 import type { SafeAreaInsets } from './hud';
 import type { MovementInput, Position } from './movement';
 
-export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload' | 'interaction';
+export type MobilePointerRole = 'movement' | 'aim' | 'fire' | 'reload' | 'shove' | 'interaction';
 export type MobilePointerClassification = MobilePointerRole | 'controlGuard' | null;
 export type ViewportOrientation = 'portrait' | 'landscape';
 
@@ -27,6 +27,9 @@ export interface MobileControlLayout {
   reload: CircleControl;
   reloadHit: CircleControl;
   reloadGuard: CircleControl;
+  shove: CircleControl;
+  shoveHit: CircleControl;
+  shoveGuard: CircleControl;
   interaction: CircleControl;
   interactionHit: CircleControl;
   interactionGuard: CircleControl;
@@ -40,6 +43,7 @@ export interface MobilePointerOwnership {
   aim: number | null;
   fire: number | null;
   reload: number | null;
+  shove: number | null;
   interaction: number | null;
 }
 
@@ -49,6 +53,7 @@ export function createMobilePointerOwnership(): MobilePointerOwnership {
     aim: null,
     fire: null,
     reload: null,
+    shove: null,
     interaction: null,
   };
 }
@@ -103,6 +108,7 @@ export function createMobileControlLayout(
   const reloadRadius = INPUT_CONFIG.reloadButtonRadius * scale;
   const reloadHitRadius = reloadRadius + INPUT_CONFIG.reloadHitSlop * scale;
   const reloadGuardRadius = reloadHitRadius + INPUT_CONFIG.reloadGuardSlop * scale;
+  const shoveRadius = INPUT_CONFIG.shoveButtonRadius * scale;
   const margin = INPUT_CONFIG.edgeMargin * scale;
   const gap = INPUT_CONFIG.controlGap * scale;
   const left = Math.max(0, safeArea.left);
@@ -136,9 +142,18 @@ export function createMobileControlLayout(
     ),
     radius: reloadRadius,
   };
+  const shove = {
+    x: clamp(
+      fire.x - fireHitRadius - shoveRadius - gap,
+      shoveRadius,
+      Math.max(shoveRadius, width - shoveRadius),
+    ),
+    y: fire.y,
+    radius: shoveRadius,
+  };
   const exclusionLeft = Math.max(
     0,
-    Math.min(fire.x - fireGuardRadius, reload.x - reloadGuardRadius),
+    Math.min(fire.x - fireGuardRadius, reload.x - reloadGuardRadius, shove.x - reloadGuardRadius),
   );
   const exclusionTop = Math.max(
     0,
@@ -154,6 +169,9 @@ export function createMobileControlLayout(
     reload,
     reloadHit: { ...reload, radius: reloadHitRadius },
     reloadGuard: { ...reload, radius: reloadGuardRadius },
+    shove,
+    shoveHit: { ...shove, radius: shoveRadius + INPUT_CONFIG.reloadHitSlop * scale },
+    shoveGuard: { ...shove, radius: shoveRadius + (INPUT_CONFIG.reloadHitSlop + INPUT_CONFIG.reloadGuardSlop) * scale },
     interaction,
     interactionHit: { ...interaction, radius: reloadHitRadius },
     interactionGuard: { ...interaction, radius: reloadGuardRadius },
@@ -238,11 +256,13 @@ export function classifyMobilePointer(
     return 'interaction';
   }
   if (contains(layout.fireHit, point)) return 'fire';
+  if (contains(layout.shoveHit, point)) return 'shove';
   if (contains(layout.reloadHit, point)) return 'reload';
   if (contains(layout.joystick, point)) return 'movement';
   if (
     contains(layout.fireGuard, point)
     || contains(layout.reloadGuard, point)
+    || contains(layout.shoveGuard, point)
     || (interactionEnabled && contains(layout.interactionGuard, point))
     || containsRectangle(layout.controlExclusion, point)
   ) {
@@ -257,6 +277,7 @@ export function isMobileControlPointerRole(
   return role === 'movement'
     || role === 'fire'
     || role === 'reload'
+    || role === 'shove'
     || role === 'interaction'
     || role === 'controlGuard';
 }

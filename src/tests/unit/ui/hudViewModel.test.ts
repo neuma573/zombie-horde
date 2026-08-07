@@ -6,6 +6,8 @@ describe('createHudViewModel', () => {
     const state = {
       health: 70,
       maxHealth: 100,
+      stamina: 65,
+      maxStamina: 100,
       magazineAmmo: 4,
       reserveAmmo: 36,
       isReloading: true,
@@ -22,7 +24,7 @@ describe('createHudViewModel', () => {
     const snapshot = structuredClone(state);
     const result = createHudViewModel(state);
 
-    expect(result.statusText).toBe('HP 70/100\nWAVE 3  LEFT 7\nKILLS 5');
+    expect(result.statusText).toBe('HP 70/100\nST 65/100\nWAVE 3  LEFT 7\nKILLS 5');
     expect(result.ammoText).toBe('4 / 36');
     expect(result.ammoText).not.toContain('AMMO');
     expect(result.timeText).toBe('08:30');
@@ -37,6 +39,8 @@ describe('createHudViewModel', () => {
     const result = createHudViewModel({
       health: 0,
       maxHealth: 100,
+      stamina: 0,
+      maxStamina: 100,
       magazineAmmo: 12,
       reserveAmmo: 48,
       isReloading: false,
@@ -61,6 +65,8 @@ describe('createHudViewModel', () => {
     const base = {
       health: 100,
       maxHealth: 100,
+      stamina: 100,
+      maxStamina: 100,
       magazineAmmo: 0,
       reserveAmmo: 12,
       isReloading: false,
@@ -85,6 +91,8 @@ describe('createHudViewModel', () => {
     const base = {
       health: 100,
       maxHealth: 100,
+      stamina: 100,
+      maxStamina: 100,
       magazineAmmo: 12,
       reserveAmmo: 48,
       isReloading: false,
