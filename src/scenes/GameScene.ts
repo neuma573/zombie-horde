@@ -694,12 +694,42 @@ export class GameScene extends Phaser.Scene {
 
     const playerStart = { x: this.player.x, y: this.player.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+    let contactDied = false;
+    let damageEventCount = 0;
     if (shoveImpact) {
       this.advanceActorMovement(shoveImpact.preImpactMs, movementObstacles);
-      this.applyShoveImpact();
-      this.advanceActorMovement(shoveImpact.postImpactMs, movementObstacles);
+      const impactPlayerPosition = { x: this.player.x, y: this.player.y };
+      const impactZombiePositions = this.zombies.map((zombie) => ({
+        x: zombie.x,
+        y: zombie.y,
+      }));
+      const preImpactContact = this.resolveContactMovementSegment(
+        playerStart,
+        zombieStarts,
+        shoveImpact.preImpactMs,
+      );
+      contactDied = preImpactContact.died;
+      damageEventCount += preImpactContact.damageEventCount;
+      if (!contactDied) {
+        this.applyShoveImpact();
+        this.advanceActorMovement(shoveImpact.postImpactMs, movementObstacles);
+        const postImpactContact = this.resolveContactMovementSegment(
+          impactPlayerPosition,
+          impactZombiePositions,
+          shoveImpact.postImpactMs,
+        );
+        contactDied = postImpactContact.died;
+        damageEventCount += postImpactContact.damageEventCount;
+      }
     } else {
       this.advanceActorMovement(deltaMs, movementObstacles);
+      const contact = this.resolveContactMovementSegment(
+        playerStart,
+        zombieStarts,
+        deltaMs,
+      );
+      contactDied = contact.died;
+      damageEventCount = contact.damageEventCount;
     }
     const nearbyPickup = this.nearestWeaponPickupInRange();
     if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
@@ -707,22 +737,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.collectNearbyItems();
     const playerMovementEnd = { x: this.player.x, y: this.player.y };
-    const zombieMovementEnds = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
 
-    const contactDamage = this.damage.resolveZombieContacts(
-      this.player,
-      { start: playerStart, end: playerMovementEnd },
-      this.zombies,
-      this.zombies.map((_zombie, index) => ({
-        start: zombieStarts[index] ?? zombieMovementEnds[index],
-        end: zombieMovementEnds[index],
-      })),
-      deltaMs,
-      PLAYER_CONFIG.invulnerabilityMs,
-      ZOMBIE_CONFIG.contactDamage,
-      ZOMBIE_CONFIG.attackWindupMs,
-      ZOMBIE_CONFIG.attackIntervalMs,
-    );
     const separation = separatePlayerFromZombies(
       {
         position: { x: this.player.x, y: this.player.y },
@@ -751,7 +766,7 @@ export class GameScene extends Phaser.Scene {
       CAMERA_FOLLOW_CONFIG,
     );
 
-    if (!contactDamage.died) {
+    if (!contactDied) {
       const waveUpdate = this.wave.update(
         deltaMs,
         this.zombies.length + this.pendingZombieSpawns,
@@ -778,8 +793,34 @@ export class GameScene extends Phaser.Scene {
     }
 
     return {
-      died: contactDamage.died,
-      damageEventCount: contactDamage.damageEvents.length,
+      died: contactDied,
+      damageEventCount,
+    };
+  }
+
+  private resolveContactMovementSegment(
+    playerStart: Vector2,
+    zombieStarts: readonly Vector2[],
+    deltaMs: number,
+  ): { died: boolean; damageEventCount: number } {
+    if (deltaMs <= 0) return { died: false, damageEventCount: 0 };
+    const result = this.damage.resolveZombieContacts(
+      this.player,
+      { start: playerStart, end: { x: this.player.x, y: this.player.y } },
+      this.zombies,
+      this.zombies.map((zombie, index) => ({
+        start: zombieStarts[index] ?? { x: zombie.x, y: zombie.y },
+        end: { x: zombie.x, y: zombie.y },
+      })),
+      deltaMs,
+      PLAYER_CONFIG.invulnerabilityMs,
+      ZOMBIE_CONFIG.contactDamage,
+      ZOMBIE_CONFIG.attackWindupMs,
+      ZOMBIE_CONFIG.attackIntervalMs,
+    );
+    return {
+      died: result.died,
+      damageEventCount: result.damageEvents.length,
     };
   }
 
