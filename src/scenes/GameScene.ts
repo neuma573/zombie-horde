@@ -698,6 +698,7 @@ export class GameScene extends Phaser.Scene {
     let damageEventCount = 0;
     if (shoveImpact) {
       this.advanceActorMovement(shoveImpact.preImpactMs, movementObstacles);
+      this.collectNearbyItems();
       const impactPlayerPosition = { x: this.player.x, y: this.player.y };
       const impactZombiePositions = this.zombies.map((zombie) => ({
         x: zombie.x,
@@ -715,6 +716,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshAimAssist();
         this.applyShoveImpact();
         this.advanceActorMovement(shoveImpact.postImpactMs, movementObstacles);
+        this.collectNearbyItems();
         const postImpactContact = this.resolveContactMovementSegment(
           impactPlayerPosition,
           impactZombiePositions,
@@ -725,6 +727,7 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       this.advanceActorMovement(deltaMs, movementObstacles);
+      this.collectNearbyItems();
       const contact = this.resolveContactMovementSegment(
         playerStart,
         zombieStarts,
@@ -737,7 +740,6 @@ export class GameScene extends Phaser.Scene {
     if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
       this.tryPickupWeapon(nearbyPickup);
     }
-    this.collectNearbyItems();
     const playerMovementEnd = { x: this.player.x, y: this.player.y };
 
     const separation = separatePlayerFromZombies(
