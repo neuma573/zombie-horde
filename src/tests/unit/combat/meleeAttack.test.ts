@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { SHOVE_CONFIG } from '../../../config/meleeConfig';
 import {
+  advanceShoveWindup,
   createStaminaState,
   recoverStamina,
   resolveShove,
   resolveShoveTargets,
+  startShoveWindup,
 } from '../../../logic/meleeAttack';
 
 describe('shove stamina', () => {
@@ -25,6 +27,25 @@ describe('shove stamina', () => {
     expect(recoverStamina(state, 0, SHOVE_CONFIG)).toBe(state);
     expect(recoverStamina(state, -10, SHOVE_CONFIG)).toBe(state);
     expect(recoverStamina(state, Number.NaN, SHOVE_CONFIG)).toBe(state);
+  });
+});
+
+describe('shove wind-up', () => {
+  it('does not replace an attack that is already winding up', () => {
+    const first = startShoveWindup(null);
+    const repeated = startShoveWindup(first.state);
+
+    expect(first).toEqual({ started: true, state: { elapsedMs: 0 } });
+    expect(repeated).toEqual({ started: false, state: first.state });
+  });
+
+  it('impacts only after post-input simulation time reaches the delay', () => {
+    const started = startShoveWindup(null).state;
+    const beforeImpact = advanceShoveWindup(started, 69, 70);
+    const impact = advanceShoveWindup(beforeImpact.state!, 1, 70);
+
+    expect(beforeImpact).toEqual({ impacted: false, state: { elapsedMs: 69 } });
+    expect(impact).toEqual({ impacted: true, state: null });
   });
 });
 

@@ -25,6 +25,32 @@ export interface ShoveResult {
   pushedTargets: Array<{ id: string; desiredPosition: Vector2 }>;
 }
 
+export interface ShoveWindupState {
+  elapsedMs: number;
+}
+
+export function startShoveWindup(
+  current: ShoveWindupState | null,
+): { started: boolean; state: ShoveWindupState } {
+  return current === null
+    ? { started: true, state: { elapsedMs: 0 } }
+    : { started: false, state: current };
+}
+
+export function advanceShoveWindup(
+  state: ShoveWindupState,
+  deltaMs: number,
+  impactDelayMs: number,
+): { impacted: boolean; state: ShoveWindupState | null } {
+  if (!Number.isFinite(deltaMs) || deltaMs <= 0) {
+    return { impacted: false, state };
+  }
+  const elapsedMs = state.elapsedMs + deltaMs;
+  return elapsedMs >= Math.max(0, impactDelayMs)
+    ? { impacted: true, state: null }
+    : { impacted: false, state: { elapsedMs } };
+}
+
 export function resolveShoveTargets(
   origin: Vector2,
   aimDirection: Vector2,

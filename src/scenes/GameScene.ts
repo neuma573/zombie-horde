@@ -154,10 +154,13 @@ import {
   type KnockbackState,
 } from '../logic/knockback';
 import {
+  advanceShoveWindup,
   createStaminaState,
   recoverStamina,
   resolveShove,
   resolveShoveTargets,
+  startShoveWindup,
+  type ShoveWindupState,
   type StaminaState,
 } from '../logic/meleeAttack';
 import {
@@ -244,9 +247,7 @@ export class GameScene extends Phaser.Scene {
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
-  private pendingShove: {
-    elapsedMs: number;
-  } | null = null;
+  private pendingShove: ShoveWindupState | null = null;
   private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
   private aimSource: AimSource = 'none';
@@ -626,6 +627,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
+    if (!playerDied) this.resolveShoveRequest();
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -669,7 +671,6 @@ export class GameScene extends Phaser.Scene {
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
     this.stamina = recoverStamina(this.stamina, deltaMs, SHOVE_CONFIG);
-    this.resolveShoveRequest();
     this.advancePendingShove(deltaMs);
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
@@ -911,6 +912,8 @@ export class GameScene extends Phaser.Scene {
     const request = consumeShoveRequest(this.playerInput);
     this.playerInput = request.state;
     if (!request.requested || !isPlaying(this.sessionState)) return;
+    const windup = startShoveWindup(this.pendingShove);
+    if (!windup.started) return;
 
     const result = resolveShove(
       this.stamina,
@@ -922,18 +925,19 @@ export class GameScene extends Phaser.Scene {
     this.stamina = result.stamina;
     if (result.performed) {
       this.player.triggerShoveVisual();
-      this.pendingShove = {
-        elapsedMs: 0,
-      };
+      this.pendingShove = windup.state;
     }
   }
 
   private advancePendingShove(deltaMs: number): void {
     if (!this.pendingShove) return;
-    this.pendingShove.elapsedMs += deltaMs;
-    if (this.pendingShove.elapsedMs < SHOVE_IMPACT_DELAY_MS) return;
-
-    this.pendingShove = null;
+    const windup = advanceShoveWindup(
+      this.pendingShove,
+      deltaMs,
+      SHOVE_IMPACT_DELAY_MS,
+    );
+    this.pendingShove = windup.state;
+    if (!windup.impacted) return;
     const targets = resolveShoveTargets(
       this.player,
       this.finalAimDirection,
