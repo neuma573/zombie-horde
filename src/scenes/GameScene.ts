@@ -696,11 +696,11 @@ export class GameScene extends Phaser.Scene {
       pickup.advanceVisual(deltaMs);
     }
     this.weaponAudio?.advanceReload(deltaMs, audioDelayMs);
-    const burstShotOffsets = this.weapon.updateBurst(deltaMs);
-    for (const burstShotOffset of burstShotOffsets) {
-      this.resolveHitscanShot(audioDelayMs + burstShotOffset);
+    if (shoveImpact) {
+      this.resolveBurstShots(shoveImpact.preImpactMs, audioDelayMs);
+    } else {
+      this.resolveBurstShots(deltaMs, audioDelayMs);
     }
-    this.startMobileAutoReloadIfNeeded();
 
     const playerStart = { x: this.player.x, y: this.player.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
@@ -709,11 +709,6 @@ export class GameScene extends Phaser.Scene {
     if (shoveImpact) {
       this.advanceActorMovement(shoveImpact.preImpactMs, movementObstacles);
       this.collectNearbyItems();
-      const impactPlayerPosition = { x: this.player.x, y: this.player.y };
-      const impactZombiePositions = this.zombies.map((zombie) => ({
-        x: zombie.x,
-        y: zombie.y,
-      }));
       const preImpactContact = this.resolveContactMovementSegment(
         playerStart,
         zombieStarts,
@@ -725,6 +720,15 @@ export class GameScene extends Phaser.Scene {
         this.refreshStationaryMouseAim();
         this.refreshAimAssist();
         this.applyShoveImpact();
+        this.resolveBurstShots(
+          shoveImpact.postImpactMs,
+          audioDelayMs + shoveImpact.preImpactMs,
+        );
+        const impactPlayerPosition = { x: this.player.x, y: this.player.y };
+        const impactZombiePositions = this.zombies.map((zombie) => ({
+          x: zombie.x,
+          y: zombie.y,
+        }));
         this.advanceActorMovement(shoveImpact.postImpactMs, movementObstacles);
         this.collectNearbyItems();
         const postImpactContact = this.resolveContactMovementSegment(
@@ -746,6 +750,7 @@ export class GameScene extends Phaser.Scene {
       contactDied = contact.died;
       damageEventCount = contact.damageEventCount;
     }
+    this.startMobileAutoReloadIfNeeded();
     const nearbyPickup = this.nearestWeaponPickupInRange();
     if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
       this.tryPickupWeapon(nearbyPickup);
@@ -1207,6 +1212,13 @@ export class GameScene extends Phaser.Scene {
     }
     this.startMobileAutoReloadIfNeeded();
     this.updateHud();
+  }
+
+  private resolveBurstShots(deltaMs: number, audioDelayMs: number): void {
+    const burstShotOffsets = this.weapon.updateBurst(deltaMs);
+    for (const burstShotOffset of burstShotOffsets) {
+      this.resolveHitscanShot(audioDelayMs + burstShotOffset);
+    }
   }
 
   private startMobileAutoReloadIfNeeded(): void {

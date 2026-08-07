@@ -112,4 +112,13 @@ describe('WeaponSystem', () => {
     expect(system.fire()).toBe(true);
     expect(system.updateBurst(1_000)).toEqual([65, 130]);
   });
+
+  it('preserves burst timing when an update is split at an impact instant', () => {
+    const system = new WeaponSystem(BURST_RIFLE_WEAPON);
+
+    expect(system.fire()).toBe(true);
+    expect(system.updateBurst(70)).toEqual([65]);
+    expect(system.updateBurst(60)).toEqual([60]);
+    expect(system.getState().magazineAmmo).toBe(27);
+  });
 });
