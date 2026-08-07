@@ -711,6 +711,8 @@ export class GameScene extends Phaser.Scene {
       contactDied = preImpactContact.died;
       damageEventCount += preImpactContact.damageEventCount;
       if (!contactDied) {
+        this.refreshStationaryMouseAim();
+        this.refreshAimAssist();
         this.applyShoveImpact();
         this.advanceActorMovement(shoveImpact.postImpactMs, movementObstacles);
         const postImpactContact = this.resolveContactMovementSegment(
