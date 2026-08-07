@@ -113,4 +113,37 @@ describe('shove attack', () => {
     expect(beforeContact.map((target) => target.id)).toEqual(['moving']);
     expect(atContact).toEqual([]);
   });
+
+  it('does not shove a zombie through a movement obstacle', () => {
+    const targets = [{ id: 'blocked', position: { x: 60, y: 0 }, radius: 18 }];
+    const blocked = resolveShoveTargets(
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      targets,
+      SHOVE_CONFIG,
+      [{ x: 30, y: -10, width: 10, height: 20 }],
+    );
+    const visible = resolveShoveTargets(
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      targets,
+      SHOVE_CONFIG,
+      [{ x: 30, y: 20, width: 10, height: 20 }],
+    );
+
+    expect(blocked).toEqual([]);
+    expect(visible.map((target) => target.id)).toEqual(['blocked']);
+  });
+
+  it('treats a building corner touching the shove line as blocked', () => {
+    const result = resolveShoveTargets(
+      { x: 0, y: 0 },
+      { x: 1, y: 1 },
+      [{ id: 'corner', position: { x: 40, y: 40 }, radius: 18 }],
+      SHOVE_CONFIG,
+      [{ x: 20, y: 10, width: 10, height: 10 }],
+    );
+
+    expect(result).toEqual([]);
+  });
 });

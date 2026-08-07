@@ -951,6 +951,7 @@ export class GameScene extends Phaser.Scene {
         radius: zombie.hitRadius,
       })),
       SHOVE_CONFIG,
+      this.activeMovementObstacles(),
     );
     for (const pushed of targets) {
       const zombie = this.zombies.find((candidate) => candidate.id === pushed.id);

@@ -1,4 +1,5 @@
-import type { Vector2 } from './hitscan';
+import { resolveHitscan, type Vector2 } from './hitscan';
+import type { RectangleObstacle } from './obstacleCollision';
 
 export interface StaminaState {
   current: number;
@@ -66,6 +67,7 @@ export function resolveShoveTargets(
   aimDirection: Vector2,
   targets: readonly ShoveTarget[],
   config: Pick<ShoveConfig, 'range' | 'halfAngleRadians' | 'pushDistance'>,
+  obstacles: readonly RectangleObstacle[] = [],
 ): ShoveResult['pushedTargets'] {
   const aimLength = Math.hypot(aimDirection.x, aimDirection.y);
   const normalizedAim = aimLength > 0
@@ -85,6 +87,15 @@ export function resolveShoveTargets(
     const inRange = distance <= Math.max(0, config.range) + Math.max(0, target.radius);
     const inArc = direction.x * normalizedAim.x + direction.y * normalizedAim.y >= minimumDot;
     if (!inRange || !inArc) return [];
+    const lineOfSight = resolveHitscan(
+      origin,
+      direction,
+      distance + Math.max(0, target.radius),
+      [target],
+      1,
+      obstacles.map((obstacle) => ({ ...obstacle, blocksHitscan: true })),
+    );
+    if (lineOfSight.hits.length === 0) return [];
 
     return [{
       id: target.id,
