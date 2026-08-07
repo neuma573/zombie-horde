@@ -696,59 +696,42 @@ export class GameScene extends Phaser.Scene {
       pickup.advanceVisual(deltaMs);
     }
     this.weaponAudio?.advanceReload(deltaMs, audioDelayMs);
-    if (shoveImpact) {
-      this.resolveBurstShots(shoveImpact.preImpactMs, audioDelayMs);
-    } else {
-      this.resolveBurstShots(deltaMs, audioDelayMs);
-    }
 
     const playerStart = { x: this.player.x, y: this.player.y };
-    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+    const zombieStarts = new Map(this.zombies.map((zombie) => [
+      zombie.id,
+      { x: zombie.x, y: zombie.y },
+    ]));
     let contactDied = false;
     let damageEventCount = 0;
     if (shoveImpact) {
-      this.advanceActorMovement(shoveImpact.preImpactMs, movementObstacles);
-      this.collectNearbyItems();
-      const preImpactContact = this.resolveContactMovementSegment(
-        playerStart,
-        zombieStarts,
+      const preImpact = this.advanceActorsThroughBurstShots(
         shoveImpact.preImpactMs,
+        audioDelayMs,
+        movementObstacles,
       );
-      contactDied = preImpactContact.died;
-      damageEventCount += preImpactContact.damageEventCount;
+      contactDied = preImpact.died;
+      damageEventCount += preImpact.damageEventCount;
       if (!contactDied) {
         this.refreshStationaryMouseAim();
         this.refreshAimAssist();
         this.applyShoveImpact();
-        this.resolveBurstShots(
+        const postImpact = this.advanceActorsThroughBurstShots(
           shoveImpact.postImpactMs,
           audioDelayMs + shoveImpact.preImpactMs,
+          movementObstacles,
         );
-        const impactPlayerPosition = { x: this.player.x, y: this.player.y };
-        const impactZombiePositions = this.zombies.map((zombie) => ({
-          x: zombie.x,
-          y: zombie.y,
-        }));
-        this.advanceActorMovement(shoveImpact.postImpactMs, movementObstacles);
-        this.collectNearbyItems();
-        const postImpactContact = this.resolveContactMovementSegment(
-          impactPlayerPosition,
-          impactZombiePositions,
-          shoveImpact.postImpactMs,
-        );
-        contactDied = postImpactContact.died;
-        damageEventCount += postImpactContact.damageEventCount;
+        contactDied = postImpact.died;
+        damageEventCount += postImpact.damageEventCount;
       }
     } else {
-      this.advanceActorMovement(deltaMs, movementObstacles);
-      this.collectNearbyItems();
-      const contact = this.resolveContactMovementSegment(
-        playerStart,
-        zombieStarts,
+      const simulation = this.advanceActorsThroughBurstShots(
         deltaMs,
+        audioDelayMs,
+        movementObstacles,
       );
-      contactDied = contact.died;
-      damageEventCount = contact.damageEventCount;
+      contactDied = simulation.died;
+      damageEventCount = simulation.damageEventCount;
     }
     this.startMobileAutoReloadIfNeeded();
     const nearbyPickup = this.nearestWeaponPickupInRange();
@@ -763,10 +746,10 @@ export class GameScene extends Phaser.Scene {
         previousPosition: playerStart,
         radius: this.player.hitRadius,
       },
-      this.zombies.map((zombie, index) => ({
+      this.zombies.map((zombie) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
-        previousPosition: zombieStarts[index],
+        previousPosition: zombieStarts.get(zombie.id) ?? { x: zombie.x, y: zombie.y },
         radius: zombie.hitRadius,
       })),
       movementObstacles,
@@ -1214,11 +1197,46 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
   }
 
-  private resolveBurstShots(deltaMs: number, audioDelayMs: number): void {
+  private advanceActorsThroughBurstShots(
+    deltaMs: number,
+    audioDelayMs: number,
+    movementObstacles: readonly RectangleObstacle[],
+  ): { died: boolean; damageEventCount: number } {
     const burstShotOffsets = this.weapon.updateBurst(deltaMs);
+    let elapsedMs = 0;
+    let damageEventCount = 0;
+
     for (const burstShotOffset of burstShotOffsets) {
+      const segment = this.advanceActorMovementSegment(
+        burstShotOffset - elapsedMs,
+        movementObstacles,
+      );
+      damageEventCount += segment.damageEventCount;
+      if (segment.died) return { died: true, damageEventCount };
       this.resolveHitscanShot(audioDelayMs + burstShotOffset);
+      elapsedMs = burstShotOffset;
     }
+
+    const remainder = this.advanceActorMovementSegment(
+      deltaMs - elapsedMs,
+      movementObstacles,
+    );
+    return {
+      died: remainder.died,
+      damageEventCount: damageEventCount + remainder.damageEventCount,
+    };
+  }
+
+  private advanceActorMovementSegment(
+    deltaMs: number,
+    movementObstacles: readonly RectangleObstacle[],
+  ): { died: boolean; damageEventCount: number } {
+    if (deltaMs <= 0) return { died: false, damageEventCount: 0 };
+    const playerStart = { x: this.player.x, y: this.player.y };
+    const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
+    this.advanceActorMovement(deltaMs, movementObstacles);
+    this.collectNearbyItems();
+    return this.resolveContactMovementSegment(playerStart, zombieStarts, deltaMs);
   }
 
   private startMobileAutoReloadIfNeeded(): void {
