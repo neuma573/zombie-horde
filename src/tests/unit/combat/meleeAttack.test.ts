@@ -44,8 +44,12 @@ describe('shove wind-up', () => {
     const beforeImpact = advanceShoveWindup(started, 69, 70);
     const impact = advanceShoveWindup(beforeImpact.state!, 1, 70);
 
-    expect(beforeImpact).toEqual({ impacted: false, state: { elapsedMs: 69 } });
-    expect(impact).toEqual({ impacted: true, state: null });
+    expect(beforeImpact).toEqual({
+      impacted: false,
+      postImpactMs: 0,
+      state: { elapsedMs: 69 },
+    });
+    expect(impact).toEqual({ impacted: true, postImpactMs: 0, state: null });
   });
 
   it('excludes the pre-input fixed-step remainder from wind-up time', () => {
@@ -53,7 +57,17 @@ describe('shove wind-up', () => {
     const firstStep = advanceShoveWindup(started, 16, 70);
 
     expect(started.elapsedMs).toBe(-10);
-    expect(firstStep).toEqual({ impacted: false, state: { elapsedMs: 6 } });
+    expect(firstStep).toEqual({
+      impacted: false,
+      postImpactMs: 0,
+      state: { elapsedMs: 6 },
+    });
+  });
+
+  it('reports only the fixed-step time after impact', () => {
+    const result = advanceShoveWindup({ elapsedMs: 66 }, 16, 70);
+
+    expect(result).toEqual({ impacted: true, postImpactMs: 12, state: null });
   });
 });
 

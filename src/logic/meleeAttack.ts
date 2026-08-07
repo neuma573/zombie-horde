@@ -52,14 +52,18 @@ export function advanceShoveWindup(
   state: ShoveWindupState,
   deltaMs: number,
   impactDelayMs: number,
-): { impacted: boolean; state: ShoveWindupState | null } {
+): { impacted: boolean; postImpactMs: number; state: ShoveWindupState | null } {
   if (!Number.isFinite(deltaMs) || deltaMs <= 0) {
-    return { impacted: false, state };
+    return { impacted: false, postImpactMs: 0, state };
   }
   const elapsedMs = state.elapsedMs + deltaMs;
   return elapsedMs >= Math.max(0, impactDelayMs)
-    ? { impacted: true, state: null }
-    : { impacted: false, state: { elapsedMs } };
+    ? {
+      impacted: true,
+      postImpactMs: Math.max(0, elapsedMs - Math.max(0, impactDelayMs)),
+      state: null,
+    }
+    : { impacted: false, postImpactMs: 0, state: { elapsedMs } };
 }
 
 export function resolveShoveTargets(

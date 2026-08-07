@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   advanceKnockback,
-  combineKnockbacks,
+  advanceKnockbacks,
   createKnockbackState,
-  remainingKnockbackDisplacement,
 } from '../../../logic/knockback';
 
 describe('zombie knockback', () => {
@@ -47,24 +46,32 @@ describe('zombie knockback', () => {
     expect(createKnockbackState({ x: 1, y: 0 }, 54, 0)).toBeNull();
   });
 
-  it('preserves remaining displacement when another shove lands', () => {
+  it('preserves each unfinished knockback when another shove lands', () => {
     const initial = createKnockbackState({ x: 1, y: 0 }, 54, 210)!;
     const partial = advanceKnockback(initial, 70).state!;
     const added = createKnockbackState({ x: 1, y: 0 }, 54, 210)!;
-    const remaining = remainingKnockbackDisplacement(partial);
-    const combined = combineKnockbacks(partial, added);
+    const combined = advanceKnockbacks([partial, added], 140);
 
-    expect(combined.direction).toEqual({ x: 1, y: 0 });
-    expect(combined.distance).toBeCloseTo(remaining.x + 54);
+    expect(combined.displacement.x).toBeGreaterThan(54);
   });
 
-  it('combines knockbacks as vectors when their directions differ', () => {
+  it('adds displacement vectors when knockback directions differ', () => {
     const current = createKnockbackState({ x: 1, y: 0 }, 40, 200)!;
     const added = createKnockbackState({ x: 0, y: 1 }, 30, 200)!;
-    const combined = combineKnockbacks(current, added);
+    const combined = advanceKnockbacks([current, added], 200);
 
-    expect(combined.distance).toBeCloseTo(50);
-    expect(combined.direction.x).toBeCloseTo(0.8);
-    expect(combined.direction.y).toBeCloseTo(0.6);
+    expect(combined.displacement.x).toBeCloseTo(40);
+    expect(combined.displacement.y).toBeCloseTo(30);
+  });
+
+  it('moves only for the portion of a step after a delayed impact', () => {
+    const delayed = createKnockbackState({ x: 1, y: 0 }, 54, 210, 12)!;
+    const wholeStep = advanceKnockback(delayed, 16);
+    const postImpactOnly = advanceKnockback(
+      createKnockbackState({ x: 1, y: 0 }, 54, 210)!,
+      4,
+    );
+
+    expect(wholeStep.displacement.x).toBeCloseTo(postImpactOnly.displacement.x);
   });
 });

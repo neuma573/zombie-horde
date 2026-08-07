@@ -149,8 +149,7 @@ import {
 } from '../logic/hitscan';
 import { constrainMuzzleToShotSegment } from '../logic/combatEffects';
 import {
-  advanceKnockback,
-  combineKnockbacks,
+  advanceKnockbacks,
   createKnockbackState,
   type KnockbackState,
 } from '../logic/knockback';
@@ -295,7 +294,7 @@ export class GameScene extends Phaser.Scene {
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
-  private readonly zombieKnockbacks = new Map<string, KnockbackState>();
+  private readonly zombieKnockbacks = new Map<string, KnockbackState[]>();
   private spawn!: SpawnSystem;
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
@@ -738,9 +737,9 @@ export class GameScene extends Phaser.Scene {
     );
 
     for (const zombie of this.zombies) {
-      const knockback = this.zombieKnockbacks.get(zombie.id);
-      if (knockback) {
-        const step = advanceKnockback(knockback, deltaMs);
+      const knockbacks = this.zombieKnockbacks.get(zombie.id);
+      if (knockbacks) {
+        const step = advanceKnockbacks(knockbacks, deltaMs);
         const desiredZombiePosition = {
           x: zombie.x + step.displacement.x,
           y: zombie.y + step.displacement.y,
@@ -757,8 +756,8 @@ export class GameScene extends Phaser.Scene {
           },
         );
         zombie.setPosition(nextZombiePosition.x, nextZombiePosition.y);
-        if (step.state) {
-          this.zombieKnockbacks.set(zombie.id, step.state);
+        if (step.states.length > 0) {
+          this.zombieKnockbacks.set(zombie.id, step.states);
         } else {
           this.zombieKnockbacks.delete(zombie.id);
         }
@@ -942,6 +941,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.pendingShove = windup.state;
     if (!windup.impacted) return;
+    const preImpactMs = Math.max(0, deltaMs - windup.postImpactMs);
     const targets = resolveShoveTargets(
       this.player,
       this.finalAimDirection,
@@ -965,12 +965,11 @@ export class GameScene extends Phaser.Scene {
         direction,
         SHOVE_CONFIG.pushDistance,
         SHOVE_CONFIG.pushDurationMs,
+        preImpactMs,
       );
       if (knockback) {
-        this.zombieKnockbacks.set(
-          zombie.id,
-          combineKnockbacks(this.zombieKnockbacks.get(zombie.id), knockback),
-        );
+        const current = this.zombieKnockbacks.get(zombie.id) ?? [];
+        this.zombieKnockbacks.set(zombie.id, [...current, knockback]);
       }
     }
   }
