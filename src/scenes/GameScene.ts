@@ -513,6 +513,7 @@ export class GameScene extends Phaser.Scene {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
       this.hud?.destroy();
       this.hud = undefined;
+      this.responsiveUi = undefined;
       this.effects?.destroy();
       this.effects = undefined;
       this.weaponAudio?.destroy();
