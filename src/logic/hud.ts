@@ -175,6 +175,24 @@ export interface HudLayout {
   ];
 }
 
+export interface AmmoDisplayLayout {
+  rounds: {
+    x: number;
+    feedY: number;
+    step: number;
+    width: number;
+    height: number;
+  };
+  reserve: {
+    x: number;
+    y: number;
+    originX: 1;
+    originY: 1;
+    maxWidth: number;
+    maxHeight: number;
+  };
+}
+
 const HUD_MARGIN = 12;
 const WATCH_SIDE_GAP = 8;
 const RELOAD_WIDTH_RATIO = 0.34;
@@ -189,6 +207,104 @@ const WEAPON_SLOT_GAP = 8;
 const MIN_WEAPON_SLOT_SIZE = 44;
 const PAUSE_TOUCH_TARGET_SIZE = 48;
 const CLOCK_RENDER_WIDTH = 67;
+const AMMO_RESERVE_WIDTH = 36;
+const AMMO_CONTENT_GAP = 6;
+const MOBILE_AMMO_TOP_GAP = 56;
+const MOBILE_AMMO_BOTTOM_RESERVE = 180;
+
+export function createAmmoDisplayLayout(
+  viewportWidth: number,
+  viewportHeight: number,
+  safeArea: SafeAreaInsets,
+  hud: HudLayout,
+  magazineSize: number,
+): AmmoDisplayLayout {
+  const safeRight = Math.max(
+    Math.max(0, safeArea.left) + HUD_MARGIN,
+    viewportWidth - Math.max(0, safeArea.right) - HUD_MARGIN,
+  );
+  const mobile = viewportWidth < 720;
+  const roundsTop = Math.max(
+    hud.topHudBounds.bottom,
+    ...hud.weaponSlots.map((slot) => slot.y + slot.height / 2),
+  ) + (mobile ? MOBILE_AMMO_TOP_GAP : AMMO_CONTENT_GAP);
+  const roundsBottom = Math.max(
+    roundsTop,
+    viewportHeight
+      - Math.max(0, safeArea.bottom)
+      - (mobile ? MOBILE_AMMO_BOTTOM_RESERVE : HUD_MARGIN),
+  );
+  const roundWidth = mobile ? 32 : 40;
+  const roundHeight = mobile ? 8 : 10;
+  const safeMagazineSize = Math.max(1, magazineSize);
+  const step = safeMagazineSize === 1
+    ? 0
+    : Math.max(0, Math.min(
+      mobile ? 8 : 10,
+      (roundsBottom - roundsTop - roundHeight) / (safeMagazineSize - 1),
+    ));
+
+  return {
+    rounds: {
+      x: safeRight - roundWidth / 2,
+      feedY: roundsTop + roundHeight / 2,
+      step,
+      width: roundWidth,
+      height: roundHeight,
+    },
+    reserve: {
+      x: safeRight,
+      y: roundsTop - AMMO_CONTENT_GAP,
+      originX: 1,
+      originY: 1,
+      maxWidth: AMMO_RESERVE_WIDTH,
+      maxHeight: WATCH_HEIGHT,
+    },
+  };
+}
+
+export function createAmmoRoundYPositions(
+  feedY: number,
+  step: number,
+  roundCount: number,
+): number[] {
+  const safeRoundCount = Math.max(0, Math.floor(roundCount));
+  return Array.from(
+    { length: safeRoundCount },
+    (_, index) => feedY + (safeRoundCount - 1 - index) * step,
+  );
+}
+
+export interface AmmoEjectionMotion {
+  xDelta: number;
+  yDelta: number;
+  angleDelta: number;
+  durationMs: number;
+  fadeDelayMs: number;
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0));
+}
+
+export function createAmmoEjectionMotion(
+  horizontalRandom: number,
+  verticalRandom: number,
+  spinRandom: number,
+): AmmoEjectionMotion {
+  const horizontal = clamp01(horizontalRandom);
+  const vertical = clamp01(verticalRandom);
+  const spin = clamp01(spinRandom);
+  const spinDirection = spin < 0.5 ? -1 : 1;
+
+  return {
+    xDelta: -(34 + horizontal * 24),
+    yDelta: -24 + vertical * 42,
+    angleDelta: spinDirection * (90 + Math.abs(spin - 0.5) * 220),
+    durationMs: 360 + horizontal * 100,
+    fadeDelayMs: 100,
+  };
+}
 
 export function fitClockRenderScale(watchWidth: number): number {
   return Math.min(

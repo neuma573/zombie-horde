@@ -2,6 +2,9 @@ import Phaser from 'phaser';
 
 import {
   constrainTooltipWidths,
+  createAmmoDisplayLayout,
+  createAmmoEjectionMotion,
+  createAmmoRoundYPositions,
   createHudLayout,
   fitClockRenderScale,
   handleWeaponSlotPress,
@@ -55,6 +58,7 @@ export class HudSystem {
   private readonly pickupText: Phaser.GameObjects.Text;
   private readonly clockBlinkEvent: Phaser.Time.TimerEvent;
   private waveAnnouncementTween?: Phaser.Tweens.Tween;
+  private ammoFeedTween?: Phaser.Tweens.Tween;
   private lastWaveNumber = 0;
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
@@ -63,7 +67,8 @@ export class HudSystem {
   private statusMaxHeight: number | null = null;
   private ammoMaxWidth: number | null = null;
   private ammoMaxHeight: number | null = null;
-  private ammoLayout?: ReturnType<typeof createHudLayout>['ammo'];
+  private hudLayout?: HudLayout;
+  private topHudVisible = true;
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -75,6 +80,7 @@ export class HudSystem {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly selectWeaponSlot: (slot: WeaponSlotIndex) => void,
+    private readonly randomSource: () => number = Math.random,
   ) {
     this.statusText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
@@ -226,22 +232,8 @@ export class HudSystem {
     this.statusMaxWidth = layout.status.maxWidth;
     this.statusMaxHeight = layout.status.maxHeight;
     this.fitStatusText();
-    this.ammoText
-      .setOrigin(
-        width >= 720 ? 0 : layout.ammo.originX,
-        width >= 720 ? 0.5 : 1,
-      )
-      .setPosition(
-        width >= 720 ? layout.ammo.x + 190 : layout.ammo.x,
-        width >= 720
-          ? layout.ammo.y + 17
-          : layout.ammo.y + Math.min(layout.ammo.maxHeight ?? 34, 34),
-      )
-      .setVisible(layout.topHudVisible);
-    this.ammoLayout = layout.ammo;
-    this.ammoMaxWidth = layout.ammo.maxWidth;
-    this.ammoMaxHeight = layout.ammo.maxHeight;
-    this.fitAmmoText();
+    this.hudLayout = layout;
+    this.topHudVisible = layout.topHudVisible;
     this.layoutAmmoRounds();
     this.drawWatch(layout.time);
     this.timeGraphics.setVisible(layout.topHudVisible);
@@ -293,6 +285,7 @@ export class HudSystem {
     this.reloadGraphics.destroy();
     this.reloadText.destroy();
     this.waveAnnouncementTween?.stop();
+    this.ammoFeedTween?.stop();
     this.waveBannerText.destroy();
     this.waveAnnouncementText.destroy();
     this.weaponSlotGraphics.destroy();
@@ -421,6 +414,8 @@ export class HudSystem {
     const previous = this.current;
     const sameWeapon = previous?.weaponId === viewModel.weaponId
       && previous.activeWeaponSlot === viewModel.activeWeaponSlot;
+    const magazineChanged = previous?.magazineAmmo !== viewModel.magazineAmmo;
+    const magazineSizeChanged = previous?.magazineSize !== viewModel.magazineSize;
     const firedRounds = sameWeapon
       ? Math.max(0, previous.magazineAmmo - viewModel.magazineAmmo)
       : 0;
@@ -441,62 +436,101 @@ export class HudSystem {
       this.ammoRounds.push(
         this.scene.add.image(0, 0, texture)
           .setDepth(101)
-          .setScrollFactor(0)
-          .setRotation(Math.PI / 2),
+          .setScrollFactor(0),
       );
     }
     this.ammoRounds.forEach((round) => round.setTexture(texture));
-    this.layoutAmmoRounds(viewModel.magazineSize);
+    if (!sameWeapon || magazineChanged || magazineSizeChanged) {
+      this.layoutAmmoRounds(viewModel.magazineSize, firedRounds > 0);
+    }
   }
 
-  private layoutAmmoRounds(magazineSize = this.current?.magazineSize ?? 1): void {
-    if (!this.ammoLayout || magazineSize <= 0) return;
-    const { x, y, originX, maxWidth, maxHeight } = this.ammoLayout;
-    const desktop = this.viewportWidth >= 720;
-    const availableWidth = desktop ? 180 : maxWidth ?? 82;
-    const availableHeight = Math.max(8, Math.min(maxHeight ?? 34, 34) - 14);
-    const iconWidth = desktop
-      ? 34
-      : Math.min(23, Math.max(16, availableWidth / 5));
-    const iconHeight = desktop
-      ? 50
-      : Math.min(34, Math.max(26, availableHeight + 14));
-    const step = magazineSize === 1
-      ? 0
-      : Math.max(0, Math.min(
-        desktop ? 9 : 6,
-        (availableWidth - (desktop ? 14 : 10)) / (magazineSize - 1),
-      ));
-    const visibleRoundWidth = desktop ? 14 : 10;
-    const groupWidth = visibleRoundWidth + step * Math.max(0, magazineSize - 1);
-    const left = originX === 1 ? x - groupWidth : x;
+  private layoutAmmoRounds(
+    magazineSize = this.current?.magazineSize ?? 1,
+    animateFeed = false,
+  ): void {
+    if (!this.hudLayout || magazineSize <= 0) return;
+    const layout = createAmmoDisplayLayout(
+      this.viewportWidth,
+      this.viewportHeight,
+      this.safeArea,
+      this.hudLayout,
+      magazineSize,
+    );
+    this.ammoMaxWidth = layout.reserve.maxWidth;
+    this.ammoMaxHeight = layout.reserve.maxHeight;
+    this.ammoText
+      .setOrigin(layout.reserve.originX, layout.reserve.originY)
+      .setPosition(layout.reserve.x, layout.reserve.y)
+      .setVisible(this.topHudVisible);
+    this.fitAmmoText();
 
+    const targetYPositions = createAmmoRoundYPositions(
+      layout.rounds.feedY,
+      layout.rounds.step,
+      this.ammoRounds.length,
+    );
+    const previousOffset = animateFeed && this.ammoRounds.length > 0
+      ? Math.max(0, this.ammoRounds[0].y - (targetYPositions[0] ?? 0))
+      : 0;
+    this.ammoFeedTween?.stop();
+    this.ammoFeedTween = undefined;
     this.ammoRounds.forEach((round, index) => {
       round
-        .setDisplaySize(iconHeight, iconWidth)
-        .setRotation(Math.PI / 2 - 0.08)
+        .setDisplaySize(layout.rounds.width, layout.rounds.height)
+        .setRotation(0)
         .setPosition(
-          left + visibleRoundWidth / 2 + index * step,
-          y + (desktop ? 18 : 12),
+          layout.rounds.x,
+          (targetYPositions[index] ?? layout.rounds.feedY) + previousOffset,
         )
-        .setVisible(true);
+        .setVisible(this.topHudVisible);
     });
+    if (animateFeed && this.ammoRounds.length > 0 && previousOffset > 0) {
+      const feedState = { offset: previousOffset };
+      this.ammoFeedTween = this.scene.tweens.add({
+        targets: feedState,
+        offset: 0,
+        duration: 85,
+        ease: 'Back.Out',
+        onUpdate: () => {
+          this.ammoRounds.forEach((round, index) => {
+            round.y = (targetYPositions[index] ?? layout.rounds.feedY)
+              + feedState.offset;
+          });
+        },
+        onComplete: () => {
+          this.ammoFeedTween = undefined;
+        },
+      });
+    }
   }
 
   private animateEjectedRound(round: Phaser.GameObjects.Image, order: number): void {
     const targetScaleX = round.scaleX * 0.65;
     const targetScaleY = round.scaleY * 0.65;
+    const motion = createAmmoEjectionMotion(
+      this.randomSource(),
+      this.randomSource(),
+      this.randomSource(),
+    );
+    const orderDelay = order * 20;
     this.scene.tweens.add({
       targets: round,
-      x: round.x + 12 + order * 3,
-      y: round.y + 24 + order * 2,
-      angle: round.angle + 150,
-      alpha: 0,
+      x: round.x + motion.xDelta,
+      y: round.y + motion.yDelta,
+      angle: round.angle + motion.angleDelta,
       scaleX: targetScaleX,
       scaleY: targetScaleY,
-      delay: order * 28,
-      duration: 220,
-      ease: 'Quad.In',
+      delay: orderDelay,
+      duration: motion.durationMs,
+      ease: 'Quad.Out',
+    });
+    this.scene.tweens.add({
+      targets: round,
+      alpha: 0,
+      delay: orderDelay + motion.fadeDelayMs,
+      duration: motion.durationMs - motion.fadeDelayMs,
+      ease: 'Sine.In',
       onComplete: () => round.destroy(),
     });
   }
