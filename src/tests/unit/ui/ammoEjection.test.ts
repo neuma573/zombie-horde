@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createAmmoEjectionMotion } from '../../../logic/hud';
+import { countNewShots, createAmmoEjectionMotion } from '../../../logic/hud';
 
 describe('createAmmoEjectionMotion', () => {
   it('varies cartridge travel and spin within bounded screen-safe ranges', () => {
@@ -24,5 +24,17 @@ describe('createAmmoEjectionMotion', () => {
 
     expect(second).toEqual(first);
     expect(first.fadeDelayMs).toBeLessThan(first.durationMs);
+  });
+});
+
+describe('countNewShots', () => {
+  it('counts only explicit shot sequence advances', () => {
+    expect(countNewShots(12, 13)).toBe(1);
+    expect(countNewShots(12, 12)).toBe(0);
+    expect(countNewShots(undefined, 12)).toBe(0);
+  });
+
+  it('does not report a shot when a restarted sequence decreases', () => {
+    expect(countNewShots(12, 0)).toBe(0);
   });
 });

@@ -10,6 +10,7 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 4,
       reserveAmmo: 36,
+      shotSequence: 7,
       weaponId: 'pistol' as const,
       magazineSize: 17,
       isReloading: true,
@@ -31,6 +32,7 @@ describe('createHudViewModel', () => {
     expect(result.magazineAmmo).toBe(4);
     expect(result.magazineSize).toBe(17);
     expect(result.weaponId).toBe('pistol');
+    expect(result.shotSequence).toBe(7);
     expect(result.ammoText).not.toContain('AMMO');
     expect(result.timeText).toBe('08:30');
     expect(result.showGameOver).toBe(false);
@@ -48,6 +50,7 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 12,
       reserveAmmo: 48,
+      shotSequence: 0,
       weaponId: 'pistol',
       magazineSize: 17,
       isReloading: false,
@@ -76,6 +79,7 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 0,
       reserveAmmo: 12,
+      shotSequence: 0,
       weaponId: 'pistol' as const,
       magazineSize: 17,
       isReloading: false,
@@ -104,6 +108,7 @@ describe('createHudViewModel', () => {
       maxStamina: 100,
       magazineAmmo: 12,
       reserveAmmo: 48,
+      shotSequence: 0,
       weaponId: 'pistol' as const,
       magazineSize: 17,
       isReloading: false,

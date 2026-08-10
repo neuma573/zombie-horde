@@ -9,6 +9,7 @@ export interface HudState {
   maxStamina: number;
   magazineAmmo: number;
   reserveAmmo: number;
+  shotSequence: number;
   weaponId: WeaponId;
   magazineSize: number;
   isReloading: boolean;
@@ -39,6 +40,7 @@ export interface HudViewModel {
   magazineAmmo: number;
   magazineSize: number;
   weaponId: WeaponId;
+  shotSequence: number;
   timeText: string;
   gameOverText: string;
   showGameOver: boolean;
@@ -176,6 +178,7 @@ export interface HudLayout {
 }
 
 export interface AmmoDisplayLayout {
+  compact: boolean;
   rounds: {
     x: number;
     feedY: number;
@@ -244,8 +247,10 @@ export function createAmmoDisplayLayout(
       mobile ? 8 : 10,
       (roundsBottom - roundsTop - roundHeight) / (safeMagazineSize - 1),
     ));
+  const compact = safeMagazineSize > 1 && step < (mobile ? 3 : 4);
 
   return {
+    compact,
     rounds: {
       x: safeRight - roundWidth / 2,
       feedY: roundsTop + roundHeight / 2,
@@ -262,6 +267,14 @@ export function createAmmoDisplayLayout(
       maxHeight: WATCH_HEIGHT,
     },
   };
+}
+
+export function countNewShots(
+  previousSequence: number | undefined,
+  currentSequence: number,
+): number {
+  if (previousSequence === undefined) return 0;
+  return Math.max(0, Math.floor(currentSequence) - Math.floor(previousSequence));
 }
 
 export function createAmmoRoundYPositions(
@@ -339,6 +352,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
     weaponId: state.weaponId,
+    shotSequence: state.shotSequence,
     timeText: state.gameTimeText,
     gameOverText: 'GAME OVER\nEnter or tap to restart',
     showGameOver: state.sessionPhase === 'gameOver',

@@ -1891,6 +1891,7 @@ export class GameScene extends Phaser.Scene {
       maxStamina: SHOVE_CONFIG.staminaMax,
       magazineAmmo: weapon.magazineAmmo,
       reserveAmmo: weapon.reserveAmmo,
+      shotSequence: this.shotSequence,
       weaponId: this.weapon.getDefinition().id,
       magazineSize: this.weapon.getDefinition().config.magazineSize,
       isReloading: weapon.reloadRemainingMs !== null,

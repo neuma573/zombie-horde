@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import {
   constrainTooltipWidths,
+  countNewShots,
   createAmmoDisplayLayout,
   createAmmoEjectionMotion,
   createAmmoRoundYPositions,
@@ -418,9 +419,8 @@ export class HudSystem {
       && previous.activeWeaponSlot === viewModel.activeWeaponSlot;
     const magazineChanged = previous?.magazineAmmo !== viewModel.magazineAmmo;
     const magazineSizeChanged = previous?.magazineSize !== viewModel.magazineSize;
-    const firedRounds = sameWeapon
-      ? Math.max(0, previous.magazineAmmo - viewModel.magazineAmmo)
-      : 0;
+    const reserveTextChanged = previous?.ammoText !== viewModel.ammoText;
+    const firedRounds = countNewShots(previous?.shotSequence, viewModel.shotSequence);
 
     for (let index = 0; index < firedRounds; index += 1) {
       const round = this.ammoRounds.pop();
@@ -442,14 +442,21 @@ export class HudSystem {
       );
     }
     this.ammoRounds.forEach((round) => round.setTexture(texture));
-    if (!sameWeapon || magazineChanged || magazineSizeChanged) {
-      this.layoutAmmoRounds(viewModel.magazineSize, firedRounds > 0);
+    if (!sameWeapon || magazineChanged || magazineSizeChanged || reserveTextChanged) {
+      this.layoutAmmoRounds(
+        viewModel.magazineSize,
+        firedRounds > 0,
+        viewModel.magazineAmmo,
+        viewModel.ammoText,
+      );
     }
   }
 
   private layoutAmmoRounds(
     magazineSize = this.current?.magazineSize ?? 1,
     animateFeed = false,
+    magazineAmmo = this.current?.magazineAmmo ?? this.ammoRounds.length,
+    reserveText = this.current?.ammoText ?? this.ammoText.text,
   ): void {
     if (!this.hudLayout || magazineSize <= 0) return;
     const layout = createAmmoDisplayLayout(
@@ -463,6 +470,9 @@ export class HudSystem {
     this.ammoMaxWidth = layout.reserve.maxWidth;
     this.ammoMaxHeight = layout.reserve.maxHeight;
     this.ammoText
+      .setText(layout.compact
+        ? `${magazineAmmo} / ${reserveText.replace(/^\+/, '')}`
+        : reserveText)
       .setOrigin(layout.reserve.originX, layout.reserve.originY)
       .setPosition(layout.reserve.x, layout.reserve.y)
       .setVisible(this.topHudVisible);
@@ -486,7 +496,7 @@ export class HudSystem {
           layout.rounds.x,
           (targetYPositions[index] ?? layout.rounds.feedY) + previousOffset,
         )
-        .setVisible(this.topHudVisible);
+        .setVisible(this.topHudVisible && !layout.compact);
     });
     if (animateFeed && this.ammoRounds.length > 0 && previousOffset > 0) {
       const feedState = { offset: previousOffset };

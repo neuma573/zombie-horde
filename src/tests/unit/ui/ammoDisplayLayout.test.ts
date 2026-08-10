@@ -21,6 +21,7 @@ describe('createAmmoDisplayLayout', () => {
       .toBeGreaterThanOrEqual(hud.weaponSlots[0].y + hud.weaponSlots[0].height / 2);
     expect(roundsBottom).toBeLessThanOrEqual(528);
     expect(result.rounds.width).toBe(40);
+    expect(result.compact).toBe(false);
   });
 
   it('keeps a full rifle magazine inside a portrait mobile HUD allocation', () => {
@@ -35,6 +36,7 @@ describe('createAmmoDisplayLayout', () => {
     expect(result.rounds.x + result.rounds.width / 2).toBeLessThanOrEqual(340);
     expect(roundsBottom).toBeLessThanOrEqual(440);
     expect(result.rounds.width).toBe(32);
+    expect(result.compact).toBe(false);
   });
 
   it('uses the constrained allocation without crossing its anchored edge', () => {
@@ -45,6 +47,7 @@ describe('createAmmoDisplayLayout', () => {
 
     expect(result.rounds.x + result.rounds.width / 2).toBeLessThanOrEqual(308);
     expect(result.rounds.step).toBeGreaterThanOrEqual(0);
+    expect(result.compact).toBe(true);
   });
 
   it('uses mobile control reservations in a wide touch landscape viewport', () => {
@@ -58,6 +61,7 @@ describe('createAmmoDisplayLayout', () => {
 
     expect(result.rounds.width).toBe(32);
     expect(roundsBottom).toBeLessThanOrEqual(189);
+    expect(result.compact).toBe(true);
   });
 });
 
