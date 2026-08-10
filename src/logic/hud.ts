@@ -218,12 +218,13 @@ export function createAmmoDisplayLayout(
   safeArea: SafeAreaInsets,
   hud: HudLayout,
   magazineSize: number,
+  mobileControls: boolean,
 ): AmmoDisplayLayout {
   const safeRight = Math.max(
     Math.max(0, safeArea.left) + HUD_MARGIN,
     viewportWidth - Math.max(0, safeArea.right) - HUD_MARGIN,
   );
-  const mobile = viewportWidth < 720;
+  const mobile = mobileControls;
   const roundsTop = Math.max(
     hud.topHudBounds.bottom,
     ...hud.weaponSlots.map((slot) => slot.y + slot.height / 2),

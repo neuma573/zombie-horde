@@ -11,7 +11,7 @@ describe('createAmmoDisplayLayout', () => {
     const safeArea = { top: 0, right: 24, bottom: 0, left: 24 };
     const hud = createHudLayout(960, 540, safeArea);
 
-    const result = createAmmoDisplayLayout(960, 540, safeArea, hud, 30);
+    const result = createAmmoDisplayLayout(960, 540, safeArea, hud, 30, false);
     const roundsBottom = result.rounds.feedY
       + result.rounds.step * 29
       + result.rounds.height / 2;
@@ -27,7 +27,7 @@ describe('createAmmoDisplayLayout', () => {
     const safeArea = { top: 30, right: 8, bottom: 20, left: 8 };
     const hud = createHudLayout(360, 640, safeArea, { reserveMobilePause: true });
 
-    const result = createAmmoDisplayLayout(360, 640, safeArea, hud, 30);
+    const result = createAmmoDisplayLayout(360, 640, safeArea, hud, 30, true);
     const roundsBottom = result.rounds.feedY
       + result.rounds.step * 29
       + result.rounds.height / 2;
@@ -41,10 +41,23 @@ describe('createAmmoDisplayLayout', () => {
     const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
     const hud = createHudLayout(320, 80, safeArea, { reserveMobilePause: true });
 
-    const result = createAmmoDisplayLayout(320, 360, safeArea, hud, 17);
+    const result = createAmmoDisplayLayout(320, 360, safeArea, hud, 17, true);
 
     expect(result.rounds.x + result.rounds.width / 2).toBeLessThanOrEqual(308);
     expect(result.rounds.step).toBeGreaterThanOrEqual(0);
+  });
+
+  it('uses mobile control reservations in a wide touch landscape viewport', () => {
+    const safeArea = { top: 0, right: 24, bottom: 21, left: 24 };
+    const hud = createHudLayout(844, 390, safeArea, { reserveMobilePause: true });
+
+    const result = createAmmoDisplayLayout(844, 390, safeArea, hud, 30, true);
+    const roundsBottom = result.rounds.feedY
+      + result.rounds.step * 29
+      + result.rounds.height / 2;
+
+    expect(result.rounds.width).toBe(32);
+    expect(roundsBottom).toBeLessThanOrEqual(189);
   });
 });
 
