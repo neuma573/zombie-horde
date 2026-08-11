@@ -52,6 +52,25 @@ describe('createAmmoDisplayLayout', () => {
     );
   });
 
+  it('keeps the ammo rail right-aligned when a control is below it', () => {
+    const safeArea = { top: 30, right: 8, bottom: 20, left: 8 };
+    const hud = createHudLayout(360, 780, safeArea, { reserveMobilePause: true });
+    const controls = createMobileControlLayout(360, 780, safeArea);
+
+    const result = createAmmoDisplayLayout(
+      360,
+      780,
+      safeArea,
+      hud,
+      30,
+      true,
+      controls.interaction,
+    );
+
+    expect(result.compact).toBe(false);
+    expect(result.rounds.x + result.rounds.width / 2).toBe(340);
+  });
+
   it('uses the constrained allocation without crossing its anchored edge', () => {
     const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
     const hud = createHudLayout(320, 80, safeArea, { reserveMobilePause: true });

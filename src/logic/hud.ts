@@ -249,7 +249,16 @@ export function createAmmoDisplayLayout(
       (roundsBottom - roundsTop - roundHeight) / (safeMagazineSize - 1),
     ));
   const compact = safeMagazineSize > 1 && step < (mobile ? 3 : 4);
-  const ammoRight = mobileInteraction
+  const ammoTop = compact
+    ? roundsTop - AMMO_CONTENT_GAP - WATCH_HEIGHT
+    : roundsTop;
+  const ammoBottom = compact
+    ? roundsTop - AMMO_CONTENT_GAP
+    : roundsTop + roundHeight + step * (safeMagazineSize - 1);
+  const overlapsInteractionVertically = mobileInteraction !== null
+    && ammoBottom + AMMO_CONTENT_GAP >= mobileInteraction.y - mobileInteraction.radius
+    && ammoTop - AMMO_CONTENT_GAP <= mobileInteraction.y + mobileInteraction.radius;
+  const ammoRight = overlapsInteractionVertically && mobileInteraction
     ? Math.min(
       safeRight,
       mobileInteraction.x - mobileInteraction.radius - AMMO_CONTENT_GAP,
