@@ -5,7 +5,10 @@ import {
 } from '../logic/gameUiLayout';
 
 export interface ResponsiveHudTarget {
-  setMobileInputMode(enabled: boolean): void;
+  setMobileInputMode(
+    enabled: boolean,
+    interaction: NonNullable<GameUiLayout['mobileControlsLayout']>['interaction'] | null,
+  ): void;
   applyLayout(
     width: number,
     height: number,
@@ -36,7 +39,10 @@ export class ResponsiveUiSystem {
 
   apply(input: GameUiLayoutInput, pauseVisible: boolean): GameUiLayout {
     const layout = createGameUiLayout(input);
-    this.hud.setMobileInputMode(input.mobileControls);
+    this.hud.setMobileInputMode(
+      input.mobileControls,
+      layout.mobileControlsLayout?.interaction ?? null,
+    );
     this.hud.applyLayout(input.width, input.height, input.safeArea, layout.hud);
     this.pause.resize({
       width: input.width,

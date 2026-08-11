@@ -5,6 +5,7 @@ import {
   createAmmoRoundYPositions,
   createHudLayout,
 } from '../../../logic/hud';
+import { createMobileControlLayout } from '../../../logic/mobileInput';
 
 describe('createAmmoDisplayLayout', () => {
   it('keeps a full rifle magazine and reserve text inside a desktop safe area', () => {
@@ -42,12 +43,24 @@ describe('createAmmoDisplayLayout', () => {
   it('uses the constrained allocation without crossing its anchored edge', () => {
     const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
     const hud = createHudLayout(320, 80, safeArea, { reserveMobilePause: true });
+    const controls = createMobileControlLayout(320, 360, safeArea);
 
-    const result = createAmmoDisplayLayout(320, 360, safeArea, hud, 17, true);
+    const result = createAmmoDisplayLayout(
+      320,
+      360,
+      safeArea,
+      hud,
+      17,
+      true,
+      controls.interaction,
+    );
 
     expect(result.rounds.x + result.rounds.width / 2).toBeLessThanOrEqual(308);
     expect(result.rounds.step).toBeGreaterThanOrEqual(0);
     expect(result.compact).toBe(true);
+    expect(result.reserve.x).toBeLessThanOrEqual(
+      controls.interaction.x - controls.interaction.radius - 6,
+    );
   });
 
   it('uses mobile control reservations in a wide touch landscape viewport', () => {

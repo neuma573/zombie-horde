@@ -222,6 +222,7 @@ export function createAmmoDisplayLayout(
   hud: HudLayout,
   magazineSize: number,
   mobileControls: boolean,
+  mobileInteraction: { x: number; y: number; radius: number } | null = null,
 ): AmmoDisplayLayout {
   const safeRight = Math.max(
     Math.max(0, safeArea.left) + HUD_MARGIN,
@@ -248,6 +249,12 @@ export function createAmmoDisplayLayout(
       (roundsBottom - roundsTop - roundHeight) / (safeMagazineSize - 1),
     ));
   const compact = safeMagazineSize > 1 && step < (mobile ? 3 : 4);
+  const reserveX = compact && mobileInteraction
+    ? Math.min(
+      safeRight,
+      mobileInteraction.x - mobileInteraction.radius - AMMO_CONTENT_GAP,
+    )
+    : safeRight;
 
   return {
     compact,
@@ -259,7 +266,7 @@ export function createAmmoDisplayLayout(
       height: roundHeight,
     },
     reserve: {
-      x: safeRight,
+      x: reserveX,
       y: roundsTop - AMMO_CONTENT_GAP,
       originX: 1,
       originY: 1,

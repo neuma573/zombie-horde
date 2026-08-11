@@ -71,6 +71,7 @@ export class HudSystem {
   private hudLayout?: HudLayout;
   private topHudVisible = true;
   private mobileInputMode = false;
+  private mobileInteraction: { x: number; y: number; radius: number } | null = null;
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -260,8 +261,12 @@ export class HudSystem {
     );
   }
 
-  setMobileInputMode(enabled: boolean): void {
+  setMobileInputMode(
+    enabled: boolean,
+    interaction: { x: number; y: number; radius: number } | null = null,
+  ): void {
     this.mobileInputMode = enabled;
+    this.mobileInteraction = enabled ? interaction : null;
     if (enabled && this.hoveredWeaponSlot !== null) {
       this.hoveredWeaponSlot = null;
       this.showWeaponPickup(null);
@@ -466,6 +471,7 @@ export class HudSystem {
       this.hudLayout,
       magazineSize,
       this.mobileInputMode,
+      this.mobileInteraction,
     );
     this.ammoMaxWidth = layout.reserve.maxWidth;
     this.ammoMaxHeight = layout.reserve.maxHeight;
