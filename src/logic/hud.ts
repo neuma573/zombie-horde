@@ -249,7 +249,7 @@ export function createAmmoDisplayLayout(
       (roundsBottom - roundsTop - roundHeight) / (safeMagazineSize - 1),
     ));
   const compact = safeMagazineSize > 1 && step < (mobile ? 3 : 4);
-  const reserveX = compact && mobileInteraction
+  const ammoRight = mobileInteraction
     ? Math.min(
       safeRight,
       mobileInteraction.x - mobileInteraction.radius - AMMO_CONTENT_GAP,
@@ -259,14 +259,14 @@ export function createAmmoDisplayLayout(
   return {
     compact,
     rounds: {
-      x: safeRight - roundWidth / 2,
+      x: ammoRight - roundWidth / 2,
       feedY: roundsTop + roundHeight / 2,
       step,
       width: roundWidth,
       height: roundHeight,
     },
     reserve: {
-      x: reserveX,
+      x: ammoRight,
       y: roundsTop - AMMO_CONTENT_GAP,
       originX: 1,
       originY: 1,

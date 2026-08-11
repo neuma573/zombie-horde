@@ -28,8 +28,17 @@ describe('createAmmoDisplayLayout', () => {
   it('keeps a full rifle magazine inside a portrait mobile HUD allocation', () => {
     const safeArea = { top: 30, right: 8, bottom: 20, left: 8 };
     const hud = createHudLayout(360, 640, safeArea, { reserveMobilePause: true });
+    const controls = createMobileControlLayout(360, 640, safeArea);
 
-    const result = createAmmoDisplayLayout(360, 640, safeArea, hud, 30, true);
+    const result = createAmmoDisplayLayout(
+      360,
+      640,
+      safeArea,
+      hud,
+      30,
+      true,
+      controls.interaction,
+    );
     const roundsBottom = result.rounds.feedY
       + result.rounds.step * 29
       + result.rounds.height / 2;
@@ -38,6 +47,9 @@ describe('createAmmoDisplayLayout', () => {
     expect(roundsBottom).toBeLessThanOrEqual(440);
     expect(result.rounds.width).toBe(32);
     expect(result.compact).toBe(false);
+    expect(result.rounds.x + result.rounds.width / 2).toBeLessThanOrEqual(
+      controls.interaction.x - controls.interaction.radius - 6,
+    );
   });
 
   it('uses the constrained allocation without crossing its anchored edge', () => {
