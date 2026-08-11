@@ -176,7 +176,7 @@ import {
   shouldShowFieldWeaponInfo,
   weaponSpreadDegrees,
 } from '../logic/weapon';
-import type { FirstShotAccuracyState, OwnedWeapon } from '../logic/weapon';
+import type { FirstShotAccuracyState, OwnedWeapon, WeaponId } from '../logic/weapon';
 import {
   claimMobilePointer,
   canStartPinchFromRole,
@@ -281,6 +281,7 @@ export class GameScene extends Phaser.Scene {
   private pendingZombieSpawns = 0;
   private killCount = 0;
   private shotSequence = 0;
+  private lastShotWeaponId: WeaponId | null = null;
   private recoilSeed = 0;
   private firstShotAccuracy: FirstShotAccuracyState = createFirstShotAccuracyState();
   private sessionState: SessionState = createSessionState();
@@ -411,6 +412,7 @@ export class GameScene extends Phaser.Scene {
     this.fastZombieRuns.clear();
     this.killCount = 0;
     this.shotSequence = 0;
+    this.lastShotWeaponId = null;
     this.recoilSeed = Math.floor(Math.random() * 0x1_0000_0000);
     this.firstShotAccuracy = createFirstShotAccuracyState();
     this.resizePlayArea(this.scale.gameSize);
@@ -1070,6 +1072,7 @@ export class GameScene extends Phaser.Scene {
       this.recoilSeed,
     );
     this.shotSequence += 1;
+    this.lastShotWeaponId = weaponDefinition.id;
     const shotOrigin = { x: this.player.x, y: this.player.y };
     const supplyCrateTarget = this.activeSupplyCrateTarget();
     const result = resolveHitscan(
@@ -1891,6 +1894,10 @@ export class GameScene extends Phaser.Scene {
       maxStamina: SHOVE_CONFIG.staminaMax,
       magazineAmmo: weapon.magazineAmmo,
       reserveAmmo: weapon.reserveAmmo,
+      shotSequence: this.shotSequence,
+      lastShotWeaponId: this.lastShotWeaponId,
+      weaponId: this.weapon.getDefinition().id,
+      magazineSize: this.weapon.getDefinition().config.magazineSize,
       isReloading: weapon.reloadRemainingMs !== null,
       reloadProgress: reload.normalized,
       waveNumber: wave.waveNumber,

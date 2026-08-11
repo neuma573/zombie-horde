@@ -10,11 +10,16 @@ import {
 
 class HudTarget implements ResponsiveHudTarget {
   mobileInput = false;
+  mobileInteraction: NonNullable<GameUiLayout['mobileControlsLayout']>['interaction'] | null = null;
   layout?: GameUiLayout['hud'];
   desktopHoverVisible = true;
 
-  setMobileInputMode(enabled: boolean): void {
+  setMobileInputMode(
+    enabled: boolean,
+    interaction: NonNullable<GameUiLayout['mobileControlsLayout']>['interaction'] | null,
+  ): void {
     this.mobileInput = enabled;
+    this.mobileInteraction = interaction;
     if (enabled) this.desktopHoverVisible = false;
   }
 
@@ -81,6 +86,7 @@ describe('ResponsiveUiSystem', () => {
     expect(mobile.pauseButton).not.toBeNull();
     expect(hud.layout).toEqual(mobile.hud);
     expect(hud.mobileInput).toBe(true);
+    expect(hud.mobileInteraction).toEqual(mobile.mobileControlsLayout?.interaction);
     expect(hud.desktopHoverVisible).toBe(false);
     expect(pause.bounds).toEqual(mobile.pauseButton);
     expect(pause.visible).toBe(true);
@@ -109,6 +115,7 @@ describe('ResponsiveUiSystem', () => {
 
     expect(hud.layout).toEqual(desktop.hud);
     expect(hud.mobileInput).toBe(false);
+    expect(hud.mobileInteraction).toBeNull();
     expect(pause.bounds).toBeNull();
     expect(pause.visible).toBe(false);
     expect(controls.visible).toBe(false);

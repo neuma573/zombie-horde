@@ -2,6 +2,10 @@ import Phaser from 'phaser';
 
 import {
   constrainTooltipWidths,
+  countNewShots,
+  createAmmoDisplayLayout,
+  createAmmoEjectionMotion,
+  createAmmoRoundYPositions,
   createHudLayout,
   fitClockRenderScale,
   handleWeaponSlotPress,
@@ -39,6 +43,7 @@ const WATCH_RENDER_HEIGHT = 48;
 export class HudSystem {
   private readonly statusText: Phaser.GameObjects.Text;
   private readonly ammoText: Phaser.GameObjects.Text;
+  private readonly ammoRounds: Phaser.GameObjects.Image[] = [];
   private readonly timeGraphics: Phaser.GameObjects.Graphics;
   private readonly timeMetaText: Phaser.GameObjects.Text;
   private readonly gameOverText: Phaser.GameObjects.Text;
@@ -54,6 +59,7 @@ export class HudSystem {
   private readonly pickupText: Phaser.GameObjects.Text;
   private readonly clockBlinkEvent: Phaser.Time.TimerEvent;
   private waveAnnouncementTween?: Phaser.Tweens.Tween;
+  private ammoFeedTween?: Phaser.Tweens.Tween;
   private lastWaveNumber = 0;
   private current?: HudViewModel;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
@@ -62,6 +68,10 @@ export class HudSystem {
   private statusMaxHeight: number | null = null;
   private ammoMaxWidth: number | null = null;
   private ammoMaxHeight: number | null = null;
+  private hudLayout?: HudLayout;
+  private topHudVisible = true;
+  private mobileInputMode = false;
+  private mobileInteraction: { x: number; y: number; radius: number } | null = null;
   private clockText = '';
   private clockColonVisible = true;
   private hoveredWeaponSlot: number | null = null;
@@ -73,6 +83,7 @@ export class HudSystem {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly selectWeaponSlot: (slot: WeaponSlotIndex) => void,
+    private readonly randomSource: () => number = Math.random,
   ) {
     this.statusText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
@@ -81,6 +92,7 @@ export class HudSystem {
     }).setDepth(100).setOrigin(1, 0).setScrollFactor(0);
     this.ammoText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
+      fontSize: '12px',
       fontStyle: 'bold',
     }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
@@ -177,6 +189,7 @@ export class HudSystem {
       this.ammoText.setText(viewModel.ammoText);
       this.fitAmmoText();
     }
+    this.updateAmmoRounds(viewModel);
     if (this.current?.timeText !== viewModel.timeText) {
       this.clockText = viewModel.timeText;
       this.renderClockText();
@@ -222,13 +235,9 @@ export class HudSystem {
     this.statusMaxWidth = layout.status.maxWidth;
     this.statusMaxHeight = layout.status.maxHeight;
     this.fitStatusText();
-    this.ammoText
-      .setOrigin(layout.ammo.originX, 0)
-      .setPosition(layout.ammo.x, layout.ammo.y)
-      .setVisible(layout.topHudVisible);
-    this.ammoMaxWidth = layout.ammo.maxWidth;
-    this.ammoMaxHeight = layout.ammo.maxHeight;
-    this.fitAmmoText();
+    this.hudLayout = layout;
+    this.topHudVisible = layout.topHudVisible;
+    this.layoutAmmoRounds();
     this.drawWatch(layout.time);
     this.timeGraphics.setVisible(layout.topHudVisible);
     this.timeMetaText.setVisible(layout.topHudVisible);
@@ -252,7 +261,12 @@ export class HudSystem {
     );
   }
 
-  setMobileInputMode(enabled: boolean): void {
+  setMobileInputMode(
+    enabled: boolean,
+    interaction: { x: number; y: number; radius: number } | null = null,
+  ): void {
+    this.mobileInputMode = enabled;
+    this.mobileInteraction = enabled ? interaction : null;
     if (enabled && this.hoveredWeaponSlot !== null) {
       this.hoveredWeaponSlot = null;
       this.showWeaponPickup(null);
@@ -272,12 +286,14 @@ export class HudSystem {
     this.clockBlinkEvent.remove(false);
     this.statusText.destroy();
     this.ammoText.destroy();
+    this.ammoRounds.forEach((round) => round.destroy());
     this.timeGraphics.destroy();
     this.timeMetaText.destroy();
     this.gameOverText.destroy();
     this.reloadGraphics.destroy();
     this.reloadText.destroy();
     this.waveAnnouncementTween?.stop();
+    this.ammoFeedTween?.stop();
     this.waveBannerText.destroy();
     this.waveAnnouncementText.destroy();
     this.weaponSlotGraphics.destroy();
@@ -400,6 +416,167 @@ export class HudSystem {
       this.ammoMaxWidth === null ? 1 : this.ammoMaxWidth / this.ammoText.width,
       this.ammoMaxHeight === null ? 1 : this.ammoMaxHeight / this.ammoText.height,
     ));
+  }
+
+  private updateAmmoRounds(viewModel: HudViewModel): void {
+    const previous = this.current;
+    const sameWeapon = previous?.weaponId === viewModel.weaponId
+      && previous.activeWeaponSlot === viewModel.activeWeaponSlot;
+    const magazineChanged = previous?.magazineAmmo !== viewModel.magazineAmmo;
+    const magazineSizeChanged = previous?.magazineSize !== viewModel.magazineSize;
+    const reserveTextChanged = previous?.ammoText !== viewModel.ammoText;
+    const firedRounds = countNewShots(previous?.shotSequence, viewModel.shotSequence);
+    const texture = viewModel.weaponId === 'pistol' ? 'ammo-pistol' : 'ammo-rifle';
+
+    if (!sameWeapon && firedRounds > 0) {
+      const ejectedTexture = viewModel.lastShotWeaponId === 'pistol'
+        ? 'ammo-pistol'
+        : 'ammo-rifle';
+      const ammoBeforeFiring = Math.min(
+        viewModel.magazineSize,
+        viewModel.magazineAmmo + firedRounds,
+      );
+      this.ammoRounds.forEach((round) => round.destroy());
+      this.ammoRounds.length = 0;
+      while (this.ammoRounds.length < ammoBeforeFiring) {
+        this.ammoRounds.push(
+          this.scene.add.image(0, 0, ejectedTexture)
+            .setDepth(101)
+            .setScrollFactor(0),
+        );
+      }
+      this.layoutAmmoRounds(
+        viewModel.magazineSize,
+        false,
+        ammoBeforeFiring,
+        viewModel.ammoText,
+      );
+    }
+
+    for (let index = 0; index < firedRounds; index += 1) {
+      const round = this.ammoRounds.pop();
+      if (round) this.animateEjectedRound(round, index);
+    }
+
+    if (!sameWeapon || firedRounds === 0) {
+      while (this.ammoRounds.length > viewModel.magazineAmmo) {
+        this.ammoRounds.pop()?.destroy();
+      }
+    }
+
+    while (this.ammoRounds.length < viewModel.magazineAmmo) {
+      this.ammoRounds.push(
+        this.scene.add.image(0, 0, texture)
+          .setDepth(101)
+          .setScrollFactor(0),
+      );
+    }
+    this.ammoRounds.forEach((round) => round.setTexture(texture));
+    if (!sameWeapon || magazineChanged || magazineSizeChanged || reserveTextChanged) {
+      this.layoutAmmoRounds(
+        viewModel.magazineSize,
+        firedRounds > 0,
+        viewModel.magazineAmmo,
+        viewModel.ammoText,
+      );
+    }
+  }
+
+  private layoutAmmoRounds(
+    magazineSize = this.current?.magazineSize ?? 1,
+    animateFeed = false,
+    magazineAmmo = this.current?.magazineAmmo ?? this.ammoRounds.length,
+    reserveText = this.current?.ammoText ?? this.ammoText.text,
+  ): void {
+    if (!this.hudLayout || magazineSize <= 0) return;
+    const layout = createAmmoDisplayLayout(
+      this.viewportWidth,
+      this.viewportHeight,
+      this.safeArea,
+      this.hudLayout,
+      magazineSize,
+      this.mobileInputMode,
+      this.mobileInteraction,
+    );
+    this.ammoMaxWidth = layout.reserve.maxWidth;
+    this.ammoMaxHeight = layout.reserve.maxHeight;
+    this.ammoText
+      .setText(layout.compact
+        ? `${magazineAmmo} / ${reserveText.replace(/^\+/, '')}`
+        : reserveText)
+      .setOrigin(layout.reserve.originX, layout.reserve.originY)
+      .setPosition(layout.reserve.x, layout.reserve.y)
+      .setVisible(this.topHudVisible);
+    this.fitAmmoText();
+
+    const targetYPositions = createAmmoRoundYPositions(
+      layout.rounds.feedY,
+      layout.rounds.step,
+      this.ammoRounds.length,
+    );
+    const previousOffset = animateFeed && this.ammoRounds.length > 0
+      ? Math.max(0, this.ammoRounds[0].y - (targetYPositions[0] ?? 0))
+      : 0;
+    this.ammoFeedTween?.stop();
+    this.ammoFeedTween = undefined;
+    this.ammoRounds.forEach((round, index) => {
+      round
+        .setDisplaySize(layout.rounds.width, layout.rounds.height)
+        .setRotation(0)
+        .setPosition(
+          layout.rounds.x,
+          (targetYPositions[index] ?? layout.rounds.feedY) + previousOffset,
+        )
+        .setVisible(this.topHudVisible && !layout.compact);
+    });
+    if (animateFeed && this.ammoRounds.length > 0 && previousOffset > 0) {
+      const feedState = { offset: previousOffset };
+      this.ammoFeedTween = this.scene.tweens.add({
+        targets: feedState,
+        offset: 0,
+        duration: 85,
+        ease: 'Back.Out',
+        onUpdate: () => {
+          this.ammoRounds.forEach((round, index) => {
+            round.y = (targetYPositions[index] ?? layout.rounds.feedY)
+              + feedState.offset;
+          });
+        },
+        onComplete: () => {
+          this.ammoFeedTween = undefined;
+        },
+      });
+    }
+  }
+
+  private animateEjectedRound(round: Phaser.GameObjects.Image, order: number): void {
+    const targetScaleX = round.scaleX * 0.65;
+    const targetScaleY = round.scaleY * 0.65;
+    const motion = createAmmoEjectionMotion(
+      this.randomSource(),
+      this.randomSource(),
+      this.randomSource(),
+    );
+    const orderDelay = order * 20;
+    this.scene.tweens.add({
+      targets: round,
+      x: round.x + motion.xDelta,
+      y: round.y + motion.yDelta,
+      angle: round.angle + motion.angleDelta,
+      scaleX: targetScaleX,
+      scaleY: targetScaleY,
+      delay: orderDelay,
+      duration: motion.durationMs,
+      ease: 'Quad.Out',
+    });
+    this.scene.tweens.add({
+      targets: round,
+      alpha: 0,
+      delay: orderDelay + motion.fadeDelayMs,
+      duration: motion.durationMs - motion.fadeDelayMs,
+      ease: 'Sine.In',
+      onComplete: () => round.destroy(),
+    });
   }
 
   private fitStatusText(): void {
