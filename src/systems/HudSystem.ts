@@ -426,6 +426,29 @@ export class HudSystem {
     const magazineSizeChanged = previous?.magazineSize !== viewModel.magazineSize;
     const reserveTextChanged = previous?.ammoText !== viewModel.ammoText;
     const firedRounds = countNewShots(previous?.shotSequence, viewModel.shotSequence);
+    const texture = viewModel.weaponId === 'pistol' ? 'ammo-pistol' : 'ammo-rifle';
+
+    if (!sameWeapon && firedRounds > 0) {
+      const ammoBeforeFiring = Math.min(
+        viewModel.magazineSize,
+        viewModel.magazineAmmo + firedRounds,
+      );
+      this.ammoRounds.forEach((round) => round.destroy());
+      this.ammoRounds.length = 0;
+      while (this.ammoRounds.length < ammoBeforeFiring) {
+        this.ammoRounds.push(
+          this.scene.add.image(0, 0, texture)
+            .setDepth(101)
+            .setScrollFactor(0),
+        );
+      }
+      this.layoutAmmoRounds(
+        viewModel.magazineSize,
+        false,
+        ammoBeforeFiring,
+        viewModel.ammoText,
+      );
+    }
 
     for (let index = 0; index < firedRounds; index += 1) {
       const round = this.ammoRounds.pop();
@@ -438,7 +461,6 @@ export class HudSystem {
       }
     }
 
-    const texture = viewModel.weaponId === 'pistol' ? 'ammo-pistol' : 'ammo-rifle';
     while (this.ammoRounds.length < viewModel.magazineAmmo) {
       this.ammoRounds.push(
         this.scene.add.image(0, 0, texture)
