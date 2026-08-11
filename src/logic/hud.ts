@@ -10,6 +10,7 @@ export interface HudState {
   magazineAmmo: number;
   reserveAmmo: number;
   shotSequence: number;
+  lastShotWeaponId: WeaponId | null;
   weaponId: WeaponId;
   magazineSize: number;
   isReloading: boolean;
@@ -41,6 +42,7 @@ export interface HudViewModel {
   magazineSize: number;
   weaponId: WeaponId;
   shotSequence: number;
+  lastShotWeaponId: WeaponId | null;
   timeText: string;
   gameOverText: string;
   showGameOver: boolean;
@@ -369,6 +371,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     magazineSize: state.magazineSize,
     weaponId: state.weaponId,
     shotSequence: state.shotSequence,
+    lastShotWeaponId: state.lastShotWeaponId,
     timeText: state.gameTimeText,
     gameOverText: 'GAME OVER\nEnter or tap to restart',
     showGameOver: state.sessionPhase === 'gameOver',

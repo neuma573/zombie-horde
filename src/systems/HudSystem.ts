@@ -429,6 +429,9 @@ export class HudSystem {
     const texture = viewModel.weaponId === 'pistol' ? 'ammo-pistol' : 'ammo-rifle';
 
     if (!sameWeapon && firedRounds > 0) {
+      const ejectedTexture = viewModel.lastShotWeaponId === 'pistol'
+        ? 'ammo-pistol'
+        : 'ammo-rifle';
       const ammoBeforeFiring = Math.min(
         viewModel.magazineSize,
         viewModel.magazineAmmo + firedRounds,
@@ -437,7 +440,7 @@ export class HudSystem {
       this.ammoRounds.length = 0;
       while (this.ammoRounds.length < ammoBeforeFiring) {
         this.ammoRounds.push(
-          this.scene.add.image(0, 0, texture)
+          this.scene.add.image(0, 0, ejectedTexture)
             .setDepth(101)
             .setScrollFactor(0),
         );
