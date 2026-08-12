@@ -28,7 +28,11 @@ describe('createHudViewModel', () => {
     const snapshot = structuredClone(state);
     const result = createHudViewModel(state);
 
-    expect(result.statusText).toBe('HP 70/100\nST 65/100\nWAVE 3  LEFT 7\nKILLS 5');
+    expect(result.statusText).toBe('KILLS 5');
+    expect(result.statusText).not.toContain('LEFT');
+    expect(result.waveTagText).toBe('#Wave3');
+    expect(result.healthRatio).toBe(0.7);
+    expect(result.staminaRatio).toBe(0.65);
     expect(result.ammoText).toBe('+36');
     expect(result.magazineAmmo).toBe(4);
     expect(result.magazineSize).toBe(17);
@@ -42,6 +46,35 @@ describe('createHudViewModel', () => {
     expect(result.reloadProgress).toBe(0.5);
     expect(result.reloadPrompt).toBeNull();
     expect(state).toEqual(snapshot);
+  });
+
+  it('clamps health and stamina gauge ratios to their visible range', () => {
+    const base = {
+      health: 120,
+      maxHealth: 100,
+      stamina: -10,
+      maxStamina: 100,
+      magazineAmmo: 12,
+      reserveAmmo: 48,
+      shotSequence: 0,
+      lastShotWeaponId: null,
+      weaponId: 'pistol' as const,
+      magazineSize: 17,
+      isReloading: false,
+      reloadProgress: 0,
+      waveNumber: 1,
+      wavePhase: 'active' as const,
+      waveTimerMs: 0,
+      remainingToSpawn: 0,
+      aliveZombieCount: 1,
+      killCount: 0,
+      sessionPhase: 'playing' as const,
+      gameTimeText: '08:00',
+    };
+
+    expect(createHudViewModel(base).healthRatio).toBe(1);
+    expect(createHudViewModel(base).staminaRatio).toBe(0);
+    expect(createHudViewModel({ ...base, maxHealth: 0 }).healthRatio).toBe(0);
   });
 
   it('shows the restart message for game over', () => {

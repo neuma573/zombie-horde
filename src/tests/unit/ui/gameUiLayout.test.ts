@@ -44,6 +44,20 @@ describe('createGameUiLayout', () => {
     expect(unsupported.supportedViewport).toBe(false);
   });
 
+  it('keeps the full stamina bar and places pause directly below it in portrait', () => {
+    const layout = createGameUiLayout({
+      width: 712,
+      height: 1562,
+      safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
+      mobileControls: true,
+    });
+    const pause = layout.pauseButton!;
+
+    expect(layout.hud.staminaBar.width).toBe(140);
+    expect(pause.right).toBe(layout.hud.staminaBar.x + layout.hud.staminaBar.width);
+    expect(pause.top).toBe(layout.hud.topHudBounds.bottom + 8);
+  });
+
   it.each([
     [320, 360, { top: 0, right: 0, bottom: 0, left: 0 }],
     [360, 360, { top: 0, right: 0, bottom: 0, left: 0 }],

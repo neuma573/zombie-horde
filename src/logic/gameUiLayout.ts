@@ -62,7 +62,6 @@ function pauseBounds(
   );
   const width = Math.min(48, right - left);
   const height = Math.min(48, bottom - top);
-  const targetRight = right;
   const reserved = [hud.topHudBounds, ...hud.weaponSlots.map((slot) => ({
     left: slot.x - slot.width / 2,
     right: slot.x + slot.width / 2,
@@ -75,10 +74,18 @@ function pauseBounds(
     circleBounds(mobileLayout.interactionHit),
     circleBounds(mobileLayout.joystick),
   ] : [])];
-  const initialTop = Math.min(top + 52, bottom - height);
+  const staminaBottom = hud.staminaBar.y + hud.staminaBar.height;
+  const initialTop = Math.min(
+    bottom - height,
+    Math.max(top, staminaBottom + 8, hud.topHudBounds.bottom + 8),
+  );
+  const initialRight = Math.min(
+    right,
+    Math.max(left + width, hud.staminaBar.x + hud.staminaBar.width),
+  );
   const initial = {
-    left: targetRight - width,
-    right: targetRight,
+    left: initialRight - width,
+    right: initialRight,
     top: initialTop,
     bottom: initialTop + height,
   };
@@ -92,6 +99,12 @@ function pauseBounds(
     ...hud.weaponSlots.map((slot) => slot.y + slot.height / 2),
   );
   const candidates = [
+    {
+      left: canvasSafeRight - width,
+      right: canvasSafeRight,
+      top: initialTop,
+      bottom: initialTop + height,
+    },
     {
       ...initial,
       top: lowestSlotBottom + 8,
@@ -140,7 +153,7 @@ export function createGameUiLayout(input: GameUiLayoutInput): GameUiLayout {
     input.width,
     input.height,
     input.safeArea,
-    { reserveMobilePause: input.mobileControls },
+    { reserveMobilePause: input.mobileControls && input.height < 480 },
   );
 
   return {
@@ -159,7 +172,12 @@ export function createLegacyPauseButtonBounds(
   const layout = { ...input, mobileControls: true };
   return pauseBounds(
     layout,
-    createHudLayout(input.width, input.height, input.safeArea),
+    createHudLayout(
+      input.width,
+      input.height,
+      input.safeArea,
+      { reserveMobilePause: true },
+    ),
     null,
   ) ?? { left: 0, right: 0, top: 0, bottom: 0 };
 }

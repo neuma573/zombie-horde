@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="76" height="20" viewBox="0 0 76 20">
   <g transform="translate(76 0) rotate(90)">
     <path fill="#050708" opacity=".55" d="M6 5h9l3 8v56l-3 5H7l-3-5V13l2-8Z" transform="translate(1 1)"/>
-    <path fill="#171b1d" stroke="#060809" stroke-width="2" stroke-linejoin="round" d="M6 3h8c3 5 4 9 4 14v20H2V17C2 12 3 8 6 3Z"/>
-    <path fill="#7f898c" d="M7 6h6c2 4 3 8 3 12v16H4V18c0-4 1-8 3-12Z"/>
-    <path fill="#c1c7c7" opacity=".75" d="M7 8h2v24H6V18c0-4 0-7 1-10Z"/>
-    <path fill="#252b2d" stroke="#060809" stroke-width="2" d="M2 35h16v34H2z"/>
-    <path fill="#697275" d="M5 38h10v28H5z"/>
-    <path fill="#b5bcbd" opacity=".65" d="M6 39h2v26H6z"/>
-    <path fill="#111416" stroke="#060809" stroke-width="2" d="M1 66h18v8H1z"/>
+    <path fill="#6f3f27" stroke="#060809" stroke-width="2" stroke-linejoin="round" d="M6 3h8c3 4 4 7 4 11v8H2v-8c0-4 1-7 4-11Z"/>
+    <path fill="#a9633c" d="M7 6h6c2 3 3 6 3 9v4H4v-4c0-3 1-6 3-9Z"/>
+    <path fill="#d18a58" opacity=".7" d="M7 8h2v10H6v-3c0-3 0-5 1-7Z"/>
+    <path fill="#a97818" stroke="#060809" stroke-width="2" d="M2 20h16v49H2z"/>
+    <path fill="#d2a62f" d="M5 23h10v43H5z"/>
+    <path fill="#f0cf69" opacity=".75" d="M6 24h2v41H6z"/>
+    <path fill="#8d6415" stroke="#060809" stroke-width="2" d="M1 66h18v8H1z"/>
   </g>
 </svg>

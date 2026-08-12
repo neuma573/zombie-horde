@@ -567,7 +567,7 @@ export class GameScene extends Phaser.Scene {
       this.updateSupplyDropVisual();
       this.clearAimAssist();
       this.resetMobileInput();
-      this.updateHud();
+      this.updateHud(deltaMs);
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.restartSession();
       }
@@ -659,7 +659,7 @@ export class GameScene extends Phaser.Scene {
       this.mobileRestartArmed = this.activeMobilePointers.size === 0;
       this.clearAimAssist();
       this.resetMobileInput();
-      this.updateHud();
+      this.updateHud(deltaMs);
       this.playPlayerHitEffects(playerDamageEventCount);
       return;
     }
@@ -667,7 +667,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshAimAssist();
     this.updateTimeBasedLighting(deltaMs);
 
-    this.updateHud();
+    this.updateHud(deltaMs);
     this.updateWeaponPickupInfo();
     this.playPlayerHitEffects(playerDamageEventCount);
   }
@@ -1881,7 +1881,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshInputMode();
   }
 
-  private updateHud(): void {
+  private updateHud(deltaMs = 0): void {
     const weapon = this.weapon.getState();
     const inventory = this.weapon.getInventory();
     const reload = this.weapon.getReloadProgress();
@@ -1921,7 +1921,7 @@ export class GameScene extends Phaser.Scene {
       }) : null),
       activeWeaponSlot: inventory.activeSlot,
     });
-    this.hud?.update(viewModel);
+    this.hud?.update(viewModel, deltaMs);
   }
 
   private refreshInputMode(): void {
