@@ -42,6 +42,7 @@ describe('WeaponSystem', () => {
     const system = new WeaponSystem(PISTOL_WEAPON, {
       pistolAmmo: 0,
       rifleAmmo: 0,
+      shotgunAmmo: 0,
     });
     const fieldRifle = createOwnedWeapon(BURST_RIFLE_WEAPON);
 
@@ -54,6 +55,7 @@ describe('WeaponSystem', () => {
     expect(system.getAmmoReserves()).toEqual({
       pistolAmmo: 0,
       rifleAmmo: 0,
+      shotgunAmmo: 0,
     });
   });
 

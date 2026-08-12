@@ -13,6 +13,7 @@ export interface HudState {
   lastShotWeaponId: WeaponId | null;
   weaponId: WeaponId;
   magazineSize: number;
+  spentCasings?: number;
   isReloading: boolean;
   reloadProgress: number;
   waveNumber: number;
@@ -35,6 +36,21 @@ export interface HudState {
   activeWeaponSlot?: 0 | 1;
 }
 
+export function ejectsCasingOnFire(weaponId: WeaponId | null): boolean {
+  return weaponId !== null && weaponId !== 'doubleBarrelShotgun';
+}
+
+export function crossesReloadCue(
+  previousProgress: number | null | undefined,
+  currentProgress: number | null,
+  cueProgress: number,
+): boolean {
+  if (previousProgress === null || previousProgress === undefined) return false;
+  const threshold = Math.min(1, Math.max(0, cueProgress));
+  return previousProgress < threshold
+    && (currentProgress === null || currentProgress >= threshold);
+}
+
 export interface HudViewModel {
   statusText: string;
   waveTagText: string;
@@ -43,6 +59,7 @@ export interface HudViewModel {
   ammoText: string;
   magazineAmmo: number;
   magazineSize: number;
+  spentCasings: number;
   weaponId: WeaponId;
   shotSequence: number;
   lastShotWeaponId: WeaponId | null;
@@ -370,6 +387,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     ammoText: `+${state.reserveAmmo}`,
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
+    spentCasings: Math.max(0, Math.floor(state.spentCasings ?? 0)),
     weaponId: state.weaponId,
     shotSequence: state.shotSequence,
     lastShotWeaponId: state.lastShotWeaponId,

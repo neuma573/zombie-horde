@@ -44,6 +44,16 @@ function createAudioRuntime() {
 }
 
 describe('WeaponAudio', () => {
+  it('plays shotgun breech close immediately when reload completion is reported', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReloadComplete('doubleBarrelShotgun');
+
+    expect(played).toEqual(['audio-shotgun-reload-breech-close']);
+    expect(scheduled).toEqual([]);
+  });
+
   it('plays the first overdue burst cue at the render boundary', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);

@@ -94,4 +94,21 @@ describe('weapon reload', () => {
     expect(shouldAutoReload(shot.state, true)).toBe(true);
     expect(startReload(shot.state, config).reloadRemainingMs).toBe(config.reloadDurationMs);
   });
+
+  it('extracts retained casings when reload crosses the configured cue', () => {
+    const breakAction = {
+      ...config,
+      retainsSpentCasings: true,
+      casingExtractionProgress: 0.58,
+    };
+    const spent = {
+      ...createWeaponState(breakAction),
+      magazineAmmo: 1,
+      spentCasings: 2,
+    };
+    const reloading = startReload(spent, breakAction);
+
+    expect(advanceWeapon(reloading, breakAction, 579).spentCasings).toBe(2);
+    expect(advanceWeapon(reloading, breakAction, 580).spentCasings).toBe(0);
+  });
 });

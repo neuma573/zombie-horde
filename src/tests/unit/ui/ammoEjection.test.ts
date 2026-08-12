@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countNewShots, createAmmoEjectionMotion } from '../../../logic/hud';
+import { countNewShots, createAmmoEjectionMotion, crossesReloadCue, ejectsCasingOnFire } from '../../../logic/hud';
 
 describe('createAmmoEjectionMotion', () => {
   it('varies cartridge travel and spin within bounded screen-safe ranges', () => {
@@ -36,5 +36,25 @@ describe('countNewShots', () => {
 
   it('does not report a shot when a restarted sequence decreases', () => {
     expect(countNewShots(12, 0)).toBe(0);
+  });
+});
+
+describe('ejectsCasingOnFire', () => {
+  it('keeps fired shotgun shells chambered until the break action opens', () => {
+    expect(ejectsCasingOnFire('doubleBarrelShotgun')).toBe(false);
+    expect(ejectsCasingOnFire('pistol')).toBe(true);
+    expect(ejectsCasingOnFire('burstRifle')).toBe(true);
+  });
+});
+
+describe('crossesReloadCue', () => {
+  it('triggers extraction when reload progress crosses the sound cue', () => {
+    expect(crossesReloadCue(0.57, 0.58, 0.58)).toBe(true);
+    expect(crossesReloadCue(0.58, 0.7, 0.58)).toBe(false);
+  });
+
+  it('triggers an overdue extraction when reload completes in one step', () => {
+    expect(crossesReloadCue(0.5, null, 0.58)).toBe(true);
+    expect(crossesReloadCue(null, null, 0.58)).toBe(false);
   });
 });

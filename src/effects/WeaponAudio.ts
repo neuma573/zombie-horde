@@ -137,6 +137,16 @@ export class WeaponAudio {
     this.reloadTimeline = { elapsedMs: 0, cues };
   }
 
+  playReloadComplete(weaponId: WeaponId): void {
+    const definition = WEAPON_AUDIO_CONFIG.weapons[weaponId];
+    const key = 'reloadCompleteKey' in definition
+      ? definition.reloadCompleteKey
+      : undefined;
+    if (key) {
+      this.scene.sound.play(key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
+    }
+  }
+
   advanceReload(deltaMs: number, offsetMs = 0): void {
     if (!this.reloadTimeline) return;
     const elapsedMs = Math.max(0, deltaMs);

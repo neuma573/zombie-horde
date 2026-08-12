@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BURST_RIFLE_WEAPON, PISTOL_WEAPON, STARTING_AMMO_RESERVES } from '../../config/weaponConfig';
+import { BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON, PISTOL_WEAPON, STARTING_AMMO_RESERVES } from '../../config/weaponConfig';
 import { ZOMBIE_CONFIG } from '../../config/zombieConfig';
 import { applyDamage } from '../../logic/damage';
 import { WeaponSystem } from '../../systems/WeaponSystem';
@@ -15,6 +15,19 @@ describe('weapon balance', () => {
     });
     expect(system.getAmmoReserves().pistolAmmo).toBe(100);
     expect(system.getAmmoReserves().rifleAmmo).toBe(0);
+    expect(system.getAmmoReserves().shotgunAmmo).toBe(0);
+  });
+
+  it('makes the double-barrel lethal with two rapid shots at pistol range', () => {
+    expect(
+      DOUBLE_BARREL_SHOTGUN_WEAPON.config.damage
+      * DOUBLE_BARREL_SHOTGUN_WEAPON.config.pelletCount,
+    ).toBeGreaterThanOrEqual(ZOMBIE_CONFIG.health);
+    expect(DOUBLE_BARREL_SHOTGUN_WEAPON.config.magazineSize).toBe(2);
+    expect(DOUBLE_BARREL_SHOTGUN_WEAPON.config.range)
+      .toBe(PISTOL_WEAPON.config.range);
+    expect(DOUBLE_BARREL_SHOTGUN_WEAPON.config.fireIntervalMs).toBe(180);
+    expect(DOUBLE_BARREL_SHOTGUN_WEAPON.config.damage).toBe(16);
   });
 
   it('requires four pistol body shots to kill the base zombie', () => {

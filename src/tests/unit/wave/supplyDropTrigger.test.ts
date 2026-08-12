@@ -16,6 +16,7 @@ describe('supply trigger rules', () => {
     expect(totalAvailableAmmo(inventory, {
       pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
       rifleAmmo: 0,
+      shotgunAmmo: 0,
     })).toEqual({
       current: expectedAmmo,
       capacity: expectedAmmo,

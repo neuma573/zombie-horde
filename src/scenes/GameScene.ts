@@ -10,6 +10,7 @@ import { OBSTACLE_CONFIG } from '../config/obstacleConfig';
 import { URBAN_MAP_CONFIG } from '../config/urbanMapConfig';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { SHOVE_CONFIG } from '../config/meleeConfig';
+import { SHOTGUN_KNOCKBACK_CONFIG } from '../config/shotgunConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
 import {
@@ -20,6 +21,7 @@ import {
 } from '../config/supplyDropConfig';
 import {
   BURST_RIFLE_WEAPON,
+  DOUBLE_BARREL_SHOTGUN_WEAPON,
   PISTOL_WEAPON,
   STARTING_AMMO_RESERVES,
 } from '../config/weaponConfig';
@@ -164,10 +166,12 @@ import {
   type ShoveWindupState,
   type StaminaState,
 } from '../logic/meleeAttack';
+import { shotgunKnockbackDistance } from '../logic/shotgunKnockback';
 import {
   applyWeaponRecoil,
   advanceFirstShotAccuracy,
   consumeFirstShotAccuracy,
+  createPelletDirections,
   createFirstShotAccuracyState,
   createOwnedWeapon,
   hasLoadedWeaponPickup,
@@ -676,6 +680,9 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
+    const reloadingWeaponId = this.weapon.getState().reloadRemainingMs !== null
+      ? this.weapon.getDefinition().id
+      : null;
     const staminaRecovery = recoverStaminaAfterPrepaidTime(
       this.stamina,
       deltaMs,
@@ -735,6 +742,12 @@ export class GameScene extends Phaser.Scene {
       );
       contactDied = simulation.died;
       damageEventCount = simulation.damageEventCount;
+    }
+    if (
+      reloadingWeaponId !== null
+      && this.weapon.getState().reloadRemainingMs === null
+    ) {
+      this.weaponAudio?.playReloadComplete(reloadingWeaponId);
     }
     this.startMobileAutoReloadIfNeeded();
     const nearbyPickup = this.nearestWeaponPickupInRange();
@@ -1075,21 +1088,31 @@ export class GameScene extends Phaser.Scene {
     this.lastShotWeaponId = weaponDefinition.id;
     const shotOrigin = { x: this.player.x, y: this.player.y };
     const supplyCrateTarget = this.activeSupplyCrateTarget();
-    const result = resolveHitscan(
-      shotOrigin,
+    const targets = [
+      ...this.zombies.map((zombie) => ({
+        id: zombie.id,
+        position: { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius,
+      })),
+      ...(supplyCrateTarget ? [supplyCrateTarget] : []),
+    ];
+    const shotDirections = createPelletDirections(
       shotDirection,
-      weaponConfig.range,
-      [
-        ...this.zombies.map((zombie) => ({
-          id: zombie.id,
-          position: { x: zombie.x, y: zombie.y },
-          radius: zombie.hitRadius,
-        })),
-        ...(supplyCrateTarget ? [supplyCrateTarget] : []),
-      ],
-      weaponConfig.maxTargets,
-      this.activeHitscanBlockers(),
+      weaponConfig.pelletCount ?? 1,
+      weaponConfig.pelletSpreadDegrees ?? 0,
+      this.recoilSeed ^ this.shotSequence,
     );
+    const results = shotDirections.map((direction) => ({
+      direction,
+      result: resolveHitscan(
+        shotOrigin,
+        direction,
+        weaponConfig.range,
+        targets,
+        weaponConfig.maxTargets,
+        this.activeHitscanBlockers(),
+      ),
+    }));
     const impactEvents: Array<{
       position: Vector2;
       radius: number;
@@ -1101,39 +1124,63 @@ export class GameScene extends Phaser.Scene {
     }> = [];
 
     const deadIds = new Set<string>();
+    const shotgunPelletHits = new Map<string, number>();
 
-    for (const hit of result.hits) {
-      if (hit.targetId === SUPPLY_CRATE_TARGET_ID) {
-        const damage = damageSupplyDropCrate(
-          this.supplyDropState,
-          weaponConfig.damage,
-        );
-        this.supplyDropState = damage.state;
-        this.effects?.playSupplyCrateHit(hit.point, damage.died);
-        if (damage.died) this.releaseSupplyLoot();
-        continue;
-      }
-
-      const zombie = this.zombies.find((candidate) => candidate.id === hit.targetId);
-
-      if (zombie) {
-        const damage = this.damage.apply(zombie, weaponConfig.damage);
-        impactEvents.push({
-          position: { x: zombie.x, y: zombie.y },
-          radius: zombie.hitRadius,
-          died: damage.died,
-          direction: { ...shotDirection },
-          rotation: zombie.rotation,
-          variantKey: zombie.id,
-          appearance: zombie.appearance,
-        });
-
-        zombie.triggerHitReaction(shotDirection);
-
-        if (damage.died) {
-          zombie.destroy();
-          deadIds.add(zombie.id);
+    for (const { direction, result } of results) {
+      for (const hit of result.hits) {
+        if (hit.targetId === SUPPLY_CRATE_TARGET_ID) {
+          const damage = damageSupplyDropCrate(
+            this.supplyDropState,
+            weaponConfig.damage,
+          );
+          this.supplyDropState = damage.state;
+          this.effects?.playSupplyCrateHit(hit.point, damage.died);
+          if (damage.died) this.releaseSupplyLoot();
+          continue;
         }
+
+        const zombie = this.zombies.find((candidate) => candidate.id === hit.targetId);
+
+        if (zombie && !deadIds.has(zombie.id)) {
+          if (weaponDefinition.id === 'doubleBarrelShotgun') {
+            shotgunPelletHits.set(
+              zombie.id,
+              (shotgunPelletHits.get(zombie.id) ?? 0) + 1,
+            );
+          }
+          const damage = this.damage.apply(zombie, weaponConfig.damage);
+          impactEvents.push({
+            position: { x: zombie.x, y: zombie.y },
+            radius: zombie.hitRadius,
+            died: damage.died,
+            direction: { ...direction },
+            rotation: zombie.rotation,
+            variantKey: zombie.id,
+            appearance: zombie.appearance,
+          });
+
+          zombie.triggerHitReaction(direction);
+
+          if (damage.died) {
+            zombie.destroy();
+            deadIds.add(zombie.id);
+          }
+        }
+      }
+    }
+
+    for (const [zombieId, pelletHits] of shotgunPelletHits) {
+      if (deadIds.has(zombieId)) continue;
+      const zombie = this.zombies.find((candidate) => candidate.id === zombieId);
+      if (!zombie) continue;
+      const knockback = createKnockbackState(
+        shotDirection,
+        shotgunKnockbackDistance(pelletHits, SHOTGUN_KNOCKBACK_CONFIG),
+        SHOTGUN_KNOCKBACK_CONFIG.durationMs,
+      );
+      if (knockback) {
+        const current = this.zombieKnockbacks.get(zombieId) ?? [];
+        this.zombieKnockbacks.set(zombieId, [...current, knockback]);
       }
     }
 
@@ -1150,15 +1197,16 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    const centerResult = results[Math.floor(results.length / 2)]?.result;
+    if (!centerResult) return;
     const effectOrigin = constrainMuzzleToShotSegment(
       shotOrigin,
       this.player.getMuzzlePosition(),
-      result.endPoint,
+      centerResult.endPoint,
     );
-    this.effects?.playShot({
-      origin: effectOrigin,
-      endPoint: result.endPoint,
-    });
+    for (const { result } of results) {
+      this.effects?.playShot({ origin: effectOrigin, endPoint: result.endPoint });
+    }
     const muzzleScreenPosition = cameraScreenPoint(
       effectOrigin,
       {
@@ -1172,14 +1220,14 @@ export class GameScene extends Phaser.Scene {
       muzzleScreenPosition.x,
       muzzleScreenPosition.y,
       shotDirection,
-      Math.hypot(result.endPoint.x - effectOrigin.x, result.endPoint.y - effectOrigin.y),
+      Math.hypot(centerResult.endPoint.x - effectOrigin.x, centerResult.endPoint.y - effectOrigin.y),
       this.cameras.main.zoom,
     );
     this.player.triggerMuzzleReflection();
     this.player.triggerWeaponRecoil(weaponDefinition.recoil);
     const flashReach = Math.min(
       TIME_BASED_LIGHTING_CONFIG.muzzleFlashForwardLength,
-      Math.hypot(result.endPoint.x - effectOrigin.x, result.endPoint.y - effectOrigin.y),
+      Math.hypot(centerResult.endPoint.x - effectOrigin.x, centerResult.endPoint.y - effectOrigin.y),
     );
     for (const zombie of this.zombies) {
       const exposure = muzzleLightExposure(
@@ -1280,7 +1328,11 @@ export class GameScene extends Phaser.Scene {
     ownedWeapon: OwnedWeapon,
   ): void {
     const definition = ownedWeapon.definition;
-    const textureKey = definition.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle';
+    const textureKey = definition.id === 'pistol'
+      ? 'weapon-pistol'
+      : definition.id === 'doubleBarrelShotgun'
+        ? 'weapon-shotgun'
+        : 'weapon-rifle';
     const pickup = new WeaponPickup(this, x, y, ownedWeapon, textureKey);
     pickup.on(Phaser.Input.Events.POINTER_OVER, () => {
       this.hoveredWeaponPickup = pickup;
@@ -1897,6 +1949,7 @@ export class GameScene extends Phaser.Scene {
       lastShotWeaponId: this.lastShotWeaponId,
       weaponId: this.weapon.getDefinition().id,
       magazineSize: this.weapon.getDefinition().config.magazineSize,
+      spentCasings: weapon.spentCasings,
       isReloading: weapon.reloadRemainingMs !== null,
       reloadProgress: reload.normalized,
       waveNumber: wave.waveNumber,
@@ -2307,6 +2360,8 @@ export class GameScene extends Phaser.Scene {
       {
         rifleUnlockWave: SUPPLY_DROP_BALANCE.rifleUnlockWave,
         rifleDropChance: SUPPLY_DROP_BALANCE.rifleDropChance,
+        shotgunUnlockWave: SUPPLY_DROP_BALANCE.shotgunUnlockWave,
+        shotgunDropChance: SUPPLY_DROP_BALANCE.shotgunDropChance,
         criticalHealthRatio: SUPPLY_DROP_BALANCE.criticalHealthRatio,
         normalMedicalChance: ITEM_BALANCE_CONFIG.normalMedicalChance,
         criticalHealthMedicalChanceBonus: (
@@ -2330,7 +2385,9 @@ export class GameScene extends Phaser.Scene {
       if (item.type === 'weapon') {
         const definition = item.weaponId === 'burstRifle'
           ? BURST_RIFLE_WEAPON
-          : PISTOL_WEAPON;
+          : item.weaponId === 'doubleBarrelShotgun'
+            ? DOUBLE_BARREL_SHOTGUN_WEAPON
+            : PISTOL_WEAPON;
         this.createWeaponPickup(
           position.x,
           position.y,
@@ -2379,6 +2436,11 @@ export class GameScene extends Phaser.Scene {
         this.weapon.addReserveAmmo(
           'rifleAmmo',
           ITEM_BALANCE_CONFIG.rifleAmmoAmount,
+        );
+      } else if (pickup.kind === 'shotgunAmmo') {
+        this.weapon.addReserveAmmo(
+          'shotgunAmmo',
+          ITEM_BALANCE_CONFIG.shotgunAmmoAmount,
         );
       } else {
         this.player.health = addClamped(

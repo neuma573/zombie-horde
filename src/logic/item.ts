@@ -3,7 +3,7 @@ import type { Position } from './movement';
 import type { SupplyDropKind } from './supplyDrop';
 import type { AmmoType, WeaponId } from './weapon';
 
-export type ConsumableItemKind = 'pistolAmmo' | 'rifleAmmo' | 'medical';
+export type ConsumableItemKind = 'pistolAmmo' | 'rifleAmmo' | 'shotgunAmmo' | 'medical';
 export type SupplyLoot = {
   type: 'weapon';
   weaponId: WeaponId;
@@ -15,6 +15,7 @@ export type SupplyLoot = {
 export interface ItemBalanceConfig {
   pistolAmmoAmount: number;
   rifleAmmoAmount: number;
+  shotgunAmmoAmount: number;
   medicalHealingAmount: number;
   pickupRadius: number;
   dropMinimumDistance: number;
@@ -28,6 +29,8 @@ export interface ItemBalanceConfig {
 export interface SupplyLootConfig {
   rifleUnlockWave: number;
   rifleDropChance: number;
+  shotgunUnlockWave: number;
+  shotgunDropChance: number;
   criticalHealthRatio: number;
   normalMedicalChance: number;
   criticalHealthMedicalChanceBonus: number;
@@ -50,7 +53,15 @@ export function selectSupplyLoot(
 ): SupplyLoot[] {
   const rifleAvailable = waveNumber >= config.rifleUnlockWave;
   const rifleSelected = rifleAvailable && clamp01(weaponRoll) < config.rifleDropChance;
-  const weaponId: WeaponId = rifleSelected ? 'burstRifle' : 'pistol';
+  const shotgunAvailable = waveNumber >= config.shotgunUnlockWave;
+  const shotgunSelected = shotgunAvailable
+    && clamp01(weaponRoll) >= config.rifleDropChance
+    && clamp01(weaponRoll) < config.rifleDropChance + config.shotgunDropChance;
+  const weaponId: WeaponId = rifleSelected
+    ? 'burstRifle'
+    : shotgunSelected
+      ? 'doubleBarrelShotgun'
+      : 'pistol';
   const medicalChance = clamp01(
     config.normalMedicalChance
       + (healthRatio <= config.criticalHealthRatio
@@ -64,7 +75,11 @@ export function selectSupplyLoot(
     { type: 'weapon', weaponId },
     {
       type: 'consumable',
-      kind: rifleSelected ? 'rifleAmmo' : 'pistolAmmo',
+      kind: rifleSelected
+        ? 'rifleAmmo'
+        : shotgunSelected
+          ? 'shotgunAmmo'
+          : 'pistolAmmo',
     },
     ...(includeMedical
       ? [{ type: 'consumable' as const, kind: 'medical' as const }]

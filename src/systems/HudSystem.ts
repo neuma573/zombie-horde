@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { SHOTGUN_RELOAD_TIMELINE } from '../config/shotgunReloadConfig';
 
 import {
   advanceDelayedGauge,
@@ -9,10 +10,12 @@ import {
 import {
   constrainTooltipWidths,
   countNewShots,
+  crossesReloadCue,
   createAmmoDisplayLayout,
   createAmmoEjectionMotion,
   createAmmoRoundYPositions,
   createHudLayout,
+  ejectsCasingOnFire,
   fitClockRenderScale,
   handleWeaponSlotPress,
   positionTooltip,
@@ -28,6 +31,13 @@ import {
   segmentsForDigit,
   type SevenSegment,
 } from '../logic/sevenSegment';
+import type { WeaponId } from '../logic/weapon';
+
+function ammoTextureKey(weaponId: WeaponId | null): string {
+  if (weaponId === 'pistol') return 'ammo-pistol';
+  if (weaponId === 'doubleBarrelShotgun') return 'ammo-shotgun';
+  return 'ammo-rifle';
+}
 
 const STATUS_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   color: '#ffffff',
@@ -50,6 +60,7 @@ export class HudSystem {
   private readonly statusText: Phaser.GameObjects.Text;
   private readonly ammoText: Phaser.GameObjects.Text;
   private readonly ammoRounds: Phaser.GameObjects.Image[] = [];
+  private readonly spentShotgunShells: Phaser.GameObjects.Image[] = [];
   private readonly timeGraphics: Phaser.GameObjects.Graphics;
   private readonly statusBarGraphics: Phaser.GameObjects.Graphics;
   private readonly timeMetaText: Phaser.GameObjects.Text;
@@ -316,6 +327,7 @@ export class HudSystem {
     this.statusText.destroy();
     this.ammoText.destroy();
     this.ammoRounds.forEach((round) => round.destroy());
+    this.spentShotgunShells.forEach((round) => round.destroy());
     this.timeGraphics.destroy();
     this.statusBarGraphics.destroy();
     this.timeMetaText.destroy();
@@ -507,12 +519,34 @@ export class HudSystem {
     const magazineSizeChanged = previous?.magazineSize !== viewModel.magazineSize;
     const reserveTextChanged = previous?.ammoText !== viewModel.ammoText;
     const firedRounds = countNewShots(previous?.shotSequence, viewModel.shotSequence);
-    const texture = viewModel.weaponId === 'pistol' ? 'ammo-pistol' : 'ammo-rifle';
+    const ejectedRounds = ejectsCasingOnFire(viewModel.lastShotWeaponId)
+      ? firedRounds
+      : 0;
+    const shotgunFired = viewModel.lastShotWeaponId === 'doubleBarrelShotgun'
+      && firedRounds > 0;
+    const texture = ammoTextureKey(viewModel.weaponId);
+
+    if (previous?.weaponId !== viewModel.weaponId) {
+      this.spentShotgunShells.forEach((round) => round.destroy());
+      this.spentShotgunShells.length = 0;
+      if (viewModel.weaponId === 'doubleBarrelShotgun') {
+        while (
+          this.spentShotgunShells.length
+          < viewModel.spentCasings
+        ) {
+          this.spentShotgunShells.push(
+            this.scene.add.image(0, 0, 'ammo-shotgun')
+              .setDepth(101)
+              .setScrollFactor(0)
+              .setTint(0x5a4541)
+              .setAlpha(0.58),
+          );
+        }
+      }
+    }
 
     if (!sameWeapon && firedRounds > 0) {
-      const ejectedTexture = viewModel.lastShotWeaponId === 'pistol'
-        ? 'ammo-pistol'
-        : 'ammo-rifle';
+      const ejectedTexture = ammoTextureKey(viewModel.lastShotWeaponId);
       const ammoBeforeFiring = Math.min(
         viewModel.magazineSize,
         viewModel.magazineAmmo + firedRounds,
@@ -534,12 +568,36 @@ export class HudSystem {
       );
     }
 
-    for (let index = 0; index < firedRounds; index += 1) {
-      const round = this.ammoRounds.pop();
-      if (round) this.animateEjectedRound(round, index);
+    if (shotgunFired) {
+      for (let index = 0; index < firedRounds; index += 1) {
+        const shell = this.ammoRounds.pop();
+        if (!shell) continue;
+        shell.setTint(0x5a4541).setAlpha(0.58);
+        this.spentShotgunShells.push(shell);
+      }
+    } else {
+      for (let index = 0; index < ejectedRounds; index += 1) {
+        const round = this.ammoRounds.pop();
+        if (round) this.animateEjectedRound(round, index);
+      }
     }
 
-    if (!sameWeapon || firedRounds === 0) {
+    if (
+      viewModel.weaponId === 'doubleBarrelShotgun'
+      && crossesReloadCue(
+        previous?.reloadProgress,
+        viewModel.reloadProgress,
+        SHOTGUN_RELOAD_TIMELINE.emptyCasingExtract,
+      )
+    ) {
+      const spent = this.spentShotgunShells.splice(0);
+      spent.forEach((shell, index) => {
+        shell.clearTint().setAlpha(1);
+        this.animateEjectedRound(shell, index);
+      });
+    }
+
+    if (!sameWeapon || ejectedRounds === 0) {
       while (this.ammoRounds.length > viewModel.magazineAmmo) {
         this.ammoRounds.pop()?.destroy();
       }
@@ -556,7 +614,7 @@ export class HudSystem {
     if (!sameWeapon || magazineChanged || magazineSizeChanged || reserveTextChanged) {
       this.layoutAmmoRounds(
         viewModel.magazineSize,
-        firedRounds > 0,
+        ejectedRounds > 0,
         viewModel.magazineAmmo,
         viewModel.ammoText,
       );
@@ -590,10 +648,11 @@ export class HudSystem {
       .setVisible(this.topHudVisible);
     this.fitAmmoText();
 
+    const visibleRoundCount = this.ammoRounds.length + this.spentShotgunShells.length;
     const targetYPositions = createAmmoRoundYPositions(
       layout.rounds.feedY,
       layout.rounds.step,
-      this.ammoRounds.length,
+      visibleRoundCount,
     );
     const previousOffset = animateFeed && this.ammoRounds.length > 0
       ? Math.max(0, this.ammoRounds[0].y - (targetYPositions[0] ?? 0))
@@ -607,6 +666,16 @@ export class HudSystem {
         .setPosition(
           layout.rounds.x,
           (targetYPositions[index] ?? layout.rounds.feedY) + previousOffset,
+        )
+        .setVisible(this.topHudVisible && !layout.compact);
+    });
+    this.spentShotgunShells.forEach((shell, index) => {
+      shell
+        .setDisplaySize(layout.rounds.width, layout.rounds.height)
+        .setRotation(0)
+        .setPosition(
+          layout.rounds.x,
+          targetYPositions[this.ammoRounds.length + index] ?? layout.rounds.feedY,
         )
         .setVisible(this.topHudVisible && !layout.compact);
     });
@@ -797,7 +866,13 @@ export class HudSystem {
       if (weapon) {
         const iconSize = size <= 44 ? size : Math.min(38, size - 8);
         icon
-          .setTexture(weapon.id === 'pistol' ? 'weapon-pistol' : 'weapon-rifle')
+          .setTexture(
+            weapon.id === 'pistol'
+              ? 'weapon-pistol'
+              : weapon.id === 'doubleBarrelShotgun'
+                ? 'weapon-shotgun'
+                : 'weapon-rifle',
+          )
           .setDisplaySize(iconSize, iconSize)
           .setVisible(true);
       } else {

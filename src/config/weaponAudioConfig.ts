@@ -1,4 +1,5 @@
 import type { WeaponId } from '../logic/weapon';
+import { SHOTGUN_RELOAD_TIMELINE } from './shotgunReloadConfig';
 
 import assaultRifleBoltUrl from '../assets/sounds/03_assault_rifle_reload_1_bolt.mp3';
 import assaultRifleDropMagazineUrl from '../assets/sounds/01_assault_rifle_reload_1_drop_the_mag.mp3';
@@ -20,6 +21,11 @@ import handgunSlideLockUrl from '../assets/sounds/01_slide_lock_handgun_reload_1
 import handgunSlideReleaseUrl from '../assets/sounds/04_slide_release_handgun_reload_1.mp3';
 import handgunTail01Url from '../assets/sounds/handgun_tail_01.mp3';
 import handgunTail02Url from '../assets/sounds/handgun_tail_02.mp3';
+import shotgunBreechCloseUrl from '../assets/sounds/shotgun_reload_close.mp3';
+import shotgunCasingExtractUrl from '../assets/sounds/shotgun_reload_extract.mp3';
+import shotgunShotUrl from '../assets/sounds/shotgun_fire.mp3';
+import shotgunBreechOpenUrl from '../assets/sounds/shotgun_reload_open.mp3';
+import shotgunShellInsertUrl from '../assets/sounds/shotgun_reload_insert.mp3';
 
 interface ReloadAudioCue {
   key: string;
@@ -31,6 +37,7 @@ interface WeaponAudioDefinition {
   shotKeys: readonly string[];
   tailKeys: readonly string[];
   reloadCues: readonly ReloadAudioCue[];
+  reloadCompleteKey?: string;
 }
 
 export const WEAPON_AUDIO_ASSETS = {
@@ -54,6 +61,13 @@ export const WEAPON_AUDIO_ASSETS = {
   'audio-rifle-reload-magazine-draw': assaultRifleMagazineDrawUrl,
   'audio-rifle-reload-insert-magazine': assaultRifleInsertMagazineUrl,
   'audio-rifle-reload-bolt': assaultRifleBoltUrl,
+  'audio-shotgun-shot-01': shotgunShotUrl,
+  'audio-shotgun-shot-02': shotgunShotUrl,
+  'audio-shotgun-tail': assaultRifleTail02Url,
+  'audio-shotgun-reload-breech-open': shotgunBreechOpenUrl,
+  'audio-shotgun-reload-casing-extract': shotgunCasingExtractUrl,
+  'audio-shotgun-reload-shell-insert': shotgunShellInsertUrl,
+  'audio-shotgun-reload-breech-close': shotgunBreechCloseUrl,
 } as const;
 
 export const WEAPON_AUDIO_CONFIG = {
@@ -92,6 +106,26 @@ export const WEAPON_AUDIO_CONFIG = {
         { key: 'audio-rifle-reload-magazine-draw', at: 0.26 },
         { key: 'audio-rifle-reload-insert-magazine', at: 0.52 },
         { key: 'audio-rifle-reload-bolt', at: 0.82 },
+      ],
+    },
+    doubleBarrelShotgun: {
+      equipKey: 'audio-shotgun-reload-breech-close',
+      shotKeys: ['audio-shotgun-shot-01', 'audio-shotgun-shot-02'],
+      tailKeys: ['audio-shotgun-tail'],
+      reloadCompleteKey: 'audio-shotgun-reload-breech-close',
+      reloadCues: [
+        {
+          key: 'audio-shotgun-reload-breech-open',
+          at: SHOTGUN_RELOAD_TIMELINE.breechOpenStart,
+        },
+        {
+          key: 'audio-shotgun-reload-shell-insert',
+          at: SHOTGUN_RELOAD_TIMELINE.projectileInsert,
+        },
+        {
+          key: 'audio-shotgun-reload-casing-extract',
+          at: SHOTGUN_RELOAD_TIMELINE.emptyCasingExtract,
+        },
       ],
     },
   } satisfies Record<WeaponId, WeaponAudioDefinition>,

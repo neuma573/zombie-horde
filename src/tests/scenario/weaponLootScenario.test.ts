@@ -11,6 +11,7 @@ describe('weapon loot scenario', () => {
   expect(weapons.getAmmoReserves()).toEqual({
     pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
     rifleAmmo: 0,
+    shotgunAmmo: 0,
   });
   expect(weapons.getState().magazineAmmo).toBe(BURST_RIFLE_WEAPON.config.magazineSize);
   expect(weapons.getState().reserveAmmo).toBe(0);

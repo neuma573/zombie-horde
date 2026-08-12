@@ -9,6 +9,7 @@ import {
   clampPonytailRelativeRotation,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
+  resolveShotgunBreakAngle,
   resolveShoveArmPose,
   resolveShoveVisualPose,
   resolveSidearmHandPose,
@@ -82,6 +83,7 @@ export class Player extends Phaser.GameObjects.Container {
   private muzzleReflectionIntensity = 0;
   private weaponRecoilIntensity = 0;
   private weaponRecoilDistance = 0;
+  private shotgunBreakAngle = 0;
   private shoveVisualElapsedMs: number | null = null;
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
@@ -174,7 +176,11 @@ export class Player extends Phaser.GameObjects.Container {
 
   setReloadVisual(isReloading: boolean, normalizedProgress: number): void {
     this.rifleReloadVisual = resolveRifleReloadVisual(isReloading, normalizedProgress);
-    const pose = this.weaponId === 'burstRifle'
+    this.shotgunBreakAngle = resolveShotgunBreakAngle(
+      this.weaponId === 'doubleBarrelShotgun' && isReloading,
+      normalizedProgress,
+    );
+    const pose = this.weaponId !== 'pistol'
       ? this.rifleReloadVisual.pose
       : resolveSidearmPose(isReloading, normalizedProgress);
     this.currentPose = pose;
@@ -209,8 +215,8 @@ export class Player extends Phaser.GameObjects.Container {
     if (weaponId === this.weaponId) return;
     this.weaponId = weaponId;
     this.sidearm.setVisible(weaponId === 'pistol');
-    this.rifle.setVisible(weaponId === 'burstRifle');
-    this.rifleReload.setVisible(weaponId === 'burstRifle');
+    this.rifle.setVisible(weaponId !== 'pistol');
+    this.rifleReload.setVisible(weaponId !== 'pistol');
     this.drawRifle();
     this.drawRifleReload();
   }
@@ -278,7 +284,7 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private drawArms(pose: { x: number; y: number; rotation: number }): void {
-    if (this.weaponId === 'burstRifle') {
+    if (this.weaponId !== 'pistol') {
       this.drawRifleArms();
       return;
     }
@@ -733,14 +739,14 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private weaponLength(): number {
-    return this.weaponId === 'burstRifle'
+    return this.weaponId !== 'pistol'
       ? RIFLE_VISUAL.length
       : SIDEARM_VISUAL.length;
   }
 
   private drawRifle(): void {
     this.rifle.clear();
-    if (this.weaponId !== 'burstRifle') return;
+    if (this.weaponId === 'pistol') return;
 
     const metal = blendVisualColor(
       0x343b3f,
@@ -757,6 +763,28 @@ export class Player extends Phaser.GameObjects.Container {
       0x89989f,
       this.muzzleReflectionIntensity * 0.55,
     );
+
+    if (this.weaponId === 'doubleBarrelShotgun') {
+      const wood = blendVisualColor(
+        0x6e351f,
+        0xd79a68,
+        this.muzzleReflectionIntensity * 0.55,
+      );
+      this.rifle
+        .fillStyle(0x100a08, 1)
+        .fillTriangle(1, -5, 1, 5, 15, 3.5)
+        .fillTriangle(1, -5, 15, -3.5, 15, 3.5)
+        .fillStyle(wood, 1)
+        .fillTriangle(3, -3.7, 3, 3.7, 15, 2.7)
+        .fillTriangle(3, -3.7, 15, -2.7, 15, 2.7)
+        .fillStyle(darkMetal, 1)
+        .fillRoundedRect(14, -4, 9, 8, 2)
+        .lineStyle(1, metal, 1)
+        .strokeRoundedRect(15, -3, 7, 6, 1.5)
+        .fillStyle(0xb28a63, 1)
+        .fillCircle(21, 0, 1.6);
+      return;
+    }
 
     // Local +X is forward: stock, receiver, magazine, handguard,
     // barrel, front sight, and muzzle are distinct at gameplay scale.
@@ -805,6 +833,33 @@ export class Player extends Phaser.GameObjects.Container {
 
   private drawRifleReload(): void {
     this.rifleReload.clear();
+    if (this.weaponId === 'doubleBarrelShotgun') {
+      const wood = blendVisualColor(
+        0x6e351f,
+        0xd79a68,
+        this.muzzleReflectionIntensity * 0.55,
+      );
+      this.rifleReload
+        .fillStyle(wood, 1)
+        .fillRoundedRect(0, -3.3, 13, 6.6, 2.4)
+        .lineStyle(1, 0x2b160f, 0.9)
+        .strokeRoundedRect(0, -3.3, 13, 6.6, 2.4)
+        .fillStyle(0x080b0d, 1)
+        .fillRoundedRect(12, -2.8, 15, 2.4, 1)
+        .fillRoundedRect(12, 0.4, 15, 2.4, 1)
+        .fillStyle(0x69747b, 1)
+        .fillRect(13, -2, 13, 0.7)
+        .fillRect(13, 1.3, 13, 0.7)
+        .lineStyle(1, 0xb0bac0, 0.8)
+        .strokeCircle(26.5, -1.6, 1.2)
+        .strokeCircle(26.5, 1.6, 1.2)
+        .setPosition(
+          this.rifle.x + Math.cos(this.rifle.rotation) * 22,
+          this.rifle.y + Math.sin(this.rifle.rotation) * 22,
+        )
+        .setRotation(this.rifle.rotation + this.shotgunBreakAngle);
+      return;
+    }
     if (
       this.weaponId !== 'burstRifle'
       || !this.rifleReloadVisual.magazine.visible

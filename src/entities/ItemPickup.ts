@@ -6,6 +6,7 @@ import type { ConsumableItemKind } from '../logic/item';
 const ITEM_COLORS: Record<ConsumableItemKind, number> = {
   pistolAmmo: 0xd6b96e,
   rifleAmmo: 0x9fbd67,
+  shotgunAmmo: 0xd66b4d,
   medical: 0xd95858,
 };
 

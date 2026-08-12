@@ -1,4 +1,5 @@
 import type { WeaponDefinition } from '../logic/weapon';
+import { SHOTGUN_RELOAD_TIMELINE } from './shotgunReloadConfig';
 
 export const PISTOL_WEAPON = {
   id: 'pistol',
@@ -48,9 +49,37 @@ export const BURST_RIFLE_WEAPON = {
   },
 } as const satisfies WeaponDefinition;
 
+export const DOUBLE_BARREL_SHOTGUN_WEAPON = {
+  id: 'doubleBarrelShotgun',
+  name: 'Double-Barrel Shotgun',
+  description: 'Devastating up close, with a wide pellet spread.',
+  rarity: 'common',
+  recoil: 10,
+  accuracy: {
+    baseSpreadDegrees: 0,
+    consecutiveSpreadGrowthDegrees: 8,
+    maxSpreadDegrees: 8,
+  },
+  ammoType: 'shotgunAmmo',
+  config: {
+    damage: 16,
+    range: 1_200,
+    fireIntervalMs: 180,
+    magazineSize: 2,
+    reserveAmmo: 24,
+    reloadDurationMs: 2_400,
+    maxTargets: 1,
+    pelletCount: 8,
+    pelletSpreadDegrees: 12,
+    retainsSpentCasings: true,
+    casingExtractionProgress: SHOTGUN_RELOAD_TIMELINE.emptyCasingExtract,
+  },
+} as const satisfies WeaponDefinition;
+
 export const WEAPON_DEFINITIONS = {
   pistol: PISTOL_WEAPON,
   burstRifle: BURST_RIFLE_WEAPON,
+  doubleBarrelShotgun: DOUBLE_BARREL_SHOTGUN_WEAPON,
 } as const;
 
 export const BASIC_WEAPON_CONFIG = PISTOL_WEAPON.config;
@@ -58,4 +87,5 @@ export const BASIC_WEAPON_CONFIG = PISTOL_WEAPON.config;
 export const STARTING_AMMO_RESERVES = {
   pistolAmmo: PISTOL_WEAPON.config.reserveAmmo,
   rifleAmmo: 0,
+  shotgunAmmo: 0,
 } as const;
