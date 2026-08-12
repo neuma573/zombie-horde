@@ -1198,7 +1198,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.startMobileAutoReloadIfNeeded();
-    this.updateHud();
   }
 
   private advanceActorsThroughBurstShots(
