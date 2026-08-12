@@ -445,8 +445,8 @@ export function createHudLayout(
       )
       : topHudUsableWidth,
   );
-  const viewportCenterX = width / 2;
-  const watchCenterX = viewportCenterX;
+  const safeViewportCenterX = (safeLeft + safeRight) / 2;
+  const watchCenterX = safeViewportCenterX;
   const statusBarWidth = Math.max(0, Math.min(
     STATUS_BAR_MAX_WIDTH,
     watchCenterX - watchWidth / 2 - STATUS_BAR_GAP - safeLeft,
@@ -487,7 +487,7 @@ export function createHudLayout(
   const weaponSlotSize = useFullWeaponRow
     ? WEAPON_SLOT_SIZE
     : MIN_WEAPON_SLOT_SIZE;
-  const weaponSlotCenterX = viewportCenterX;
+  const weaponSlotCenterX = safeViewportCenterX;
   const weaponSlotOffset = stackWeaponSlots
     ? 0
     : weaponSlotSize / 2 + weaponSlotGap / 2;

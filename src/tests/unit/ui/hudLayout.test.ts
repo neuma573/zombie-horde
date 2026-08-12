@@ -128,7 +128,7 @@ describe('createHudLayout', () => {
     expect(67 * renderScale).toBeLessThanOrEqual(layout.time.width);
   });
 
-  it('keeps the clock and weapon group at the absolute viewport center', () => {
+  it('keeps the clock and weapon group at the safe viewport center', () => {
     const layout = createHudLayout(
       844,
       390,
@@ -136,14 +136,30 @@ describe('createHudLayout', () => {
       { reserveMobilePause: true },
     );
 
-    expect(layout.time.x).toBe(422);
+    expect(layout.time.x).toBe(404);
     expect(layout.healthBar.height).toBe(layout.time.height / 2);
     expect(layout.staminaBar.height).toBe(layout.time.height / 2);
     expect(layout.healthBar.x + layout.healthBar.width).toBeLessThan(layout.time.x);
     expect(layout.staminaBar.x).toBeGreaterThan(layout.time.x);
     expect(
       (layout.weaponSlots[0].x + layout.weaponSlots[1].x) / 2,
-    ).toBe(422);
+    ).toBe(404);
+  });
+
+  it('keeps both status bars visible with a strongly asymmetric safe area', () => {
+    const layout = createHudLayout(
+      520,
+      360,
+      { top: 0, right: 0, bottom: 0, left: 200 },
+    );
+
+    expect(layout.time.x).toBe(360);
+    expect(layout.time.x - layout.time.width / 2).toBeGreaterThanOrEqual(200);
+    expect(layout.healthBar.width).toBeGreaterThan(0);
+    expect(layout.staminaBar.width).toBeGreaterThan(0);
+    expect(
+      (layout.weaponSlots[0].x + layout.weaponSlots[1].x) / 2,
+    ).toBe(360);
   });
 
   it('stacks weapon slots without shrinking their touch targets', () => {
