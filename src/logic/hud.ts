@@ -520,13 +520,11 @@ export function createHudLayout(
 
   return {
     status: {
-      x: constrainedTopHud
-        ? safeLeft
-        : watchCenterX - watchWidth / 2 - WATCH_SIDE_GAP,
-      y: safeTop,
-      originX: constrainedTopHud ? 0 : 1,
+      x: safeLeft,
+      y: safeTop + topHudHeight + 8,
+      originX: 0,
       maxWidth: constrainedTopHud ? constrainedStatusWidth : null,
-      maxHeight: topHudHeight,
+      maxHeight: null,
     },
     ammo: {
       x: constrainedTopHud
@@ -571,7 +569,7 @@ export function createHudLayout(
     },
     waveTag: {
       x: safeLeft,
-      y: safeTop + topHudHeight + 8,
+      y: safeTop + topHudHeight + 28,
     },
     topHudVisible: true,
     topHudBounds: {

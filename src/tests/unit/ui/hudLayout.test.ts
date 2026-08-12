@@ -6,11 +6,11 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
 
     expect(layout.status).toEqual({
-      x: 108,
-      y: 42,
-      originX: 1,
+      x: 12,
+      y: 104,
+      originX: 0,
       maxWidth: null,
-      maxHeight: 54,
+      maxHeight: null,
     });
     expect(layout.ammo).toEqual({
       x: 252,
@@ -20,9 +20,12 @@ describe('createHudLayout', () => {
       maxHeight: 54,
     });
     expect(layout.time).toEqual({ x: 180, y: 42, width: 128, height: 54 });
-    expect(layout.waveTag).toEqual({ x: 12, y: 104 });
+    expect(layout.waveTag).toEqual({ x: 12, y: 124 });
     expect(layout.healthBar).toEqual({ x: 12, y: 55.5, width: 96, height: 27 });
     expect(layout.staminaBar).toEqual({ x: 252, y: 55.5, width: 96, height: 27 });
+    expect(layout.status.y).toBeGreaterThanOrEqual(
+      layout.healthBar.y + layout.healthBar.height + 8,
+    );
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
     expect(layout.reload.width).toBeGreaterThanOrEqual(150);
@@ -43,11 +46,11 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
     expect(layout.status).toEqual({
-      x: 408,
-      y: 12,
-      originX: 1,
+      x: 36,
+      y: 74,
+      originX: 0,
       maxWidth: null,
-      maxHeight: 54,
+      maxHeight: null,
     });
     expect(layout.ammo).toEqual({
       x: 552,
