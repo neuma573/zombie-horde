@@ -149,18 +149,28 @@ export function createGameUiLayout(input: GameUiLayoutInput): GameUiLayout {
   const mobileControlsLayout = input.mobileControls
     ? createMobileControlLayout(input.width, input.height, input.safeArea)
     : null;
-  const hud = createHudLayout(
+  let hud = createHudLayout(
     input.width,
     input.height,
     input.safeArea,
-    { reserveMobilePause: input.mobileControls && input.height < 480 },
+    { reserveMobilePause: false },
   );
+  let pauseButton = pauseBounds(input, hud, mobileControlsLayout);
+  if (input.mobileControls && pauseButton === null) {
+    hud = createHudLayout(
+      input.width,
+      input.height,
+      input.safeArea,
+      { reserveMobilePause: true },
+    );
+    pauseButton = pauseBounds(input, hud, mobileControlsLayout);
+  }
 
   return {
     ...input,
     safeArea: { ...input.safeArea },
     hud,
-    pauseButton: pauseBounds(input, hud, mobileControlsLayout),
+    pauseButton,
     mobileControlsLayout,
     supportedViewport: isSupportedViewport(input),
   };
