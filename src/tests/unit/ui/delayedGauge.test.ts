@@ -28,7 +28,17 @@ describe('delayed health gauge', () => {
     const damagedAgain = advanceDelayedGauge(damaged, 0.5, 200);
 
     expect(damagedAgain.displayedRatio).toBe(1);
-    expect(damagedAgain.delayRemainingMs).toBe(100);
+    expect(damagedAgain.delayRemainingMs).toBe(DELAYED_GAUGE_HOLD_MS);
+  });
+
+  it('does not charge the frame delta before damage is observed', () => {
+    const initial = createDelayedGaugeState(1);
+    const afterLongFrame = advanceDelayedGauge(initial, 0.4, 500);
+    const afterShortFrame = advanceDelayedGauge(initial, 0.4, 16);
+
+    expect(afterLongFrame).toEqual(afterShortFrame);
+    expect(afterLongFrame.displayedRatio).toBe(1);
+    expect(afterLongFrame.delayRemainingMs).toBe(DELAYED_GAUGE_HOLD_MS);
   });
 
   it('produces the same result for split and unsplit frame time', () => {

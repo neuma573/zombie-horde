@@ -33,9 +33,15 @@ export function advanceDelayedGauge(
   }
 
   const tookDamage = target < state.targetRatio;
-  const holdMs = tookDamage
-    ? DELAYED_GAUGE_HOLD_MS
-    : Math.max(0, state.delayRemainingMs);
+  if (tookDamage) {
+    return {
+      displayedRatio: state.displayedRatio,
+      targetRatio: target,
+      delayRemainingMs: DELAYED_GAUGE_HOLD_MS,
+    };
+  }
+
+  const holdMs = Math.max(0, state.delayRemainingMs);
   const trailingElapsedMs = Math.max(0, elapsedMs - holdMs);
   const nextHoldMs = Math.max(0, holdMs - elapsedMs);
   const displayedRatio = Math.max(
