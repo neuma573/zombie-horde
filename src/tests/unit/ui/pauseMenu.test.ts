@@ -17,8 +17,8 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 12, right: 8, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 322, right: 370, top: 75, bottom: 123 });
-    expect(isPointInBounds({ x: 346, y: 99 }, bounds)).toBe(true);
+    expect(bounds).toEqual({ left: 278, right: 326, top: 86, bottom: 134 });
+    expect(isPointInBounds({ x: 302, y: 110 }, bounds)).toBe(true);
   });
 
   it('does not consume aiming immediately outside the pause button', () => {
@@ -28,27 +28,26 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 12, right: 8, bottom: 0, left: 0 },
     });
 
-    expect(isPointInBounds({ x: 321, y: 99 }, bounds)).toBe(false);
-    expect(isPointInBounds({ x: 346, y: 124 }, bounds)).toBe(false);
+    expect(isPointInBounds({ x: 277, y: 110 }, bounds)).toBe(false);
+    expect(isPointInBounds({ x: 302, y: 135 }, bounds)).toBe(false);
   });
 
-  it('positions the mobile pause target below the ammunition HUD', () => {
+  it('positions the mobile pause target below the stamina bar', () => {
     const safeArea = { top: 12, right: 8, bottom: 0, left: 0 };
-    const hud = createHudLayout(390, 844, safeArea);
+    const hud = createHudLayout(390, 844, safeArea, { reserveMobilePause: true });
     const pause = pauseButtonBounds({ width: 390, height: 844, safeArea });
 
-    expect(pause.top).toBeGreaterThan(hud.ammo.y + 24);
+    expect(pause.top).toBe(hud.topHudBounds.bottom + 8);
+    expect(pause.right).toBe(hud.staminaBar.x + hud.staminaBar.width);
   });
 
-  it('positions the mobile pause target below overlapping weapon slots', () => {
+  it('keeps the mobile pause target clear of the weapon controls', () => {
     const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
     const hud = createHudLayout(200, 640, safeArea);
     const pause = pauseButtonBounds({ width: 200, height: 640, safeArea });
     const secondSlot = hud.weaponSlots[1];
 
-    expect(pause.top).toBeGreaterThan(
-      secondSlot.y + secondSlot.height / 2,
-    );
+    expect(pause.left).toBeGreaterThanOrEqual(secondSlot.x + secondSlot.width / 2);
   });
 
   it('moves the pause target beside weapon slots when space below is short', () => {
@@ -63,7 +62,7 @@ describe('pause menu input boundary', () => {
       bottom: secondSlot.y + secondSlot.height / 2,
     };
 
-    expect(pause).toEqual({ left: 152, right: 200, top: 101, bottom: 149 });
+    expect(pause).toEqual({ left: 152, right: 200, top: 74, bottom: 122 });
     expect(pause.left).toBeGreaterThanOrEqual(secondSlotBounds.right);
   });
 
@@ -73,11 +72,10 @@ describe('pause menu input boundary', () => {
     const pause = pauseButtonBounds({ width: 195, height: 160, safeArea });
     const secondSlot = hud.weaponSlots[1];
 
-    expect(pause).toEqual({ left: 147, right: 195, top: 101, bottom: 149 });
-    expect(pause.left).toBeGreaterThanOrEqual(
-      secondSlot.x + secondSlot.width / 2,
+    expect(pause).toEqual({ left: 147, right: 195, top: 11, bottom: 59 });
+    expect(pause.bottom).toBeLessThanOrEqual(
+      secondSlot.y - secondSlot.height / 2,
     );
-    expect(pause.top).toBeGreaterThanOrEqual(hud.topHudBounds.bottom);
   });
 
   it('reserves a non-overlapping pause column below 160px wide', () => {
@@ -86,15 +84,15 @@ describe('pause menu input boundary', () => {
     const pause = pauseButtonBounds({ width: 159, height: 160, safeArea });
     const secondSlot = hud.weaponSlots[1];
 
-    expect(pause).toEqual({ left: 111, right: 159, top: 101, bottom: 149 });
-    expect(pause.left).toBeGreaterThanOrEqual(
-      secondSlot.x + secondSlot.width / 2,
+    expect(pause).toEqual({ left: 111, right: 159, top: 11, bottom: 59 });
+    expect(pause.bottom).toBeLessThanOrEqual(
+      secondSlot.y - secondSlot.height / 2,
     );
   });
 
   it('uses the reserved pause column in very short views', () => {
     const safeArea = { top: 0, right: 0, bottom: 0, left: 0 };
-    const hud = createHudLayout(200, 100, safeArea);
+    const hud = createHudLayout(200, 100, safeArea, { reserveMobilePause: true });
     const pause = pauseButtonBounds({ width: 200, height: 100, safeArea });
 
     expect(pause).toEqual({ left: 152, right: 200, top: 41, bottom: 89 });
@@ -155,7 +153,7 @@ describe('pause menu input boundary', () => {
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
-    expect(bounds).toEqual({ left: 20, right: 68, top: 63, bottom: 111 });
+    expect(bounds).toEqual({ left: 12, right: 60, top: 222, bottom: 270 });
   });
 
   it('shrinks the mobile pause button between vertical safe edges', () => {
@@ -174,6 +172,6 @@ describe('pause menu input boundary', () => {
       height: 844,
       safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
     });
-    expect(bounds).toEqual({ left: 12, right: 18, top: 63, bottom: 111 });
+    expect(bounds).toEqual({ left: 12, right: 18, top: 222, bottom: 270 });
   });
 });

@@ -1,6 +1,12 @@
 import Phaser from 'phaser';
 
 import {
+  advanceDelayedGauge,
+  createDelayedGaugeState,
+  type DelayedGaugeState,
+} from '../effects/delayedGauge';
+
+import {
   constrainTooltipWidths,
   countNewShots,
   createAmmoDisplayLayout,
@@ -45,11 +51,13 @@ export class HudSystem {
   private readonly ammoText: Phaser.GameObjects.Text;
   private readonly ammoRounds: Phaser.GameObjects.Image[] = [];
   private readonly timeGraphics: Phaser.GameObjects.Graphics;
+  private readonly statusBarGraphics: Phaser.GameObjects.Graphics;
   private readonly timeMetaText: Phaser.GameObjects.Text;
   private readonly gameOverText: Phaser.GameObjects.Text;
   private readonly reloadGraphics: Phaser.GameObjects.Graphics;
   private readonly reloadText: Phaser.GameObjects.Text;
   private readonly waveBannerText: Phaser.GameObjects.Text;
+  private readonly waveTagText: Phaser.GameObjects.Text;
   private readonly waveAnnouncementText: Phaser.GameObjects.Text;
   private readonly weaponSlotGraphics: Phaser.GameObjects.Graphics;
   private readonly weaponIcons: Phaser.GameObjects.Image[];
@@ -62,6 +70,7 @@ export class HudSystem {
   private ammoFeedTween?: Phaser.Tweens.Tween;
   private lastWaveNumber = 0;
   private current?: HudViewModel;
+  private delayedHealth?: DelayedGaugeState;
   private reloadLayout?: ReturnType<typeof createHudLayout>['reload'];
   private watchLayout?: ReturnType<typeof createHudLayout>['time'];
   private statusMaxWidth: number | null = null;
@@ -96,6 +105,7 @@ export class HudSystem {
       fontStyle: 'bold',
     }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
+    this.statusBarGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
     this.timeMetaText = scene.add.text(0, 0, 'LOCAL        24H', {
       color: '#20251c',
       fontFamily: 'monospace',
@@ -122,6 +132,14 @@ export class HudSystem {
       fontSize: '18px',
       fontStyle: 'bold',
     }).setDepth(105).setOrigin(0.5).setScrollFactor(0).setVisible(false);
+    this.waveTagText = scene.add.text(0, 0, '#Wave--', {
+      color: '#7f8985',
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      fontStyle: 'bold',
+      stroke: '#101513',
+      strokeThickness: 2,
+    }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.waveAnnouncementText = scene.add.text(0, 0, '', {
       ...STATUS_STYLE,
       align: 'center',
@@ -180,7 +198,7 @@ export class HudSystem {
     });
   }
 
-  update(viewModel: HudViewModel): void {
+  update(viewModel: HudViewModel, deltaMs = 0): void {
     if (this.current?.statusText !== viewModel.statusText) {
       this.statusText.setText(viewModel.statusText);
       this.fitStatusText();
@@ -193,6 +211,9 @@ export class HudSystem {
     if (this.current?.timeText !== viewModel.timeText) {
       this.clockText = viewModel.timeText;
       this.renderClockText();
+    }
+    if (this.current?.waveTagText !== viewModel.waveTagText) {
+      this.waveTagText.setText(viewModel.waveTagText);
     }
     if (this.current?.gameOverText !== viewModel.gameOverText) {
       this.gameOverText.setText(viewModel.gameOverText);
@@ -212,6 +233,10 @@ export class HudSystem {
 
     this.drawReloadFeedback(viewModel.reloadProgress, viewModel.reloadPrompt);
     this.drawWeaponSlots(viewModel);
+    this.delayedHealth = this.delayedHealth
+      ? advanceDelayedGauge(this.delayedHealth, viewModel.healthRatio, deltaMs)
+      : createDelayedGaugeState(viewModel.healthRatio);
+    this.drawStatusBars(viewModel);
 
     this.current = viewModel;
     this.showHoveredWeaponTooltip();
@@ -239,12 +264,16 @@ export class HudSystem {
     this.topHudVisible = layout.topHudVisible;
     this.layoutAmmoRounds();
     this.drawWatch(layout.time);
+    this.drawStatusBars(this.current);
     this.timeGraphics.setVisible(layout.topHudVisible);
     this.timeMetaText.setVisible(layout.topHudVisible);
     this.gameOverText.setPosition(layout.gameOver.x, layout.gameOver.y);
     this.reloadLayout = layout.reload;
     this.reloadText.setPosition(layout.reload.x + layout.reload.width / 2, layout.reload.y - 5);
     this.waveBannerText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
+    this.waveTagText
+      .setPosition(layout.waveTag.x, layout.waveTag.y)
+      .setVisible(layout.topHudVisible);
     this.waveAnnouncementText.setPosition(layout.waveBanner.x, layout.waveBanner.y);
     this.positionWeaponSlots(layout.weaponSlots);
     this.pickupPanelDefaultPosition = {
@@ -288,6 +317,7 @@ export class HudSystem {
     this.ammoText.destroy();
     this.ammoRounds.forEach((round) => round.destroy());
     this.timeGraphics.destroy();
+    this.statusBarGraphics.destroy();
     this.timeMetaText.destroy();
     this.gameOverText.destroy();
     this.reloadGraphics.destroy();
@@ -295,6 +325,7 @@ export class HudSystem {
     this.waveAnnouncementTween?.stop();
     this.ammoFeedTween?.stop();
     this.waveBannerText.destroy();
+    this.waveTagText.destroy();
     this.waveAnnouncementText.destroy();
     this.weaponSlotGraphics.destroy();
     this.weaponIcons.forEach((icon) => icon.destroy());
@@ -406,6 +437,56 @@ export class HudSystem {
       y + height * (17 / WATCH_RENDER_HEIGHT),
       renderScale,
     );
+  }
+
+  private drawStatusBars(viewModel?: HudViewModel): void {
+    if (!this.hudLayout) return;
+    const { healthBar, staminaBar } = this.hudLayout;
+    const drawFrame = (
+      layout: HudLayout['healthBar'],
+    ): void => {
+      const radius = Math.min(5, layout.height / 2);
+      this.statusBarGraphics
+        .fillStyle(0x111513, 0.9)
+        .fillRoundedRect(layout.x, layout.y, layout.width, layout.height, radius)
+        .lineStyle(2, 0x3f4842, 1)
+        .strokeRoundedRect(
+          layout.x + 1,
+          layout.y + 1,
+          Math.max(0, layout.width - 2),
+          Math.max(0, layout.height - 2),
+          Math.max(0, radius - 1),
+        );
+    };
+    const drawFill = (
+      layout: HudLayout['healthBar'],
+      ratio: number,
+      color: number,
+    ): void => {
+      const radius = Math.min(5, layout.height / 2);
+      const inset = Math.min(3, layout.height / 4);
+      this.statusBarGraphics
+        .fillStyle(color, 1)
+        .fillRoundedRect(
+          layout.x + inset,
+          layout.y + inset,
+          Math.max(0, (layout.width - inset * 2) * ratio),
+          Math.max(0, layout.height - inset * 2),
+          Math.max(0, radius - inset),
+        );
+    };
+
+    this.statusBarGraphics.clear();
+    drawFrame(healthBar);
+    drawFill(
+      healthBar,
+      this.delayedHealth?.displayedRatio ?? viewModel?.healthRatio ?? 0,
+      0xffb0a6,
+    );
+    drawFill(healthBar, viewModel?.healthRatio ?? 0, 0xd94747);
+    drawFrame(staminaBar);
+    drawFill(staminaBar, viewModel?.staminaRatio ?? 0, 0x42b96b);
+    this.statusBarGraphics.setVisible(this.topHudVisible);
   }
 
   private fitAmmoText(): void {

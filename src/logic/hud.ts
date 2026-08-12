@@ -37,6 +37,9 @@ export interface HudState {
 
 export interface HudViewModel {
   statusText: string;
+  waveTagText: string;
+  healthRatio: number;
+  staminaRatio: number;
   ammoText: string;
   magazineAmmo: number;
   magazineSize: number;
@@ -168,9 +171,12 @@ export interface HudLayout {
     maxWidth: number | null; maxHeight: number | null;
   };
   time: { x: number; y: number; width: number; height: number };
+  healthBar: { x: number; y: number; width: number; height: number };
+  staminaBar: { x: number; y: number; width: number; height: number };
   gameOver: { x: number; y: number };
   reload: { x: number; y: number; width: number; height: number };
   waveBanner: { x: number; y: number };
+  waveTag: { x: number; y: number };
   topHudVisible: boolean;
   topHudBounds: { left: number; right: number; top: number; bottom: number };
   weaponSlots: readonly [
@@ -204,8 +210,10 @@ const RELOAD_WIDTH_RATIO = 0.34;
 const RELOAD_MIN_WIDTH = 150;
 const RELOAD_MAX_WIDTH = 320;
 const RELOAD_HEIGHT = 10;
-const WATCH_WIDTH = 116;
-const WATCH_HEIGHT = 48;
+const WATCH_WIDTH = 128;
+const WATCH_HEIGHT = 54;
+const STATUS_BAR_GAP = 8;
+const STATUS_BAR_MAX_WIDTH = 140;
 const WAVE_BANNER_HALF_HEIGHT = 24;
 const WEAPON_SLOT_SIZE = 46;
 const WEAPON_SLOT_GAP = 8;
@@ -340,17 +348,12 @@ export function createAmmoEjectionMotion(
 
 export function fitClockRenderScale(watchWidth: number): number {
   return Math.min(
-    1,
+    1.1,
     Math.max(0, watchWidth / CLOCK_RENDER_WIDTH),
   );
 }
 
 export function createHudViewModel(state: HudState): HudViewModel {
-  const remainingEnemies = Math.max(0, state.remainingToSpawn)
-    + Math.max(0, state.aliveZombieCount);
-  const waveStatus = state.waveNumber > 0
-    ? `WAVE ${state.waveNumber}  LEFT ${remainingEnemies}`
-    : 'WAVE --';
   const nextWaveNumber = state.waveNumber + 1;
   const countdownSeconds = Math.max(0, Math.ceil(state.waveTimerMs / 1_000));
   const waveBannerText = state.sessionPhase === 'playing' && state.wavePhase === 'waiting'
@@ -360,12 +363,10 @@ export function createHudViewModel(state: HudState): HudViewModel {
     : null;
 
   return {
-    statusText: [
-      `HP ${state.health}/${state.maxHealth}`,
-      `ST ${Math.floor(state.stamina)}/${state.maxStamina}`,
-      waveStatus,
-      `KILLS ${state.killCount}`,
-    ].join('\n'),
+    statusText: `KILLS ${state.killCount}`,
+    waveTagText: state.waveNumber > 0 ? `#Wave${state.waveNumber}` : '#Wave--',
+    healthRatio: normalizedGaugeRatio(state.health, state.maxHealth),
+    staminaRatio: normalizedGaugeRatio(state.stamina, state.maxStamina),
     ammoText: `+${state.reserveAmmo}`,
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
@@ -389,6 +390,11 @@ export function createHudViewModel(state: HudState): HudViewModel {
     weaponSlots: state.weaponSlots ?? [null, null],
     activeWeaponSlot: state.activeWeaponSlot ?? 0,
   };
+}
+
+function normalizedGaugeRatio(value: number, maximum: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(maximum) || maximum <= 0) return 0;
+  return Math.min(1, Math.max(0, value / maximum));
 }
 
 export function createHudLayout(
@@ -439,9 +445,13 @@ export function createHudLayout(
       )
       : topHudUsableWidth,
   );
-  const watchCenterX = constrainedTopHud
-    ? safeLeft + constrainedStatusWidth + constrainedTopHudGap + watchWidth / 2
-    : safeLeft + topHudUsableWidth / 2;
+  const safeViewportCenterX = (safeLeft + safeRight) / 2;
+  const watchCenterX = safeViewportCenterX;
+  const statusBarWidth = Math.max(0, Math.min(
+    STATUS_BAR_MAX_WIDTH,
+    watchCenterX - watchWidth / 2 - STATUS_BAR_GAP - safeLeft,
+    topHudRight - (watchCenterX + watchWidth / 2) - STATUS_BAR_GAP,
+  ));
   const waveBannerMinY = Math.min(safeBottom, safeTop + WAVE_BANNER_HALF_HEIGHT);
   const waveBannerMaxY = Math.max(
     waveBannerMinY,
@@ -477,21 +487,7 @@ export function createHudLayout(
   const weaponSlotSize = useFullWeaponRow
     ? WEAPON_SLOT_SIZE
     : MIN_WEAPON_SLOT_SIZE;
-  const weaponGroupHalfWidth = weaponSlotSize + weaponSlotGap / 2;
-  const minimumWeaponCenterX = viewportSafeLeft + weaponGroupHalfWidth;
-  const maximumWeaponCenterX = Math.max(
-    minimumWeaponCenterX,
-    pauseTargetLeft - weaponGroupHalfWidth,
-  );
-  const weaponSlotCenterX = stackWeaponSlots
-    ? Math.min(
-      viewportSafeRight - weaponSlotSize / 2,
-      viewportSafeLeft + weaponSlotSize / 2,
-    )
-    : Math.min(
-      maximumWeaponCenterX,
-      Math.max(minimumWeaponCenterX, watchCenterX),
-    );
+  const weaponSlotCenterX = safeViewportCenterX;
   const weaponSlotOffset = stackWeaponSlots
     ? 0
     : weaponSlotSize / 2 + weaponSlotGap / 2;
@@ -510,6 +506,8 @@ export function createHudLayout(
       ),
     )
     : WATCH_HEIGHT;
+  const statusBarHeight = topHudHeight / 2;
+  const statusBarY = safeTop + (topHudHeight - statusBarHeight) / 2;
   const preferredStackTop = safeTop + WATCH_HEIGHT + 52;
   const minimumStackTopBelowHud = safeTop + topHudHeight + 4;
   const stackedWeaponTop = stackWeaponSlots
@@ -522,13 +520,11 @@ export function createHudLayout(
 
   return {
     status: {
-      x: constrainedTopHud
-        ? safeLeft
-        : watchCenterX - watchWidth / 2 - WATCH_SIDE_GAP,
-      y: safeTop,
-      originX: constrainedTopHud ? 0 : 1,
+      x: safeLeft,
+      y: safeTop + topHudHeight + 8,
+      originX: 0,
       maxWidth: constrainedTopHud ? constrainedStatusWidth : null,
-      maxHeight: topHudHeight,
+      maxHeight: null,
     },
     ammo: {
       x: constrainedTopHud
@@ -545,6 +541,18 @@ export function createHudLayout(
       width: watchWidth,
       height: topHudHeight,
     },
+    healthBar: {
+      x: watchCenterX - watchWidth / 2 - STATUS_BAR_GAP - statusBarWidth,
+      y: statusBarY,
+      width: statusBarWidth,
+      height: statusBarHeight,
+    },
+    staminaBar: {
+      x: watchCenterX + watchWidth / 2 + STATUS_BAR_GAP,
+      y: statusBarY,
+      width: statusBarWidth,
+      height: statusBarHeight,
+    },
     gameOver: {
       x: safeLeft + usableWidth / 2,
       y: gameOverY,
@@ -558,6 +566,10 @@ export function createHudLayout(
     waveBanner: {
       x: safeLeft + usableWidth / 2,
       y: waveBannerY,
+    },
+    waveTag: {
+      x: safeLeft,
+      y: safeTop + topHudHeight + 28,
     },
     topHudVisible: true,
     topHudBounds: {

@@ -6,33 +6,39 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(360, 640, { top: 30, right: 0, bottom: 20, left: 0 });
 
     expect(layout.status).toEqual({
-      x: 114,
-      y: 42,
-      originX: 1,
+      x: 12,
+      y: 104,
+      originX: 0,
       maxWidth: null,
-      maxHeight: 48,
+      maxHeight: null,
     });
     expect(layout.ammo).toEqual({
-      x: 246,
+      x: 252,
       y: 56,
       originX: 0,
       maxWidth: null,
-      maxHeight: 48,
+      maxHeight: 54,
     });
-    expect(layout.time).toEqual({ x: 180, y: 42, width: 116, height: 48 });
+    expect(layout.time).toEqual({ x: 180, y: 42, width: 128, height: 54 });
+    expect(layout.waveTag).toEqual({ x: 12, y: 124 });
+    expect(layout.healthBar).toEqual({ x: 12, y: 55.5, width: 96, height: 27 });
+    expect(layout.staminaBar).toEqual({ x: 252, y: 55.5, width: 96, height: 27 });
+    expect(layout.status.y).toBeGreaterThanOrEqual(
+      layout.healthBar.y + layout.healthBar.height + 8,
+    );
     expect(layout.gameOver.x).toBe(180);
     expect(layout.gameOver.y).toBe(325);
     expect(layout.reload.width).toBeGreaterThanOrEqual(150);
     expect(layout.reload.x).toBeGreaterThanOrEqual(12);
     expect(layout.weaponSlots).toEqual([
-      { x: 153, y: 120, width: 46, height: 46 },
-      { x: 207, y: 120, width: 46, height: 46 },
+      { x: 153, y: 126, width: 46, height: 46 },
+      { x: 207, y: 126, width: 46, height: 46 },
     ]);
     expect(layout.topHudBounds).toEqual({
       left: 0,
       right: 360,
       top: 42,
-      bottom: 90,
+      bottom: 96,
     });
   });
 
@@ -40,20 +46,20 @@ describe('createHudLayout', () => {
     const layout = createHudLayout(960, 540, { top: 0, right: 24, bottom: 0, left: 24 });
 
     expect(layout.status).toEqual({
-      x: 414,
-      y: 12,
-      originX: 1,
+      x: 36,
+      y: 74,
+      originX: 0,
       maxWidth: null,
-      maxHeight: 48,
+      maxHeight: null,
     });
     expect(layout.ammo).toEqual({
-      x: 546,
+      x: 552,
       y: 26,
       originX: 0,
       maxWidth: null,
-      maxHeight: 48,
+      maxHeight: 54,
     });
-    expect(layout.time).toEqual({ x: 480, y: 12, width: 116, height: 48 });
+    expect(layout.time).toEqual({ x: 480, y: 12, width: 128, height: 54 });
     expect(layout.gameOver).toEqual({ x: 480, y: 270 });
     expect(layout.reload.x).toBeCloseTo(329.04);
     expect(layout.reload.y).toBe(318);
@@ -74,15 +80,15 @@ describe('createHudLayout', () => {
     expect(layout.waveBanner.y + 24).toBeLessThanOrEqual(88);
   });
 
-  it('fits weapon slots beside a reserved pause column on narrow screens', () => {
+  it('keeps weapon slots centered despite a reserved pause column', () => {
     const layout = createHudLayout(
       159,
       160,
       { top: 0, right: 0, bottom: 0, left: 0 },
     );
-    const secondSlot = layout.weaponSlots[1];
-
-    expect(secondSlot.x + secondSlot.width / 2).toBeLessThanOrEqual(111);
+    expect(
+      (layout.weaponSlots[0].x + layout.weaponSlots[1].x) / 2,
+    ).toBeCloseTo(159 / 2);
     expect(layout.weaponSlots[0].width).toBe(46);
     expect(layout.weaponSlots[1].width).toBe(46);
   });
@@ -94,10 +100,10 @@ describe('createHudLayout', () => {
       { top: 0, right: 0, bottom: 0, left: 0 },
     );
 
-    expect(layout.time.x).toBeCloseTo(78);
+    expect(layout.time.x).toBe(100);
     expect(layout.time.y).toBe(12);
     expect(layout.time.width).toBeCloseTo(36.8);
-    expect(layout.time.height).toBe(48);
+    expect(layout.time.height).toBe(54);
     expect(layout.ammo.x).toBe(144);
     expect(layout.ammo.y).toBe(26);
     expect(layout.ammo.originX).toBe(1);
@@ -106,7 +112,7 @@ describe('createHudLayout', () => {
       left: 0,
       right: 152,
       top: 12,
-      bottom: 60,
+      bottom: 66,
     });
   });
 
@@ -120,6 +126,40 @@ describe('createHudLayout', () => {
 
     expect(layout.time.width).toBeCloseTo(6.4);
     expect(67 * renderScale).toBeLessThanOrEqual(layout.time.width);
+  });
+
+  it('keeps the clock and weapon group at the safe viewport center', () => {
+    const layout = createHudLayout(
+      844,
+      390,
+      { top: 0, right: 48, bottom: 0, left: 12 },
+      { reserveMobilePause: true },
+    );
+
+    expect(layout.time.x).toBe(404);
+    expect(layout.healthBar.height).toBe(layout.time.height / 2);
+    expect(layout.staminaBar.height).toBe(layout.time.height / 2);
+    expect(layout.healthBar.x + layout.healthBar.width).toBeLessThan(layout.time.x);
+    expect(layout.staminaBar.x).toBeGreaterThan(layout.time.x);
+    expect(
+      (layout.weaponSlots[0].x + layout.weaponSlots[1].x) / 2,
+    ).toBe(404);
+  });
+
+  it('keeps both status bars visible with a strongly asymmetric safe area', () => {
+    const layout = createHudLayout(
+      520,
+      360,
+      { top: 0, right: 0, bottom: 0, left: 200 },
+    );
+
+    expect(layout.time.x).toBe(360);
+    expect(layout.time.x - layout.time.width / 2).toBeGreaterThanOrEqual(200);
+    expect(layout.healthBar.width).toBeGreaterThan(0);
+    expect(layout.staminaBar.width).toBeGreaterThan(0);
+    expect(
+      (layout.weaponSlots[0].x + layout.weaponSlots[1].x) / 2,
+    ).toBe(360);
   });
 
   it('stacks weapon slots without shrinking their touch targets', () => {
