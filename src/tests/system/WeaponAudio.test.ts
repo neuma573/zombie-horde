@@ -209,4 +209,16 @@ describe('WeaponAudio', () => {
     expect(scheduled.every(({ removed }) => removed)).toBe(true);
     expect(played).toEqual(playedBeforeCancel);
   });
+
+  it('stops an active shotgun completion cue when reload audio is cancelled', () => {
+    const { runtime, stopped } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('doubleBarrelShotgun', 2_400);
+    audio.queueReloadComplete('doubleBarrelShotgun');
+    audio.flushQueuedReloadCues();
+    audio.cancelReload();
+
+    expect(stopped).toContain('audio-shotgun-reload-breech-close');
+  });
 });

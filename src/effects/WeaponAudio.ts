@@ -240,6 +240,9 @@ export class WeaponAudio {
       for (const cue of definition.reloadCues) {
         this.scene.sound.stopByKey(cue.key);
       }
+      if ('reloadCompleteKey' in definition && definition.reloadCompleteKey) {
+        this.scene.sound.stopByKey(definition.reloadCompleteKey);
+      }
     }
   }
 
