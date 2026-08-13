@@ -1,8 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
   createHudViewModel,
+  isSameDisplayedWeapon,
   retainsSpentShotgunShells,
 } from '../../../logic/hud';
+
+describe('isSameDisplayedWeapon', () => {
+  it('treats duplicate weapons in different slots as different displays', () => {
+    const shotgun = {
+      weaponId: 'doubleBarrelShotgun' as const,
+      activeWeaponSlot: 0 as const,
+    };
+
+    expect(isSameDisplayedWeapon(shotgun, shotgun)).toBe(true);
+    expect(isSameDisplayedWeapon(shotgun, {
+      ...shotgun,
+      activeWeaponSlot: 1,
+    })).toBe(false);
+  });
+});
 
 describe('retainsSpentShotgunShells', () => {
   it('retains fired shells only while the shotgun remains displayed', () => {

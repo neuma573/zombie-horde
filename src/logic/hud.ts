@@ -50,6 +50,14 @@ export function retainsSpentShotgunShells(
     && firedRounds > 0;
 }
 
+export function isSameDisplayedWeapon(
+  previous: Pick<HudViewModel, 'weaponId' | 'activeWeaponSlot'> | undefined,
+  current: Pick<HudViewModel, 'weaponId' | 'activeWeaponSlot'>,
+): boolean {
+  return previous?.weaponId === current.weaponId
+    && previous.activeWeaponSlot === current.activeWeaponSlot;
+}
+
 export function extractedSpentCasings(
   previousSpentCasings: number | undefined,
   currentSpentCasings: number,

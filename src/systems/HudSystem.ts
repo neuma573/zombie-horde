@@ -17,6 +17,7 @@ import {
   extractedSpentCasings,
   fitClockRenderScale,
   handleWeaponSlotPress,
+  isSameDisplayedWeapon,
   positionTooltip,
   retainsSpentShotgunShells,
   type HudLayout,
@@ -513,8 +514,7 @@ export class HudSystem {
 
   private updateAmmoRounds(viewModel: HudViewModel): void {
     const previous = this.current;
-    const sameWeapon = previous?.weaponId === viewModel.weaponId
-      && previous.activeWeaponSlot === viewModel.activeWeaponSlot;
+    const sameWeapon = isSameDisplayedWeapon(previous, viewModel);
     const magazineChanged = previous?.magazineAmmo !== viewModel.magazineAmmo;
     const magazineSizeChanged = previous?.magazineSize !== viewModel.magazineSize;
     const reserveTextChanged = previous?.ammoText !== viewModel.ammoText;
@@ -529,7 +529,7 @@ export class HudSystem {
     );
     const texture = ammoTextureKey(viewModel.weaponId);
 
-    if (previous?.weaponId !== viewModel.weaponId) {
+    if (!sameWeapon) {
       this.spentShotgunShells.forEach((round) => round.destroy());
       this.spentShotgunShells.length = 0;
       if (viewModel.weaponId === 'doubleBarrelShotgun') {
