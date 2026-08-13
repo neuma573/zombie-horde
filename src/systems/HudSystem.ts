@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { SHOTGUN_RELOAD_TIMELINE } from '../config/shotgunReloadConfig';
 
 import {
   advanceDelayedGauge,
@@ -10,12 +9,12 @@ import {
 import {
   constrainTooltipWidths,
   countNewShots,
-  crossesReloadCue,
   createAmmoDisplayLayout,
   createAmmoEjectionMotion,
   createAmmoRoundYPositions,
   createHudLayout,
   ejectsCasingOnFire,
+  extractedSpentCasings,
   fitClockRenderScale,
   handleWeaponSlotPress,
   positionTooltip,
@@ -584,10 +583,9 @@ export class HudSystem {
 
     if (
       viewModel.weaponId === 'doubleBarrelShotgun'
-      && crossesReloadCue(
-        previous?.reloadProgress,
-        viewModel.reloadProgress,
-        SHOTGUN_RELOAD_TIMELINE.emptyCasingExtract,
+      && extractedSpentCasings(
+        previous?.spentCasings,
+        viewModel.spentCasings,
       )
     ) {
       const spent = this.spentShotgunShells.splice(0);

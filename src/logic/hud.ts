@@ -40,15 +40,12 @@ export function ejectsCasingOnFire(weaponId: WeaponId | null): boolean {
   return weaponId !== null && weaponId !== 'doubleBarrelShotgun';
 }
 
-export function crossesReloadCue(
-  previousProgress: number | null | undefined,
-  currentProgress: number | null,
-  cueProgress: number,
+export function extractedSpentCasings(
+  previousSpentCasings: number | undefined,
+  currentSpentCasings: number,
 ): boolean {
-  if (previousProgress === null || previousProgress === undefined) return false;
-  const threshold = Math.min(1, Math.max(0, cueProgress));
-  return previousProgress < threshold
-    && (currentProgress === null || currentProgress >= threshold);
+  return Math.max(0, Math.floor(previousSpentCasings ?? 0)) > 0
+    && Math.max(0, Math.floor(currentSpentCasings)) === 0;
 }
 
 export interface HudViewModel {
