@@ -37,6 +37,9 @@ const DEPLOY_BUTTON_MAX_WIDTH = 160;
 const MENU_ACTION_HEIGHT = 46;
 const CLASS_STATUS_GAP = 9;
 const CLASS_STATUS_HALF_HEIGHT = 6;
+const MAIN_ACTION_HEIGHT = 54;
+const MAIN_LOGO_ACTION_GAP = 12;
+const MAIN_LOGO_ASPECT_RATIO = 3;
 
 export function createCoverSize(
   viewportWidth: number,
@@ -69,11 +72,27 @@ export function createMainMenuLayout(
   const height = Math.max(0, bottom - top);
   const portrait = height > width;
   const actionGap = Math.max(54, Math.min(68, height * 0.085));
+  const logoY = top + height * (portrait ? 0.24 : 0.27);
+  const primaryActionY = Math.min(
+    bottom - actionGap,
+    top + height * (portrait ? 0.7 : 0.69),
+  );
+  const maximumLogoHalfHeight = Math.max(
+    0,
+    primaryActionY
+      - MAIN_ACTION_HEIGHT / 2
+      - MAIN_LOGO_ACTION_GAP
+      - logoY,
+  );
 
   return {
-    logoY: top + height * (portrait ? 0.24 : 0.27),
-    logoWidth: Math.min(width * (portrait ? 0.82 : 0.56), portrait ? 520 : 720),
-    primaryActionY: Math.min(bottom - actionGap, top + height * (portrait ? 0.7 : 0.69)),
+    logoY,
+    logoWidth: Math.min(
+      width * (portrait ? 0.82 : 0.56),
+      portrait ? 520 : 720,
+      maximumLogoHalfHeight * MAIN_LOGO_ASPECT_RATIO * 2,
+    ),
+    primaryActionY,
     actionWidth: Math.min(portrait ? 300 : 340, width),
     actionGap,
   };

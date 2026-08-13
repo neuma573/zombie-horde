@@ -27,6 +27,15 @@ describe('main menu state', () => {
     expect(layout.actionWidth).toBe(300);
   });
 
+  it('keeps the logo separated from the action on a short wide viewport', () => {
+    const layout = createMainMenuLayout(24, 820, 24, 226);
+    const logoBottom = layout.logoY + layout.logoWidth / 6;
+    const actionTop = layout.primaryActionY - 27;
+
+    expect(actionTop - logoBottom).toBeCloseTo(12);
+    expect(layout.logoWidth).toBeLessThan(796 * 0.56);
+  });
+
   it('toggles sound without mutating the existing global setting', () => {
     const settings = { ...DEFAULT_GAME_SETTINGS };
     const muted = toggleSound(settings);
