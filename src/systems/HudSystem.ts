@@ -18,6 +18,7 @@ import {
   fitClockRenderScale,
   handleWeaponSlotPress,
   positionTooltip,
+  retainsSpentShotgunShells,
   type HudLayout,
   type HudViewModel,
   type SafeAreaInsets,
@@ -521,8 +522,11 @@ export class HudSystem {
     const ejectedRounds = ejectsCasingOnFire(viewModel.lastShotWeaponId)
       ? firedRounds
       : 0;
-    const shotgunFired = viewModel.lastShotWeaponId === 'doubleBarrelShotgun'
-      && firedRounds > 0;
+    const shotgunFired = retainsSpentShotgunShells(
+      viewModel.weaponId,
+      viewModel.lastShotWeaponId,
+      firedRounds,
+    );
     const texture = ammoTextureKey(viewModel.weaponId);
 
     if (previous?.weaponId !== viewModel.weaponId) {

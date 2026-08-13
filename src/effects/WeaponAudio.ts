@@ -136,7 +136,7 @@ export class WeaponAudio {
       cues.push({ key: cue.key, atMs });
     }
     this.reloadTimeline = { elapsedMs: 0, cues };
-    this.reloadCompletionOrderAtMs = cues.at(-1)?.atMs ?? 0;
+    this.reloadCompletionOrderAtMs = duration;
   }
 
   queueReloadComplete(weaponId: WeaponId, offsetMs = 0): void {

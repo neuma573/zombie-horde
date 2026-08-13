@@ -86,6 +86,30 @@ describe('WeaponAudio', () => {
     ]);
   });
 
+  it('preserves extraction-to-close spacing after an earlier cue flush', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('doubleBarrelShotgun', 2_400);
+    audio.advanceReload(1_000);
+    audio.flushQueuedReloadCues();
+    audio.advanceReload(1_400);
+    audio.queueReloadComplete('doubleBarrelShotgun', 1_400);
+    audio.flushQueuedReloadCues();
+
+    expect(played).toEqual([
+      'audio-shotgun-reload-breech-open',
+      'audio-shotgun-reload-shell-insert',
+    ]);
+    expect(scheduled[0].delay).toBeCloseTo(576);
+    expect(scheduled[1].delay).toBeCloseTo(1_584);
+
+    scheduled[0].run();
+    expect(played.at(-1)).toBe('audio-shotgun-reload-casing-extract');
+    scheduled[1].run();
+    expect(played.at(-1)).toBe('audio-shotgun-reload-breech-close');
+  });
+
   it('plays the first overdue burst cue at the render boundary', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);

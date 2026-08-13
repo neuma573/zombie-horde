@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { createHudViewModel } from '../../../logic/hud';
+import {
+  createHudViewModel,
+  retainsSpentShotgunShells,
+} from '../../../logic/hud';
+
+describe('retainsSpentShotgunShells', () => {
+  it('retains fired shells only while the shotgun remains displayed', () => {
+    expect(retainsSpentShotgunShells(
+      'doubleBarrelShotgun',
+      'doubleBarrelShotgun',
+      1,
+    )).toBe(true);
+    expect(retainsSpentShotgunShells(
+      'pistol',
+      'doubleBarrelShotgun',
+      1,
+    )).toBe(false);
+  });
+});
 
 describe('createHudViewModel', () => {
   it('projects all required playing state without mutating it', () => {

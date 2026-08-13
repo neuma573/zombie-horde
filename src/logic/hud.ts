@@ -40,6 +40,16 @@ export function ejectsCasingOnFire(weaponId: WeaponId | null): boolean {
   return weaponId !== null && weaponId !== 'doubleBarrelShotgun';
 }
 
+export function retainsSpentShotgunShells(
+  displayedWeaponId: WeaponId,
+  lastShotWeaponId: WeaponId | null,
+  firedRounds: number,
+): boolean {
+  return displayedWeaponId === 'doubleBarrelShotgun'
+    && lastShotWeaponId === displayedWeaponId
+    && firedRounds > 0;
+}
+
 export function extractedSpentCasings(
   previousSpentCasings: number | undefined,
   currentSpentCasings: number,
