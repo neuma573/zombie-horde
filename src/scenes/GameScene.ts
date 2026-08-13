@@ -680,7 +680,8 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
-    const reloadingWeaponId = this.weapon.getState().reloadRemainingMs !== null
+    const reloadRemainingMs = this.weapon.getState().reloadRemainingMs;
+    const reloadingWeaponId = reloadRemainingMs !== null
       ? this.weapon.getDefinition().id
       : null;
     const staminaRecovery = recoverStaminaAfterPrepaidTime(
@@ -747,7 +748,10 @@ export class GameScene extends Phaser.Scene {
       reloadingWeaponId !== null
       && this.weapon.getState().reloadRemainingMs === null
     ) {
-      this.weaponAudio?.playReloadComplete(reloadingWeaponId);
+      this.weaponAudio?.queueReloadComplete(
+        reloadingWeaponId,
+        audioDelayMs + Math.min(deltaMs, reloadRemainingMs!),
+      );
     }
     this.startMobileAutoReloadIfNeeded();
     const nearbyPickup = this.nearestWeaponPickupInRange();

@@ -44,6 +44,7 @@ export class WeaponAudio {
   private queuedShots: QueuedShot[] = [];
   private queuedReloadCues: QueuedReloadCue[] = [];
   private reloadTimeline?: ReloadTimeline;
+  private reloadCompletionOrderAtMs?: number;
   private reloadPlaybackTailAtMs?: number;
   private reloadPlaybackTailDelayMs = 0;
   private activeTailKey?: string;
@@ -135,15 +136,20 @@ export class WeaponAudio {
       cues.push({ key: cue.key, atMs });
     }
     this.reloadTimeline = { elapsedMs: 0, cues };
+    this.reloadCompletionOrderAtMs = cues.at(-1)?.atMs ?? 0;
   }
 
-  playReloadComplete(weaponId: WeaponId): void {
+  queueReloadComplete(weaponId: WeaponId, offsetMs = 0): void {
     const definition = WEAPON_AUDIO_CONFIG.weapons[weaponId];
     const key = 'reloadCompleteKey' in definition
       ? definition.reloadCompleteKey
       : undefined;
     if (key) {
-      this.scene.sound.play(key, { volume: WEAPON_AUDIO_CONFIG.volume.reload });
+      this.queuedReloadCues.push({
+        key,
+        atMs: this.reloadCompletionOrderAtMs ?? 0,
+        offsetMs: Math.max(0, offsetMs),
+      });
     }
   }
 
@@ -219,6 +225,7 @@ export class WeaponAudio {
 
   cancelReload(): void {
     this.reloadTimeline = undefined;
+    this.reloadCompletionOrderAtMs = undefined;
     this.queuedReloadCues = [];
     this.reloadPlaybackTailAtMs = undefined;
     this.reloadPlaybackTailDelayMs = 0;
