@@ -44,8 +44,10 @@ export function retainsSpentShotgunShells(
   displayedWeaponId: WeaponId,
   lastShotWeaponId: WeaponId | null,
   firedRounds: number,
+  displayedWeaponUnchanged = true,
 ): boolean {
-  return displayedWeaponId === 'doubleBarrelShotgun'
+  return displayedWeaponUnchanged
+    && displayedWeaponId === 'doubleBarrelShotgun'
     && lastShotWeaponId === displayedWeaponId
     && firedRounds > 0;
 }

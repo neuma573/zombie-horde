@@ -526,6 +526,7 @@ export class HudSystem {
       viewModel.weaponId,
       viewModel.lastShotWeaponId,
       firedRounds,
+      sameWeapon,
     );
     const texture = ammoTextureKey(viewModel.weaponId);
 

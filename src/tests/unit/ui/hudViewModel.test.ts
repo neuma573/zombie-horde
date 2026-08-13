@@ -18,6 +18,24 @@ describe('isSameDisplayedWeapon', () => {
       activeWeaponSlot: 1,
     })).toBe(false);
   });
+
+  it('rejects firing feedback after switching between duplicate shotguns', () => {
+    const firedShotgun = {
+      weaponId: 'doubleBarrelShotgun' as const,
+      activeWeaponSlot: 0 as const,
+    };
+    const displayedShotgun = {
+      ...firedShotgun,
+      activeWeaponSlot: 1 as const,
+    };
+
+    expect(retainsSpentShotgunShells(
+      displayedShotgun.weaponId,
+      firedShotgun.weaponId,
+      1,
+      isSameDisplayedWeapon(firedShotgun, displayedShotgun),
+    )).toBe(false);
+  });
 });
 
 describe('retainsSpentShotgunShells', () => {
