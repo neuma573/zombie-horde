@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_GAME_SETTINGS } from '../../../config/menuConfig';
 import {
   clampClassStatusY,
+  createCoverSize,
+  createMainMenuLayout,
   createMobileClassCardLayout,
   createMenuActionLayout,
   selectCharacterClass,
@@ -10,6 +12,21 @@ import {
 } from '../../../logic/menu';
 
 describe('main menu state', () => {
+  it('covers a landscape viewport without distorting its background', () => {
+    expect(createCoverSize(1_280, 800, 1_672, 941)).toEqual({
+      width: 1_421.4665249734326,
+      height: 800,
+    });
+  });
+
+  it('keeps portrait menu actions inside the safe area', () => {
+    const layout = createMainMenuLayout(24, 366, 47, 810);
+
+    expect(layout.logoY).toBeCloseTo(230.12);
+    expect(layout.primaryActionY + layout.actionGap).toBeLessThanOrEqual(810);
+    expect(layout.actionWidth).toBe(300);
+  });
+
   it('toggles sound without mutating the existing global setting', () => {
     const settings = { ...DEFAULT_GAME_SETTINGS };
     const muted = toggleSound(settings);

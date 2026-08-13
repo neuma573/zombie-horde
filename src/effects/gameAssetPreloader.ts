@@ -7,14 +7,23 @@ import shotgunIconUrl from '../assets/weapons/double-barrel-shotgun.png';
 import pistolAmmoUrl from '../assets/weapons/ammo-9mm-hud.svg';
 import rifleAmmoUrl from '../assets/weapons/ammo-556-hud.svg';
 import shotgunAmmoUrl from '../assets/weapons/ammo-12-gauge-hud.svg';
+import mainMenuBackgroundUrl from '../assets/mainmenu.png';
+import mainMenuMobileBackgroundUrl from '../assets/mainmenu-mobile.png';
+import mainMenuLogoUrl from '../assets/logo.png';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../config/weaponAudioConfig';
 
 export const CROSSWALK_TEXTURE_KEY = 'crosswalk';
 export const NO_STOPPING_ZONE_TEXTURE_KEY = 'no-stopping-zone';
 export const ROAD_DIAMOND_OUTLINE_TEXTURE_KEY = 'road-diamond-outline';
+export const MAIN_MENU_BACKGROUND_TEXTURE_KEY = 'main-menu-background';
+export const MAIN_MENU_MOBILE_BACKGROUND_TEXTURE_KEY = 'main-menu-mobile-background';
+export const MAIN_MENU_LOGO_TEXTURE_KEY = 'main-menu-logo';
 
 export const GAME_IMAGE_ASSETS = {
+  [MAIN_MENU_BACKGROUND_TEXTURE_KEY]: mainMenuBackgroundUrl,
+  [MAIN_MENU_MOBILE_BACKGROUND_TEXTURE_KEY]: mainMenuMobileBackgroundUrl,
+  [MAIN_MENU_LOGO_TEXTURE_KEY]: mainMenuLogoUrl,
   [CROSSWALK_TEXTURE_KEY]: crosswalkUrl,
   [NO_STOPPING_ZONE_TEXTURE_KEY]: noStoppingZoneUrl,
   [ROAD_DIAMOND_OUTLINE_TEXTURE_KEY]: roadDiamondOutlineUrl,

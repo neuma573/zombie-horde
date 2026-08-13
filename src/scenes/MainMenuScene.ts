@@ -9,28 +9,36 @@ import {
 } from '../config/menuConfig';
 import {
   clampClassStatusY,
+  createCoverSize,
+  createMainMenuLayout,
   createMenuActionLayout,
   selectCharacterClass,
   toggleSound,
 } from '../logic/menu';
 import { syncSoundEnabled } from '../effects/audioSettings';
-import { preloadGameAssets } from '../effects/gameAssetPreloader';
+import {
+  MAIN_MENU_BACKGROUND_TEXTURE_KEY,
+  MAIN_MENU_LOGO_TEXTURE_KEY,
+  MAIN_MENU_MOBILE_BACKGROUND_TEXTURE_KEY,
+  preloadGameAssets,
+} from '../effects/gameAssetPreloader';
 
 type MenuView = 'main' | 'settings' | 'classSelect';
 
 const COLORS = {
-  background: 0x11161c,
-  panel: 0x1b252e,
-  panelSelected: 0x29475b,
+  background: 0x151311,
+  panel: 0x24211e,
+  panelSelected: 0x3a332c,
   malePanel: 0x123f70,
   malePanelSelected: 0x176bb2,
   femalePanel: 0x8e2355,
   femalePanelSelected: 0xe12c80,
-  border: 0x6f8798,
-  accent: 0xd7b45a,
-  text: '#eef4f7',
-  muted: '#9aabb5',
-  disabled: 0x46515a,
+  border: 0x77716a,
+  accent: 0xb0443e,
+  text: '#f0ece5',
+  muted: '#aaa39a',
+  danger: 0xa91920,
+  disabled: 0x514d48,
 } as const;
 
 export class MainMenuScene extends Phaser.Scene {
@@ -38,6 +46,7 @@ export class MainMenuScene extends Phaser.Scene {
   private selectedClassId: CharacterClassId | null = null;
   private ui?: Phaser.GameObjects.Container;
   private gameStartPending = false;
+  private settingsClosePending = false;
   private resizeObserver?: ResizeObserver;
   private resizeFrame?: number;
 
@@ -53,6 +62,7 @@ export class MainMenuScene extends Phaser.Scene {
     this.view = 'main';
     this.selectedClassId = null;
     this.gameStartPending = false;
+    this.settingsClosePending = false;
     document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
     if (debugUrl.searchParams.has('zombieAppearanceDebug')) {
@@ -157,66 +167,183 @@ export class MainMenuScene extends Phaser.Scene {
     this.ui.add(background);
 
     if (this.view === 'settings') {
-      this.renderSettings(centerX, centerY, top, bottom);
+      this.renderMain(centerX, left, right, top, bottom);
+      this.renderSettingsModal(centerX, centerY, left, right, top, bottom);
       return;
     }
     if (this.view === 'classSelect') {
       this.renderClassSelect(left, right, top, bottom);
       return;
     }
-    this.renderMain(centerX, centerY, top);
+    this.renderMain(centerX, left, right, top, bottom);
   }
 
-  private renderMain(centerX: number, centerY: number, top: number): void {
-    const titleSize = Math.min(40, Math.max(26, this.scale.width / 12));
-    this.addText(
-      centerX,
-      Math.max(top + 36, centerY - 150),
-      'ZOMBIE HORDE',
-      titleSize,
-      true,
-    );
-    this.addText(
-      centerX,
-      Math.max(top + 82, centerY - 100),
-      'INFINITE DEFENSE',
-      14,
-      false,
-      COLORS.muted,
-    );
-    this.addButton(centerX, centerY, 'START GAME', () => {
-      this.view = 'classSelect';
-      this.render();
-    });
-    this.addButton(centerX, centerY + 64, 'SETTINGS', () => {
-      this.view = 'settings';
-      this.render();
-    });
-  }
-
-  private renderSettings(
+  private renderMain(
     centerX: number,
-    centerY: number,
+    left: number,
+    right: number,
     top: number,
     bottom: number,
   ): void {
-    const soundEnabled = this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false;
-    this.addText(centerX, Math.max(top + 34, centerY - 130), 'SETTINGS', 32, true);
-    this.addButton(
+    this.addMainBackdrop();
+    const layout = createMainMenuLayout(left, right, top, bottom);
+    const logo = this.add.image(centerX, layout.logoY, MAIN_MENU_LOGO_TEXTURE_KEY);
+    logo.setDisplaySize(layout.logoWidth, layout.logoWidth / 3);
+    this.ui?.add(logo);
+
+    this.addButton(centerX, layout.primaryActionY, 'SURVIVAL MODE', () => {
+      this.view = 'classSelect';
+      this.render();
+    }, layout.actionWidth, true, 'primary');
+    this.addSettingsAction(right - 23, top + 23);
+  }
+
+  private addSettingsAction(x: number, y: number): void {
+    const button = this.add.circle(x, y, 23, 0x151310, 0.82)
+      .setStrokeStyle(1, 0xc9c5bd, 0.76)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', () => button.setFillStyle(0x35302b, 0.94))
+      .on('pointerout', () => button.setFillStyle(0x151310, 0.82))
+      .on('pointerup', () => {
+        this.view = 'settings';
+        this.render();
+      });
+    this.ui?.add(button);
+    const icon = this.addText(x, y - 1, '⚙', 24, false, '#ece8df');
+    icon.setShadow(0, 2, '#000000', 3, true, true);
+  }
+
+  private addMainBackdrop(): void {
+    const portrait = this.scale.height > this.scale.width;
+    const textureKey = portrait
+      ? MAIN_MENU_MOBILE_BACKGROUND_TEXTURE_KEY
+      : MAIN_MENU_BACKGROUND_TEXTURE_KEY;
+    const source = this.textures
+      .get(textureKey)
+      .getSourceImage() as HTMLImageElement;
+    const size = createCoverSize(
+      this.scale.width,
+      this.scale.height,
+      source.naturalWidth || source.width,
+      source.naturalHeight || source.height,
+    );
+    const backdrop = this.add.image(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      textureKey,
+    ).setDisplaySize(size.width, size.height);
+    this.ui?.add(backdrop);
+
+    const shade = this.add.rectangle(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      this.scale.width,
+      this.scale.height,
+      0x050708,
+      portrait ? 0.34 : 0.28,
+    );
+    this.ui?.add(shade);
+  }
+
+  private renderSettingsModal(
+    centerX: number,
+    centerY: number,
+    left: number,
+    right: number,
+    top: number,
+    bottom: number,
+  ): void {
+    const modalStartIndex = this.ui?.list.length ?? 0;
+    let modalObjects: Phaser.GameObjects.GameObject[] = [];
+    let soundEnabled = this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false;
+    const availableWidth = Math.max(0, right - left);
+    const availableHeight = Math.max(0, bottom - top);
+    const modalWidth = Math.min(420, availableWidth);
+    const modalHeight = Math.min(310, availableHeight);
+    const modalY = Math.max(
+      top + modalHeight / 2,
+      Math.min(bottom - modalHeight / 2, centerY),
+    );
+
+    const scrim = this.add.rectangle(
+      this.scale.width / 2,
+      this.scale.height / 2,
+      this.scale.width,
+      this.scale.height,
+      0x020304,
+      0.42,
+    ).setInteractive();
+    this.ui?.add(scrim);
+
+    const panel = this.add.rectangle(
       centerX,
-      centerY - 20,
+      modalY,
+      modalWidth,
+      modalHeight,
+      0x1d1a17,
+      0.84,
+    ).setStrokeStyle(1, 0x8f9597, 0.9);
+    this.ui?.add(panel);
+    const accent = this.add.rectangle(
+      centerX - modalWidth / 2 + 3,
+      modalY,
+      5,
+      modalHeight - 2,
+      COLORS.danger,
+    );
+    this.ui?.add(accent);
+
+    const title = this.addText(
+      centerX,
+      modalY - modalHeight * 0.32,
+      'SETTINGS',
+      28,
+      true,
+    );
+    title.setLetterSpacing(3);
+    let soundButton: Phaser.GameObjects.Text | undefined;
+    soundButton = this.addButton(
+      centerX,
+      modalY - 12,
       soundEnabled ? 'SOUND: ON' : 'SOUND: MUTED',
       () => {
         const next = toggleSound({ soundEnabled });
+        soundEnabled = next.soundEnabled;
         this.registry.set(GAME_REGISTRY_KEYS.soundEnabled, next.soundEnabled);
         syncSoundEnabled(this.sound, next.soundEnabled);
-        this.render();
+        soundButton?.setText(next.soundEnabled ? 'SOUND: ON' : 'SOUND: MUTED');
       },
     );
-    this.addButton(centerX, Math.min(bottom - 28, centerY + 72), 'BACK', () => {
-      this.view = 'main';
-      this.render();
-    }, 160);
+    const closeModal = (): void => {
+      if (this.settingsClosePending) return;
+      this.settingsClosePending = true;
+      this.tweens.add({
+        targets: modalObjects,
+        alpha: 0,
+        duration: 180,
+        ease: 'Sine.In',
+        onComplete: () => {
+          this.settingsClosePending = false;
+          this.view = 'main';
+          this.render();
+        },
+      });
+    };
+    this.addButton(
+      centerX,
+      modalY + modalHeight * 0.3,
+      'CLOSE',
+      closeModal,
+      160,
+    );
+
+    modalObjects = this.ui?.list.slice(modalStartIndex) ?? [];
+    this.tweens.add({
+      targets: modalObjects,
+      alpha: { from: 0, to: 1 },
+      duration: 220,
+      ease: 'Sine.Out',
+    });
   }
 
   private renderClassSelect(
@@ -358,7 +485,7 @@ export class MainMenuScene extends Phaser.Scene {
     const divider = this.add.graphics();
     divider.lineStyle(
       isMobileLayout ? 2 : 1,
-      isMobileLayout ? 0x10141b : 0xe8f3fa,
+      isMobileLayout ? 0x171411 : 0xeee7dc,
       isMobileLayout ? 0.72 : 0.34,
     );
     divider.beginPath();
@@ -408,7 +535,7 @@ export class MainMenuScene extends Phaser.Scene {
       this.ui?.add(portrait);
     } else {
       const silhouette = this.add.graphics();
-      silhouette.fillStyle(0x71808a, 0.75);
+      silhouette.fillStyle(0x817b72, 0.75);
       silhouette.fillCircle(portraitX, portraitY - portraitHeight * 0.24, 20);
       silhouette.fillRoundedRect(
         portraitX - 36,
@@ -442,7 +569,7 @@ export class MainMenuScene extends Phaser.Scene {
       true,
     );
     name
-      .setStroke('#0b1118', isMobileLayout ? 3 : 2)
+      .setStroke('#15110e', isMobileLayout ? 3 : 2)
       .setShadow(0, 2, '#000000', 4, true, true);
     const role = this.addText(
       nameX,
@@ -479,7 +606,12 @@ export class MainMenuScene extends Phaser.Scene {
     onPress: () => void,
     width = 220,
     enabled = true,
-  ): void {
+    variant: 'default' | 'primary' = 'default',
+  ): Phaser.GameObjects.Text {
+    const isMenuAction = variant !== 'default';
+    if (isMenuAction) {
+      return this.addMainMenuAction(x, y, label, onPress, width);
+    }
     const background = this.add.rectangle(
       x,
       y,
@@ -492,7 +624,60 @@ export class MainMenuScene extends Phaser.Scene {
       background.setInteractive({ useHandCursor: true }).on('pointerup', onPress);
     }
     this.ui?.add(background);
-    this.addText(x, y, label, 16, true, enabled ? COLORS.text : COLORS.muted);
+    return this.addText(
+      x,
+      y,
+      label,
+      16,
+      true,
+      enabled ? COLORS.text : COLORS.muted,
+    );
+  }
+
+  private addMainMenuAction(
+    x: number,
+    y: number,
+    label: string,
+    onPress: () => void,
+    width: number,
+  ): Phaser.GameObjects.Text {
+    const height = 54;
+    const cut = 13;
+    const left = x - width / 2;
+    const right = x + width / 2;
+    const top = y - height / 2;
+    const bottom = y + height / 2;
+    const panel = this.add.graphics();
+    panel.fillStyle(COLORS.danger, 0.88);
+    panel.lineStyle(2, 0xe0635e, 1);
+    panel.beginPath();
+    panel.moveTo(left + cut, top);
+    panel.lineTo(right, top);
+    panel.lineTo(right - cut, bottom);
+    panel.lineTo(left, bottom);
+    panel.closePath();
+    panel.fillPath();
+    panel.strokePath();
+    this.ui?.add(panel);
+
+    const hitArea = this.add.zone(x, y, width, height)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerover', () => panel.setAlpha(0.82))
+      .on('pointerout', () => panel.setAlpha(1))
+      .on('pointerup', onPress);
+    this.ui?.add(hitArea);
+
+    const text = this.addText(
+      x,
+      y,
+      label,
+      17,
+      true,
+      '#fff7f2',
+    );
+    text.setLetterSpacing(3);
+    text.setShadow(0, 2, '#000000', 3, true, true);
+    return text;
   }
 
   private addText(

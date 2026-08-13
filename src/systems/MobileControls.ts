@@ -101,7 +101,7 @@ export class MobileControls {
     this.graphics.fillStyle(0xffffff, 0.42).fillCircle(knob.x, knob.y, knobRadius);
     this.graphics.fillStyle(0xa92626, 0.62).fillCircle(fire.x, fire.y, fire.radius);
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(fire.x, fire.y, fire.radius);
-    this.graphics.fillStyle(0x304866, 0.62).fillCircle(reload.x, reload.y, reload.radius);
+    this.graphics.fillStyle(0x51483f, 0.68).fillCircle(reload.x, reload.y, reload.radius);
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(reload.x, reload.y, reload.radius);
     this.graphics.fillStyle(0x8a5a24, 0.7).fillCircle(shove.x, shove.y, shove.radius);
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(shove.x, shove.y, shove.radius);
