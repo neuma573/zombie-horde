@@ -160,6 +160,9 @@ export class WeaponAudio {
       0,
       this.reloadPlaybackTailDelayMs - elapsedMs,
     );
+    if (this.reloadPlaybackTailAtMs !== undefined) {
+      this.reloadPlaybackTailAtMs += elapsedMs;
+    }
     const startMs = this.reloadTimeline.elapsedMs;
     const endMs = startMs + elapsedMs;
     const pending = [];
@@ -176,10 +179,6 @@ export class WeaponAudio {
       }
     }
 
-    if (pending.length === 0) {
-      this.reloadTimeline = undefined;
-      return;
-    }
     this.reloadTimeline = { elapsedMs: endMs, cues: pending };
   }
 

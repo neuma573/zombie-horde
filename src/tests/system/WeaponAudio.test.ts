@@ -86,26 +86,28 @@ describe('WeaponAudio', () => {
     ]);
   });
 
-  it('preserves extraction-to-close spacing after an earlier cue flush', () => {
+  it('plays completion without stale delay after ordinary cue playback', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);
 
     audio.playReload('doubleBarrelShotgun', 2_400);
     audio.advanceReload(1_000);
     audio.flushQueuedReloadCues();
-    audio.advanceReload(1_400);
-    audio.queueReloadComplete('doubleBarrelShotgun', 1_400);
+    audio.advanceReload(400);
+    audio.flushQueuedReloadCues();
+    scheduled[0].run();
+    audio.advanceReload(1_000);
+    audio.queueReloadComplete('doubleBarrelShotgun', 1_000);
     audio.flushQueuedReloadCues();
 
     expect(played).toEqual([
       'audio-shotgun-reload-breech-open',
       'audio-shotgun-reload-shell-insert',
+      'audio-shotgun-reload-casing-extract',
     ]);
-    expect(scheduled[0].delay).toBeCloseTo(576);
-    expect(scheduled[1].delay).toBeCloseTo(1_584);
+    expect(scheduled[0].delay).toBeCloseTo(176);
+    expect(scheduled[1].delay).toBeCloseTo(8);
 
-    scheduled[0].run();
-    expect(played.at(-1)).toBe('audio-shotgun-reload-casing-extract');
     scheduled[1].run();
     expect(played.at(-1)).toBe('audio-shotgun-reload-breech-close');
   });
@@ -186,7 +188,7 @@ describe('WeaponAudio', () => {
     audio.flushQueuedReloadCues();
 
     expect(played).toHaveLength(2);
-    expect(scheduled.map(({ delay }) => delay)).toEqual([260, 340]);
+    expect(scheduled.map(({ delay }) => delay)).toEqual([260, 120]);
 
     scheduled[0].run();
     scheduled[1].run();
