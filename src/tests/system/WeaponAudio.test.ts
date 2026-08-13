@@ -106,7 +106,7 @@ describe('WeaponAudio', () => {
       'audio-shotgun-reload-casing-extract',
     ]);
     expect(scheduled[0].delay).toBeCloseTo(176);
-    expect(scheduled[1].delay).toBeCloseTo(8);
+    expect(scheduled[1].delay).toBeCloseTo(184);
 
     scheduled[1].run();
     expect(played.at(-1)).toBe('audio-shotgun-reload-breech-close');
@@ -188,7 +188,7 @@ describe('WeaponAudio', () => {
     audio.flushQueuedReloadCues();
 
     expect(played).toHaveLength(2);
-    expect(scheduled.map(({ delay }) => delay)).toEqual([260, 120]);
+    expect(scheduled.map(({ delay }) => delay)).toEqual([260, 340]);
 
     scheduled[0].run();
     scheduled[1].run();

@@ -156,12 +156,16 @@ export class WeaponAudio {
   advanceReload(deltaMs: number, offsetMs = 0): void {
     if (!this.reloadTimeline) return;
     const elapsedMs = Math.max(0, deltaMs);
+    const pendingPlaybackDelayMs = this.reloadPlaybackTailDelayMs;
     this.reloadPlaybackTailDelayMs = Math.max(
       0,
-      this.reloadPlaybackTailDelayMs - elapsedMs,
+      pendingPlaybackDelayMs - elapsedMs,
     );
     if (this.reloadPlaybackTailAtMs !== undefined) {
-      this.reloadPlaybackTailAtMs += elapsedMs;
+      this.reloadPlaybackTailAtMs += Math.max(
+        0,
+        elapsedMs - pendingPlaybackDelayMs,
+      );
     }
     const startMs = this.reloadTimeline.elapsedMs;
     const endMs = startMs + elapsedMs;
