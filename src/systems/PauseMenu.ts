@@ -15,13 +15,13 @@ import type { UiBounds } from '../logic/gameUiLayout';
 type PauseMenuView = 'main' | 'settings';
 
 const COLORS = {
-  backdrop: 0x071018,
-  panel: 0x1b252e,
-  border: 0x6f8798,
-  accent: 0xd7b45a,
-  text: '#eef4f7',
-  muted: '#9aabb5',
-  icon: 0xeef4f7,
+  backdrop: 0x0e0c0a,
+  panel: 0x24211e,
+  border: 0x77716a,
+  accent: 0xb0443e,
+  text: '#f0ece5',
+  muted: '#aaa39a',
+  icon: 0xf0ece5,
 } as const;
 
 export interface PauseMenuLayout {
