@@ -5,6 +5,7 @@ import {
   WEAPON_AUDIO_CONFIG,
 } from '../../config/weaponAudioConfig';
 import { WEAPON_DEFINITIONS } from '../../config/weaponConfig';
+import { SHOTGUN_RELOAD_TIMELINE } from '../../config/shotgunReloadConfig';
 
 describe('weapon audio configuration', () => {
   it('provides audio for every playable weapon', () => {
@@ -38,6 +39,9 @@ describe('weapon audio configuration', () => {
     const referencedKeys = new Set(
       Object.values(WEAPON_AUDIO_CONFIG.weapons).flatMap((definition) => [
         definition.equipKey,
+        ...('reloadCompleteKey' in definition
+          ? [definition.reloadCompleteKey]
+          : []),
         ...definition.shotKeys,
         ...definition.tailKeys,
         ...definition.reloadCues.map((cue) => cue.key),
@@ -45,5 +49,22 @@ describe('weapon audio configuration', () => {
     );
 
     expect(referencedKeys).toEqual(new Set(Object.keys(WEAPON_AUDIO_ASSETS)));
+  });
+
+  it('synchronizes shotgun reload sounds with break-action motion', () => {
+    const cues = WEAPON_AUDIO_CONFIG.weapons.doubleBarrelShotgun.reloadCues;
+
+    expect(cues.map((cue) => cue.at)).toEqual([
+      SHOTGUN_RELOAD_TIMELINE.breechOpenStart,
+      SHOTGUN_RELOAD_TIMELINE.projectileInsert,
+      SHOTGUN_RELOAD_TIMELINE.emptyCasingExtract,
+    ]);
+    expect(cues.map((cue) => cue.key)).toEqual([
+      'audio-shotgun-reload-breech-open',
+      'audio-shotgun-reload-shell-insert',
+      'audio-shotgun-reload-casing-extract',
+    ]);
+    expect(WEAPON_AUDIO_CONFIG.weapons.doubleBarrelShotgun.reloadCompleteKey)
+      .toBe('audio-shotgun-reload-breech-close');
   });
 });

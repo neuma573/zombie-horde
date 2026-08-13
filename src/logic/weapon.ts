@@ -6,11 +6,15 @@ export interface WeaponConfig {
   reserveAmmo: number;
   reloadDurationMs: number;
   maxTargets: number;
+  pelletCount?: number;
+  pelletSpreadDegrees?: number;
+  retainsSpentCasings?: boolean;
+  casingExtractionProgress?: number;
   burstSize?: number;
   burstIntervalMs?: number;
 }
 
-export type WeaponId = 'pistol' | 'burstRifle';
+export type WeaponId = 'pistol' | 'burstRifle' | 'doubleBarrelShotgun';
 export const WEAPON_RARITIES = [
   'common',
   'uncommon',
@@ -19,7 +23,7 @@ export const WEAPON_RARITIES = [
   'legendary',
 ] as const;
 export type WeaponRarity = typeof WEAPON_RARITIES[number];
-export type AmmoType = 'pistolAmmo' | 'rifleAmmo';
+export type AmmoType = 'pistolAmmo' | 'rifleAmmo' | 'shotgunAmmo';
 
 export interface WeaponDefinition {
   id: WeaponId;
@@ -58,6 +62,7 @@ export interface WeaponState {
   reserveAmmo: number;
   cooldownRemainingMs: number;
   reloadRemainingMs: number | null;
+  spentCasings: number;
 }
 
 export interface FireResult {
@@ -152,6 +157,7 @@ export function createWeaponState(config: WeaponConfig): WeaponState {
     reserveAmmo: config.reserveAmmo,
     cooldownRemainingMs: 0,
     reloadRemainingMs: null,
+    spentCasings: 0,
   };
 }
 
@@ -228,6 +234,29 @@ export function applyWeaponRecoil(
     x: normalized.x * cos - normalized.y * sin,
     y: normalized.x * sin + normalized.y * cos,
   };
+}
+
+export function createPelletDirections(
+  direction: { x: number; y: number },
+  pelletCount: number,
+  spreadDegrees: number,
+  spreadSeed = 0,
+): Array<{ x: number; y: number }> {
+  const count = Math.max(1, Math.floor(pelletCount));
+  const length = Math.hypot(direction.x, direction.y);
+  if (!Number.isFinite(length) || length === 0) return [];
+
+  const centerAngle = Math.atan2(direction.y, direction.x);
+  const spreadRadians = Math.max(0, spreadDegrees) * Math.PI / 180;
+  return Array.from({ length: count }, (_, index) => {
+    const offset = count === 1 ? 0 : (
+      recoilRandom(index, spreadSeed) - 0.5
+    ) * spreadRadians;
+    return {
+      x: Math.cos(centerAngle + offset),
+      y: Math.sin(centerAngle + offset),
+    };
+  });
 }
 
 export function advanceWeaponPickupLifetime(
@@ -314,9 +343,23 @@ export function advanceWeapon(
   }
 
   const reloadRemainingMs = state.reloadRemainingMs - elapsedMs;
+  const validReloadDuration = config.reloadDurationMs > 0;
+  const previousProgress = validReloadDuration
+    ? 1 - state.reloadRemainingMs / config.reloadDurationMs
+    : 1;
+  const nextProgress = validReloadDuration
+    ? 1 - Math.max(0, reloadRemainingMs) / config.reloadDurationMs
+    : 1;
+  const extractionProgress = config.casingExtractionProgress;
+  const spentCasings = extractionProgress !== undefined
+    && validReloadDuration
+    && previousProgress < extractionProgress
+    && nextProgress >= extractionProgress
+    ? 0
+    : state.spentCasings;
 
   if (reloadRemainingMs > 0) {
-    return { ...state, cooldownRemainingMs, reloadRemainingMs };
+    return { ...state, cooldownRemainingMs, reloadRemainingMs, spentCasings };
   }
 
   const ammoNeeded = config.magazineSize - state.magazineAmmo;
@@ -327,6 +370,7 @@ export function advanceWeapon(
     reserveAmmo: state.reserveAmmo - ammoToLoad,
     cooldownRemainingMs,
     reloadRemainingMs: null,
+    spentCasings: 0,
   };
 }
 
@@ -345,6 +389,9 @@ export function tryFire(state: WeaponState, config: WeaponConfig): FireResult {
       ...state,
       magazineAmmo: state.magazineAmmo - 1,
       cooldownRemainingMs: config.fireIntervalMs,
+      spentCasings: config.retainsSpentCasings
+        ? Math.min(config.magazineSize, state.spentCasings + 1)
+        : state.spentCasings,
     },
   };
 }

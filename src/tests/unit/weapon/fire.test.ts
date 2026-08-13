@@ -38,4 +38,22 @@ describe('weapon fire', () => {
 
     expect(tryFire(empty, config)).toEqual({ fired: false, state: empty });
   });
+
+  it('retains fired casings only for break-action weapons', () => {
+    const breakAction = {
+      ...config,
+      retainsSpentCasings: true,
+      casingExtractionProgress: 0.58,
+    };
+
+    const first = tryFire(createWeaponState(breakAction), breakAction);
+    const second = tryFire(
+      advanceWeapon(first.state, breakAction, breakAction.fireIntervalMs),
+      breakAction,
+    );
+
+    expect(first.state.spentCasings).toBe(1);
+    expect(second.state.spentCasings).toBe(2);
+    expect(tryFire(createWeaponState(config), config).state.spentCasings).toBe(0);
+  });
 });

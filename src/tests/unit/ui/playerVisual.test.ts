@@ -6,6 +6,7 @@ import {
   muzzleLightExposure,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
+  resolveShotgunBreakAngle,
   resolveSidearmHandPose,
   resolveSidearmPose,
   SIDEARM_VISUAL,
@@ -32,6 +33,15 @@ describe('ponytail rotation', () => {
 });
 
 describe('player visual pose', () => {
+  it('opens and closes the shotgun barrels during a break-action reload', () => {
+    expect(resolveShotgunBreakAngle(false, 0.5)).toBe(0);
+    expect(resolveShotgunBreakAngle(true, 0)).toBe(0);
+    expect(resolveShotgunBreakAngle(true, 0.22)).toBeCloseTo(0.82);
+    expect(resolveShotgunBreakAngle(true, 0.6)).toBeCloseTo(0.82);
+    expect(resolveShotgunBreakAngle(true, 0.94)).toBeGreaterThan(0);
+    expect(resolveShotgunBreakAngle(true, 1)).toBeCloseTo(0);
+  });
+
   it('extends the right arm toward the pistol while the left hand supports it', () => {
     const pose = resolveSidearmHandPose(SIDEARM_VISUAL.readyPose);
     const shoulder = { x: 2, y: 10 };

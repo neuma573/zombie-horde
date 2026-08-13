@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { advanceFirstShotAccuracy, applyWeaponRecoil, createFirstShotAccuracyState, consumeFirstShotAccuracy, FIRST_SHOT_ACCURACY, weaponSpreadDegrees } from '../../../logic/weapon';
-import { BURST_RIFLE_WEAPON, PISTOL_WEAPON } from '../../../config/weaponConfig';
+import { BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON, PISTOL_WEAPON } from '../../../config/weaponConfig';
 
 describe('weapon accuracy', () => {
   it('applies deterministic weapon recoil without changing direction length', () => {
@@ -73,5 +73,14 @@ describe('weapon accuracy', () => {
     expect(Math.abs(Math.atan2(rifle.y, rifle.x))).toBeGreaterThan(
       Math.abs(Math.atan2(pistol.y, pistol.x)),
     );
+  });
+
+  it('keeps shotgun pellet spread separate from second-shot center recoil', () => {
+    const first = weaponSpreadDegrees(DOUBLE_BARREL_SHOTGUN_WEAPON, 0, true);
+    const second = weaponSpreadDegrees(DOUBLE_BARREL_SHOTGUN_WEAPON, 1, false);
+
+    expect(first).toBe(0);
+    expect(second).toBe(8);
+    expect(DOUBLE_BARREL_SHOTGUN_WEAPON.config.pelletSpreadDegrees).toBe(12);
   });
 });

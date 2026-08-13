@@ -15,6 +15,8 @@ import {
 const LOOT_CONFIG = {
   rifleUnlockWave: SUPPLY_DROP_BALANCE.rifleUnlockWave,
   rifleDropChance: SUPPLY_DROP_BALANCE.rifleDropChance,
+  shotgunUnlockWave: SUPPLY_DROP_BALANCE.shotgunUnlockWave,
+  shotgunDropChance: SUPPLY_DROP_BALANCE.shotgunDropChance,
   criticalHealthRatio: SUPPLY_DROP_BALANCE.criticalHealthRatio,
   normalMedicalChance: ITEM_BALANCE_CONFIG.normalMedicalChance,
   criticalHealthMedicalChanceBonus: ITEM_BALANCE_CONFIG.criticalHealthMedicalChanceBonus,
@@ -44,6 +46,17 @@ describe('supply loot', () => {
     expect(rifle[0]).toEqual({ type: 'weapon', weaponId: 'burstRifle' });
     expect(rifle).toContainEqual({ type: 'consumable', kind: 'rifleAmmo' });
     expect(pistol[0]).toEqual({ type: 'weapon', weaponId: 'pistol' });
+  });
+
+  it('drops the double-barrel shotgun with matching ammunition from wave six', () => {
+    const shotgunRoll = SUPPLY_DROP_BALANCE.rifleDropChance + 0.01;
+    const loot = selectSupplyLoot('normal', 6, 1, shotgunRoll, 1, LOOT_CONFIG);
+
+    expect(loot[0]).toEqual({
+      type: 'weapon',
+      weaponId: 'doubleBarrelShotgun',
+    });
+    expect(loot).toContainEqual({ type: 'consumable', kind: 'shotgunAmmo' });
   });
 
   it('guarantees medical supplies for emergency drops and boosts critical-health drops', () => {

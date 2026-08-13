@@ -1,3 +1,5 @@
+import { SHOTGUN_RELOAD_TIMELINE } from '../config/shotgunReloadConfig';
+
 export interface SidearmPose {
   x: number;
   y: number;
@@ -184,6 +186,32 @@ export function resolveRifleReloadVisual(
     magazine: { visible: false, x: 18, y: 3, rotation: 0 },
     chargingHandleOffset: -pullAmount * 5,
   };
+}
+
+export function resolveShotgunBreakAngle(
+  isReloading: boolean,
+  normalizedProgress: number,
+): number {
+  if (!isReloading) return 0;
+  const progress = clamp01(normalizedProgress);
+  if (progress < SHOTGUN_RELOAD_TIMELINE.breechOpenComplete) {
+    return lerp(
+      0,
+      0.82,
+      progress / SHOTGUN_RELOAD_TIMELINE.breechOpenComplete,
+    );
+  }
+  if (progress < SHOTGUN_RELOAD_TIMELINE.breechCloseStart) return 0.82;
+  if (progress < SHOTGUN_RELOAD_TIMELINE.breechCloseComplete) {
+    return lerp(
+      0.82,
+      0,
+      (progress - SHOTGUN_RELOAD_TIMELINE.breechCloseStart)
+        / (SHOTGUN_RELOAD_TIMELINE.breechCloseComplete
+          - SHOTGUN_RELOAD_TIMELINE.breechCloseStart),
+    );
+  }
+  return 0;
 }
 
 export function resolveSidearmHandPose(

@@ -1,5 +1,57 @@
 import { describe, expect, it } from 'vitest';
-import { createHudViewModel } from '../../../logic/hud';
+import {
+  createHudViewModel,
+  isSameDisplayedWeapon,
+  retainsSpentShotgunShells,
+} from '../../../logic/hud';
+
+describe('isSameDisplayedWeapon', () => {
+  it('treats duplicate weapons in different slots as different displays', () => {
+    const shotgun = {
+      weaponId: 'doubleBarrelShotgun' as const,
+      activeWeaponSlot: 0 as const,
+    };
+
+    expect(isSameDisplayedWeapon(shotgun, shotgun)).toBe(true);
+    expect(isSameDisplayedWeapon(shotgun, {
+      ...shotgun,
+      activeWeaponSlot: 1,
+    })).toBe(false);
+  });
+
+  it('rejects firing feedback after switching between duplicate shotguns', () => {
+    const firedShotgun = {
+      weaponId: 'doubleBarrelShotgun' as const,
+      activeWeaponSlot: 0 as const,
+    };
+    const displayedShotgun = {
+      ...firedShotgun,
+      activeWeaponSlot: 1 as const,
+    };
+
+    expect(retainsSpentShotgunShells(
+      displayedShotgun.weaponId,
+      firedShotgun.weaponId,
+      1,
+      isSameDisplayedWeapon(firedShotgun, displayedShotgun),
+    )).toBe(false);
+  });
+});
+
+describe('retainsSpentShotgunShells', () => {
+  it('retains fired shells only while the shotgun remains displayed', () => {
+    expect(retainsSpentShotgunShells(
+      'doubleBarrelShotgun',
+      'doubleBarrelShotgun',
+      1,
+    )).toBe(true);
+    expect(retainsSpentShotgunShells(
+      'pistol',
+      'doubleBarrelShotgun',
+      1,
+    )).toBe(false);
+  });
+});
 
 describe('createHudViewModel', () => {
   it('projects all required playing state without mutating it', () => {

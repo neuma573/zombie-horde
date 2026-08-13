@@ -33,6 +33,9 @@ export class WeaponSystem {
       rifleAmmo: Math.max(0, initialAmmoReserves?.rifleAmmo ?? (
         startingWeapon.ammoType === 'rifleAmmo' ? startingWeapon.config.reserveAmmo : 0
       )),
+      shotgunAmmo: Math.max(0, initialAmmoReserves?.shotgunAmmo ?? (
+        startingWeapon.ammoType === 'shotgunAmmo' ? startingWeapon.config.reserveAmmo : 0
+      )),
     };
     this.syncActiveReserve();
   }

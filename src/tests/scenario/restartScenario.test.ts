@@ -42,6 +42,7 @@ describe('restart scenario', () => {
     reserveAmmo: BASIC_WEAPON_CONFIG.reserveAmmo,
     cooldownRemainingMs: 0,
     reloadRemainingMs: null,
+    spentCasings: 0,
   });
   expect(restartedWave).toEqual({
     phase: 'waiting',

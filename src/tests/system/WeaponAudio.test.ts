@@ -44,6 +44,74 @@ function createAudioRuntime() {
 }
 
 describe('WeaponAudio', () => {
+  it('plays shotgun breech close when queued reload completion is flushed', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('doubleBarrelShotgun', 2_400);
+    audio.queueReloadComplete('doubleBarrelShotgun');
+
+    expect(played).toEqual(['audio-shotgun-reload-breech-open']);
+    audio.flushQueuedReloadCues();
+    expect(played).toEqual([
+      'audio-shotgun-reload-breech-open',
+      'audio-shotgun-reload-breech-close',
+    ]);
+    expect(scheduled).toEqual([]);
+  });
+
+  it('keeps shotgun completion behind reload cues caught up in one render', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('doubleBarrelShotgun', 2_400);
+    audio.advanceReload(2_400);
+    audio.queueReloadComplete('doubleBarrelShotgun', 2_400);
+    audio.flushQueuedReloadCues();
+
+    expect(played).toEqual([
+      'audio-shotgun-reload-breech-open',
+      'audio-shotgun-reload-shell-insert',
+    ]);
+    expect(scheduled[0].delay).toBeCloseTo(576);
+    expect(scheduled[1].delay).toBeCloseTo(1_584);
+
+    scheduled[0].run();
+    scheduled[1].run();
+    expect(played).toEqual([
+      'audio-shotgun-reload-breech-open',
+      'audio-shotgun-reload-shell-insert',
+      'audio-shotgun-reload-casing-extract',
+      'audio-shotgun-reload-breech-close',
+    ]);
+  });
+
+  it('plays completion without stale delay after ordinary cue playback', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('doubleBarrelShotgun', 2_400);
+    audio.advanceReload(1_000);
+    audio.flushQueuedReloadCues();
+    audio.advanceReload(400);
+    audio.flushQueuedReloadCues();
+    scheduled[0].run();
+    audio.advanceReload(1_000);
+    audio.queueReloadComplete('doubleBarrelShotgun', 1_000);
+    audio.flushQueuedReloadCues();
+
+    expect(played).toEqual([
+      'audio-shotgun-reload-breech-open',
+      'audio-shotgun-reload-shell-insert',
+      'audio-shotgun-reload-casing-extract',
+    ]);
+    expect(scheduled[0].delay).toBeCloseTo(176);
+    expect(scheduled[1].delay).toBeCloseTo(184);
+
+    scheduled[1].run();
+    expect(played.at(-1)).toBe('audio-shotgun-reload-breech-close');
+  });
+
   it('plays the first overdue burst cue at the render boundary', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);
@@ -140,5 +208,17 @@ describe('WeaponAudio', () => {
 
     expect(scheduled.every(({ removed }) => removed)).toBe(true);
     expect(played).toEqual(playedBeforeCancel);
+  });
+
+  it('stops an active shotgun completion cue when reload audio is cancelled', () => {
+    const { runtime, stopped } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+
+    audio.playReload('doubleBarrelShotgun', 2_400);
+    audio.queueReloadComplete('doubleBarrelShotgun');
+    audio.flushQueuedReloadCues();
+    audio.cancelReload();
+
+    expect(stopped).toContain('audio-shotgun-reload-breech-close');
   });
 });

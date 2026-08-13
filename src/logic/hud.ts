@@ -13,6 +13,7 @@ export interface HudState {
   lastShotWeaponId: WeaponId | null;
   weaponId: WeaponId;
   magazineSize: number;
+  spentCasings?: number;
   isReloading: boolean;
   reloadProgress: number;
   waveNumber: number;
@@ -35,6 +36,38 @@ export interface HudState {
   activeWeaponSlot?: 0 | 1;
 }
 
+export function ejectsCasingOnFire(weaponId: WeaponId | null): boolean {
+  return weaponId !== null && weaponId !== 'doubleBarrelShotgun';
+}
+
+export function retainsSpentShotgunShells(
+  displayedWeaponId: WeaponId,
+  lastShotWeaponId: WeaponId | null,
+  firedRounds: number,
+  displayedWeaponUnchanged = true,
+): boolean {
+  return displayedWeaponUnchanged
+    && displayedWeaponId === 'doubleBarrelShotgun'
+    && lastShotWeaponId === displayedWeaponId
+    && firedRounds > 0;
+}
+
+export function isSameDisplayedWeapon(
+  previous: Pick<HudViewModel, 'weaponId' | 'activeWeaponSlot'> | undefined,
+  current: Pick<HudViewModel, 'weaponId' | 'activeWeaponSlot'>,
+): boolean {
+  return previous?.weaponId === current.weaponId
+    && previous.activeWeaponSlot === current.activeWeaponSlot;
+}
+
+export function extractedSpentCasings(
+  previousSpentCasings: number | undefined,
+  currentSpentCasings: number,
+): boolean {
+  return Math.max(0, Math.floor(previousSpentCasings ?? 0)) > 0
+    && Math.max(0, Math.floor(currentSpentCasings)) === 0;
+}
+
 export interface HudViewModel {
   statusText: string;
   waveTagText: string;
@@ -43,6 +76,7 @@ export interface HudViewModel {
   ammoText: string;
   magazineAmmo: number;
   magazineSize: number;
+  spentCasings: number;
   weaponId: WeaponId;
   shotSequence: number;
   lastShotWeaponId: WeaponId | null;
@@ -370,6 +404,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     ammoText: `+${state.reserveAmmo}`,
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
+    spentCasings: Math.max(0, Math.floor(state.spentCasings ?? 0)),
     weaponId: state.weaponId,
     shotSequence: state.shotSequence,
     lastShotWeaponId: state.lastShotWeaponId,

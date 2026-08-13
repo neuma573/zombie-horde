@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { countNewShots, createAmmoEjectionMotion } from '../../../logic/hud';
+import { countNewShots, createAmmoEjectionMotion, ejectsCasingOnFire, extractedSpentCasings } from '../../../logic/hud';
 
 describe('createAmmoEjectionMotion', () => {
   it('varies cartridge travel and spin within bounded screen-safe ranges', () => {
@@ -36,5 +36,26 @@ describe('countNewShots', () => {
 
   it('does not report a shot when a restarted sequence decreases', () => {
     expect(countNewShots(12, 0)).toBe(0);
+  });
+});
+
+describe('ejectsCasingOnFire', () => {
+  it('keeps fired shotgun shells chambered until the break action opens', () => {
+    expect(ejectsCasingOnFire('doubleBarrelShotgun')).toBe(false);
+    expect(ejectsCasingOnFire('pistol')).toBe(true);
+    expect(ejectsCasingOnFire('burstRifle')).toBe(true);
+  });
+});
+
+describe('extractedSpentCasings', () => {
+  it('detects extraction from the weapon-state transition', () => {
+    expect(extractedSpentCasings(2, 0)).toBe(true);
+    expect(extractedSpentCasings(1, 0)).toBe(true);
+    expect(extractedSpentCasings(2, 2)).toBe(false);
+  });
+
+  it('does not invent extraction without previously spent casings', () => {
+    expect(extractedSpentCasings(0, 0)).toBe(false);
+    expect(extractedSpentCasings(undefined, 0)).toBe(false);
   });
 });

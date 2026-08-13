@@ -44,6 +44,7 @@ export class WeaponAudio {
   private queuedShots: QueuedShot[] = [];
   private queuedReloadCues: QueuedReloadCue[] = [];
   private reloadTimeline?: ReloadTimeline;
+  private reloadCompletionOrderAtMs?: number;
   private reloadPlaybackTailAtMs?: number;
   private reloadPlaybackTailDelayMs = 0;
   private activeTailKey?: string;
@@ -135,15 +136,37 @@ export class WeaponAudio {
       cues.push({ key: cue.key, atMs });
     }
     this.reloadTimeline = { elapsedMs: 0, cues };
+    this.reloadCompletionOrderAtMs = duration;
+  }
+
+  queueReloadComplete(weaponId: WeaponId, offsetMs = 0): void {
+    const definition = WEAPON_AUDIO_CONFIG.weapons[weaponId];
+    const key = 'reloadCompleteKey' in definition
+      ? definition.reloadCompleteKey
+      : undefined;
+    if (key) {
+      this.queuedReloadCues.push({
+        key,
+        atMs: this.reloadCompletionOrderAtMs ?? 0,
+        offsetMs: Math.max(0, offsetMs),
+      });
+    }
   }
 
   advanceReload(deltaMs: number, offsetMs = 0): void {
     if (!this.reloadTimeline) return;
     const elapsedMs = Math.max(0, deltaMs);
+    const pendingPlaybackDelayMs = this.reloadPlaybackTailDelayMs;
     this.reloadPlaybackTailDelayMs = Math.max(
       0,
-      this.reloadPlaybackTailDelayMs - elapsedMs,
+      pendingPlaybackDelayMs - elapsedMs,
     );
+    if (this.reloadPlaybackTailAtMs !== undefined) {
+      this.reloadPlaybackTailAtMs += Math.max(
+        0,
+        elapsedMs - pendingPlaybackDelayMs,
+      );
+    }
     const startMs = this.reloadTimeline.elapsedMs;
     const endMs = startMs + elapsedMs;
     const pending = [];
@@ -160,10 +183,6 @@ export class WeaponAudio {
       }
     }
 
-    if (pending.length === 0) {
-      this.reloadTimeline = undefined;
-      return;
-    }
     this.reloadTimeline = { elapsedMs: endMs, cues: pending };
   }
 
@@ -209,6 +228,7 @@ export class WeaponAudio {
 
   cancelReload(): void {
     this.reloadTimeline = undefined;
+    this.reloadCompletionOrderAtMs = undefined;
     this.queuedReloadCues = [];
     this.reloadPlaybackTailAtMs = undefined;
     this.reloadPlaybackTailDelayMs = 0;
@@ -219,6 +239,9 @@ export class WeaponAudio {
     for (const definition of Object.values(WEAPON_AUDIO_CONFIG.weapons)) {
       for (const cue of definition.reloadCues) {
         this.scene.sound.stopByKey(cue.key);
+      }
+      if ('reloadCompleteKey' in definition && definition.reloadCompleteKey) {
+        this.scene.sound.stopByKey(definition.reloadCompleteKey);
       }
     }
   }

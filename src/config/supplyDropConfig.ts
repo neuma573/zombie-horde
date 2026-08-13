@@ -15,6 +15,8 @@ export const SUPPLY_DROP_BALANCE = {
   lowAmmoRatio: 0.3,
   rifleUnlockWave: 6,
   rifleDropChance: 0.28,
+  shotgunUnlockWave: 6,
+  shotgunDropChance: 0.2,
   locationSampleCount: 96,
   locationClearance: 42,
   normalMinimumPlayerDistance: 360,
