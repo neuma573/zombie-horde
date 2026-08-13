@@ -7,9 +7,9 @@ import shotgunIconUrl from '../assets/weapons/double-barrel-shotgun.png';
 import pistolAmmoUrl from '../assets/weapons/ammo-9mm-hud.svg';
 import rifleAmmoUrl from '../assets/weapons/ammo-556-hud.svg';
 import shotgunAmmoUrl from '../assets/weapons/ammo-12-gauge-hud.svg';
-import mainMenuBackgroundUrl from '../assets/mainmenu.png';
-import mainMenuMobileBackgroundUrl from '../assets/mainmenu-mobile.png';
-import mainMenuLogoUrl from '../assets/logo.png';
+import mainMenuBackgroundUrl from '../assets/mainmenu.webp';
+import mainMenuMobileBackgroundUrl from '../assets/mainmenu-mobile.webp';
+import mainMenuLogoUrl from '../assets/logo.webp';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../config/weaponAudioConfig';
 
