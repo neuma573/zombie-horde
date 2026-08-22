@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON, PISTOL_WEAPON, STARTING_AMMO_RESERVES } from '../../config/weaponConfig';
+import { BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON, PISTOL_WEAPON, POLICE_BATON_WEAPON, STARTING_AMMO_RESERVES } from '../../config/weaponConfig';
 import { ZOMBIE_CONFIG } from '../../config/zombieConfig';
 import { applyDamage } from '../../logic/damage';
 import { WeaponSystem } from '../../systems/WeaponSystem';
@@ -54,5 +54,13 @@ describe('weapon balance', () => {
     expect(BURST_RIFLE_WEAPON.config.fireIntervalMs).toBe(220);
     expect(BURST_RIFLE_WEAPON.config.burstIntervalMs).toBe(65);
     expect(BURST_RIFLE_WEAPON.recoil).toBeGreaterThan(PISTOL_WEAPON.recoil);
+  });
+
+  it('defines the police baton as a stamina-powered one-handed melee weapon', () => {
+    expect(POLICE_BATON_WEAPON.attackType).toBe('melee');
+    expect(POLICE_BATON_WEAPON.meleeGrip).toBe('oneHanded');
+    expect(POLICE_BATON_WEAPON.config.usesAmmo).toBe(false);
+    expect(POLICE_BATON_WEAPON.config.staminaCost).toBeGreaterThan(0);
+    expect(POLICE_BATON_WEAPON.config.range).toBeLessThan(100);
   });
 });

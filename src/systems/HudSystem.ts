@@ -35,6 +35,7 @@ import {
 import type { WeaponId } from '../logic/weapon';
 
 function ammoTextureKey(weaponId: WeaponId | null): string {
+  if (weaponId === 'policeBaton') return 'weapon-police-baton';
   if (weaponId === 'pistol') return 'ammo-pistol';
   if (weaponId === 'doubleBarrelShotgun') return 'ammo-shotgun';
   return 'ammo-rifle';
@@ -874,7 +875,9 @@ export class HudSystem {
               ? 'weapon-pistol'
               : weapon.id === 'doubleBarrelShotgun'
                 ? 'weapon-shotgun'
-                : 'weapon-rifle',
+                : weapon.id === 'policeBaton'
+                  ? 'weapon-police-baton'
+                  : 'weapon-rifle',
           )
           .setDisplaySize(iconSize, iconSize)
           .setVisible(true);

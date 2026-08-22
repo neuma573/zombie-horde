@@ -37,7 +37,9 @@ export interface HudState {
 }
 
 export function ejectsCasingOnFire(weaponId: WeaponId | null): boolean {
-  return weaponId !== null && weaponId !== 'doubleBarrelShotgun';
+  return weaponId !== null
+    && weaponId !== 'doubleBarrelShotgun'
+    && weaponId !== 'policeBaton';
 }
 
 export function retainsSpentShotgunShells(
@@ -401,7 +403,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     waveTagText: state.waveNumber > 0 ? `#Wave${state.waveNumber}` : '#Wave--',
     healthRatio: normalizedGaugeRatio(state.health, state.maxHealth),
     staminaRatio: normalizedGaugeRatio(state.stamina, state.maxStamina),
-    ammoText: `+${state.reserveAmmo}`,
+    ammoText: state.weaponId === 'policeBaton' ? '' : `+${state.reserveAmmo}`,
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
     spentCasings: Math.max(0, Math.floor(state.spentCasings ?? 0)),

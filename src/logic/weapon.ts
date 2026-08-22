@@ -12,9 +12,14 @@ export interface WeaponConfig {
   casingExtractionProgress?: number;
   burstSize?: number;
   burstIntervalMs?: number;
+  usesAmmo?: boolean;
+  staminaCost?: number;
+  halfAngleRadians?: number;
 }
 
-export type WeaponId = 'pistol' | 'burstRifle' | 'doubleBarrelShotgun';
+export type WeaponId = 'pistol' | 'burstRifle' | 'doubleBarrelShotgun' | 'policeBaton';
+export type WeaponAttackType = 'ranged' | 'melee';
+export type MeleeWeaponGrip = 'oneHanded' | 'twoHanded';
 export const WEAPON_RARITIES = [
   'common',
   'uncommon',
@@ -36,7 +41,9 @@ export interface WeaponDefinition {
     consecutiveSpreadGrowthDegrees: number;
     maxSpreadDegrees: number;
   };
-  ammoType: AmmoType;
+  attackType: WeaponAttackType;
+  meleeGrip?: MeleeWeaponGrip;
+  ammoType: AmmoType | null;
   config: WeaponConfig;
 }
 
@@ -201,7 +208,10 @@ export function shouldAutoPickupWeapon(
 export function hasLoadedWeaponPickup(
   pickups: readonly OwnedWeapon[],
 ): boolean {
-  return pickups.some((pickup) => pickup.state.magazineAmmo > 0);
+  return pickups.some((pickup) => (
+    pickup.definition.config.usesAmmo === false
+    || pickup.state.magazineAmmo > 0
+  ));
 }
 
 export function shouldShowFieldWeaponInfo(
@@ -375,9 +385,10 @@ export function advanceWeapon(
 }
 
 export function tryFire(state: WeaponState, config: WeaponConfig): FireResult {
+  const usesAmmo = config.usesAmmo !== false;
   const canFire = state.reloadRemainingMs === null
     && state.cooldownRemainingMs <= 0
-    && state.magazineAmmo > 0;
+    && (!usesAmmo || state.magazineAmmo > 0);
 
   if (!canFire) {
     return { fired: false, state };
@@ -387,7 +398,7 @@ export function tryFire(state: WeaponState, config: WeaponConfig): FireResult {
     fired: true,
     state: {
       ...state,
-      magazineAmmo: state.magazineAmmo - 1,
+      magazineAmmo: usesAmmo ? state.magazineAmmo - 1 : state.magazineAmmo,
       cooldownRemainingMs: config.fireIntervalMs,
       spentCasings: config.retainsSpentCasings
         ? Math.min(config.magazineSize, state.spentCasings + 1)
@@ -397,7 +408,8 @@ export function tryFire(state: WeaponState, config: WeaponConfig): FireResult {
 }
 
 export function startReload(state: WeaponState, config: WeaponConfig): WeaponState {
-  const canReload = state.reloadRemainingMs === null
+  const canReload = config.usesAmmo !== false
+    && state.reloadRemainingMs === null
     && state.magazineAmmo < config.magazineSize
     && state.reserveAmmo > 0;
 

@@ -6,7 +6,6 @@ const ORIGINAL_NORMAL_FALL_DURATION_MS = 1_100;
 export const SUPPLY_DROP_BALANCE = {
   planeSpeedMultiplier: 0.5,
   normalFallDurationMultiplier: 3,
-  emergencyFallDurationMultiplier: 2,
   normalBaseChance: 0.24,
   consecutiveMissChanceBonus: 0.09,
   lowAmmoChanceBonus: 0.32,
@@ -21,7 +20,6 @@ export const SUPPLY_DROP_BALANCE = {
   locationClearance: 42,
   normalMinimumPlayerDistance: 360,
   normalMaximumPlayerDistance: 1_150,
-  emergencyMinimumPlayerDistance: 900,
   previousDropMinimumDistance: 520,
 } as const;
 
@@ -29,11 +27,6 @@ export const NORMAL_SUPPLY_FALL_DURATION_MS = (
   ORIGINAL_NORMAL_FALL_DURATION_MS
   * SUPPLY_DROP_BALANCE.normalFallDurationMultiplier
 );
-export const EMERGENCY_SUPPLY_FALL_DURATION_MS = (
-  NORMAL_SUPPLY_FALL_DURATION_MS
-  * SUPPLY_DROP_BALANCE.emergencyFallDurationMultiplier
-);
-
 export const SUPPLY_DROP_CONFIG = {
   target: { x: 0, y: 0 },
   announcementDurationMs: 2_000,
