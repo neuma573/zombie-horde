@@ -634,7 +634,10 @@ export class GameScene extends Phaser.Scene {
         break;
       }
     }
-    if (!playerDied) this.resolveShoveRequest();
+    if (!playerDied) {
+      this.resolveFireRequests();
+      this.resolveShoveRequest();
+    }
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -966,26 +969,25 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolveFireRequest(): void {
-    const fire = consumeFireRequest(this.playerInput);
-    this.playerInput = fire.state;
+  private resolveFireRequests(): void {
+    while (isPlaying(this.sessionState)) {
+      const fire = consumeFireRequest(this.playerInput);
+      this.playerInput = fire.state;
+      if (!fire.requested) return;
 
-    if (!fire.requested || !isPlaying(this.sessionState)) {
-      return;
-    }
+      const definition = this.weapon.getDefinition();
+      if (definition.attackType === 'melee') {
+        this.resolveMeleeAttack();
+        continue;
+      }
 
-    const definition = this.weapon.getDefinition();
-    if (definition.attackType === 'melee') {
-      this.resolveMeleeAttack();
-      return;
+      if (!this.weapon.fire()) {
+        this.startMobileAutoReloadIfNeeded();
+        this.updateHud();
+        continue;
+      }
+      this.resolveHitscanShot();
     }
-
-    if (!this.weapon.fire()) {
-      this.startMobileAutoReloadIfNeeded();
-      this.updateHud();
-      return;
-    }
-    this.resolveHitscanShot();
   }
 
   private resolveMeleeAttack(): void {
@@ -1797,7 +1799,6 @@ export class GameScene extends Phaser.Scene {
       if (!isPrimaryFireInput(pointer)) return;
       this.updateAimDirection(pointer, 'mouse');
       this.playerInput = requestFire(this.playerInput);
-      this.resolveFireRequest();
       return;
     }
 
@@ -1843,7 +1844,6 @@ export class GameScene extends Phaser.Scene {
       this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
       this.playerInput = requestFire(this.playerInput);
-      this.resolveFireRequest();
     } else if (role === 'reload') {
       this.playerInput = requestReload(this.playerInput);
     } else if (role === 'shove') {
