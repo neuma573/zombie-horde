@@ -1044,7 +1044,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.stamina = { current: this.stamina.current - staminaCost };
-    this.player.triggerMeleeSwingVisual();
+    this.player.triggerMeleeSwingVisual(aimDirection);
     const hits = resolveMeleeHits(
       this.player,
       aimDirection,
@@ -2218,10 +2218,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.viewDirection = { ...result.finalAimDirection };
     this.finalAimDirection = result.finalAimDirection;
-    this.player.setRotation(Math.atan2(
-      this.finalAimDirection.y,
-      this.finalAimDirection.x,
-    ));
+    this.player.setAimDirection(this.finalAimDirection);
     this.updateAimAssistVisual();
     return { ...this.finalAimDirection };
   }
@@ -2234,10 +2231,7 @@ export class GameScene extends Phaser.Scene {
     this.aimAssistVisual?.hide();
 
     if (this.player) {
-      this.player.setRotation(Math.atan2(
-        this.finalAimDirection.y,
-        this.finalAimDirection.x,
-      ));
+      this.player.setAimDirection(this.finalAimDirection);
     }
   }
 

@@ -8,6 +8,7 @@ import {
   blendVisualColor,
   clampPonytailRelativeRotation,
   RIFLE_VISUAL,
+  resolveMeleeFacingRotation,
   resolveRifleReloadVisual,
   resolveOneHandedMeleeActionPose,
   resolveShotgunBreakAngle,
@@ -19,6 +20,7 @@ import {
   type SidearmPose,
   type RifleReloadVisual,
 } from '../logic/playerVisual';
+import type { Vector2 } from '../logic/hitscan';
 import type { WeaponId } from '../logic/weapon';
 
 export const PLAYER_RADIUS = PLAYER_CONFIG.radius;
@@ -89,6 +91,8 @@ export class Player extends Phaser.GameObjects.Container {
   private shotgunBreakAngle = 0;
   private shoveVisualElapsedMs: number | null = null;
   private meleeSwingVisualElapsedMs: number | null = null;
+  private aimDirection: Vector2 = { x: 1, y: 0 };
+  private meleeSwingAimDirection: Vector2 | null = null;
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
   private movementAmount = 0;
@@ -249,12 +253,19 @@ export class Player extends Phaser.GameObjects.Container {
     this.shoveVisualElapsedMs = 0;
   }
 
-  triggerMeleeSwingVisual(): void {
+  setAimDirection(aimDirection: Vector2): void {
+    this.aimDirection = { ...aimDirection };
+    this.applyFacingRotation();
+  }
+
+  triggerMeleeSwingVisual(aimDirection: Vector2): void {
     // Melee damage is resolved at input time, so begin the rendered motion at
     // the contact keyframe and show the follow-through from that same moment.
+    this.meleeSwingAimDirection = { ...aimDirection };
     this.meleeSwingVisualElapsedMs = (
       MELEE_SWING_VISUAL_DURATION_MS * MELEE_SWING_IMPACT_PROGRESS
     );
+    this.applyFacingRotation();
   }
 
   updateVisual(deltaMs: number, isMoving = false): void {
@@ -278,6 +289,8 @@ export class Player extends Phaser.GameObjects.Container {
       this.meleeSwingVisualElapsedMs += deltaMs;
       if (this.meleeSwingVisualElapsedMs >= MELEE_SWING_VISUAL_DURATION_MS) {
         this.meleeSwingVisualElapsedMs = null;
+        this.meleeSwingAimDirection = null;
+        this.applyFacingRotation();
       }
     }
     this.ponytailShotSwayIntensity = decayTransientLight(
@@ -789,6 +802,13 @@ export class Player extends Phaser.GameObjects.Container {
       this.shoveVisualElapsedMs,
       SHOVE_VISUAL_DURATION_MS,
     );
+  }
+
+  private applyFacingRotation(): void {
+    this.setRotation(resolveMeleeFacingRotation(
+      this.aimDirection,
+      this.meleeSwingAimDirection,
+    ));
   }
 
   private drawRifle(): void {

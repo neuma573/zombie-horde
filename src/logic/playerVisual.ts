@@ -15,6 +15,23 @@ export interface OneHandedMeleePose extends SidearmHandPose {
   weaponRotation: number;
 }
 
+export function resolveMeleeFacingRotation(
+  aimDirection: { x: number; y: number },
+  swingDirection: { x: number; y: number } | null,
+): number {
+  const direction = validDirection(swingDirection) ? swingDirection : aimDirection;
+  return validDirection(direction) ? Math.atan2(direction.y, direction.x) : 0;
+}
+
+function validDirection(
+  direction: { x: number; y: number } | null,
+): direction is { x: number; y: number } {
+  return direction !== null
+    && Number.isFinite(direction.x)
+    && Number.isFinite(direction.y)
+    && (direction.x !== 0 || direction.y !== 0);
+}
+
 function interpolateMeleePose(
   start: OneHandedMeleePose,
   end: OneHandedMeleePose,

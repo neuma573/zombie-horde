@@ -6,6 +6,7 @@ import {
   muzzleLightExposure,
   RIFLE_VISUAL,
   resolveOneHandedMeleeActionPose,
+  resolveMeleeFacingRotation,
   resolveOneHandedMeleePose,
   resolveSystemaMeleeShovePose,
   resolveRifleReloadVisual,
@@ -36,6 +37,14 @@ describe('ponytail rotation', () => {
 });
 
 describe('player visual pose', () => {
+  it('faces a queued melee swing until the swing ends', () => {
+    const latestAim = { x: 0, y: 1 };
+    const queuedSwingAim = { x: 1, y: 0 };
+
+    expect(resolveMeleeFacingRotation(latestAim, queuedSwingAim)).toBeCloseTo(0);
+    expect(resolveMeleeFacingRotation(latestAim, null)).toBeCloseTo(Math.PI / 2);
+  });
+
   it('swings a one-handed melee weapon with the right arm', () => {
     const ready = resolveOneHandedMeleePose(null, 360);
     const windup = resolveOneHandedMeleePose(101, 360);
