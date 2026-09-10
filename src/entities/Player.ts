@@ -227,7 +227,14 @@ export class Player extends Phaser.GameObjects.Container {
 
   setWeaponVisual(weaponId: WeaponId): void {
     if (weaponId === this.weaponId) return;
+    const leavingMeleeWeapon = this.weaponId === 'policeBaton'
+      && weaponId !== 'policeBaton';
     this.weaponId = weaponId;
+    if (leavingMeleeWeapon) {
+      this.meleeSwingVisualElapsedMs = null;
+      this.meleeSwingAimDirection = null;
+      this.applyFacingRotation();
+    }
     this.sidearm.setVisible(weaponId === 'pistol');
     this.rifle.setVisible(weaponId !== 'pistol');
     this.rifleReload.setVisible(weaponId !== 'pistol');
