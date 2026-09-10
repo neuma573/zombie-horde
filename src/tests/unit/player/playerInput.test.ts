@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   clearActiveInput,
-  consumeShoveRequest,
   createPlayerInputState,
-  requestShove,
   withAimCandidate,
   withMovement,
 } from '../../../logic/playerInput';
@@ -19,25 +17,15 @@ describe('common player input', () => {
     expect(zeroAim.manualAimDirection).toEqual(aimed.manualAimDirection);
   });
 
-  it('consumes shove requests exactly once', () => {
-    let state = requestShove(createPlayerInputState());
-    const shove = consumeShoveRequest(state);
-    state = shove.state;
-
-    expect(shove.requested).toBe(true);
-    expect(consumeShoveRequest(state).requested).toBe(false);
-  });
-
-  it('clears active movement and requests without losing the last aim', () => {
-    const active = requestShove(withMovement(
+  it('clears active movement without losing the last aim', () => {
+    const active = withMovement(
       withAimCandidate(createPlayerInputState(), { x: 0, y: -2 }),
       { x: 1, y: 0.5 },
-    ));
+    );
 
     expect(clearActiveInput(active)).toEqual({
       movement: { x: 0, y: 0 },
       manualAimDirection: { x: 0, y: -1 },
-      shoveRequested: false,
     });
   });
 

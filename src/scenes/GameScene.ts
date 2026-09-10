@@ -159,8 +159,7 @@ import {
 import {
   advanceShoveWindup,
   createStaminaState,
-  recoverStaminaAfterPrepaidTime,
-  recoverStaminaAtInputTime,
+  recoverStamina,
   resolveShove,
   resolveMeleeHits,
   resolveShoveTargets,
@@ -209,9 +208,7 @@ import {
 } from '../logic/movement';
 import {
   clearActiveInput,
-  consumeShoveRequest,
   createPlayerInputState,
-  requestShove,
   withAimCandidate,
   withMovement,
   type PlayerInputSnapshot,
@@ -251,8 +248,10 @@ export class GameScene extends Phaser.Scene {
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private readonly playerActions = new PlayerActionQueue();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
-  private prepaidStaminaRecoveryMs = 0;
-  private pendingShove: ShoveWindupState | null = null;
+  private pendingShove: {
+    windup: ShoveWindupState;
+    aimDirection: Vector2;
+  } | null = null;
   private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
   private aimSource: AimSource = 'none';
@@ -339,11 +338,9 @@ export class GameScene extends Phaser.Scene {
     this.previousSupplyDropPosition = null;
     this.simulationStepState = createFixedStepState();
     this.simulationElapsedMs = 0;
-    this.playerActions.clear();
-    this.playerActions.synchronize(0, 0, this.game.loop.now);
+    this.playerActions.reset(0, this.game.loop.now);
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
-    this.prepaidStaminaRecoveryMs = 0;
     this.pendingShove = null;
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
@@ -559,7 +556,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (this.pauseMenu?.isOpen()) {
-      this.synchronizePlayerActionTimeline(time);
+      this.advancePlayerActionFrame(time, 0);
       return;
     }
 
@@ -583,7 +580,7 @@ export class GameScene extends Phaser.Scene {
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.restartSession();
       }
-      this.synchronizePlayerActionTimeline(time);
+      this.advancePlayerActionFrame(time, 0);
       return;
     }
 
@@ -598,7 +595,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
     if (this.shoveKey && Phaser.Input.Keyboard.JustDown(this.shoveKey)) {
-      this.playerInput = requestShove(this.playerInput);
+      this.playerActions.requestShove(
+        this.shoveKey.timeDown,
+        this.finalAimDirection,
+      );
     }
     if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
       this.playerActions.requestWeaponSlot(0, this.weaponSlotKeys[0].timeDown);
@@ -618,6 +618,7 @@ export class GameScene extends Phaser.Scene {
         : this.mobileMovement,
     );
 
+    this.advancePlayerActionFrame(time, deltaMs);
     const fixedSteps = consumeFixedSteps(
       this.simulationStepState,
       deltaMs,
@@ -647,8 +648,6 @@ export class GameScene extends Phaser.Scene {
         (step + 1) * SIMULATION_CONFIG.fixedStepMs,
       );
     }
-    if (!playerDied) this.resolveShoveRequest();
-    this.synchronizePlayerActionTimeline(time);
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -695,14 +694,11 @@ export class GameScene extends Phaser.Scene {
     const reloadingWeaponId = reloadRemainingMs !== null
       ? this.weapon.getDefinition().id
       : null;
-    const staminaRecovery = recoverStaminaAfterPrepaidTime(
+    this.stamina = recoverStamina(
       this.stamina,
       deltaMs,
-      this.prepaidStaminaRecoveryMs,
       SHOVE_CONFIG,
     );
-    this.stamina = staminaRecovery.stamina;
-    this.prepaidStaminaRecoveryMs = staminaRecovery.remainingPrepaidMs;
     const shoveImpact = this.advancePendingShove(deltaMs);
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
@@ -737,7 +733,7 @@ export class GameScene extends Phaser.Scene {
       if (!contactDied) {
         this.refreshStationaryMouseAim();
         this.refreshAimAssist();
-        this.applyShoveImpact();
+        this.applyShoveImpact(shoveImpact.aimDirection);
         const postImpact = this.advanceActorsThroughBurstShots(
           shoveImpact.postImpactMs,
           audioDelayMs + shoveImpact.preImpactMs,
@@ -996,10 +992,14 @@ export class GameScene extends Phaser.Scene {
         this.selectWeaponSlot(queued.action.slot);
         continue;
       }
+      if (queued.action.type === 'shove') {
+        this.resolveShoveRequest(queued.action.aimDirection);
+        continue;
+      }
 
       const definition = this.weapon.getDefinition();
       if (definition.attackType === 'melee') {
-        this.resolveMeleeAttack();
+        this.resolveMeleeAttack(queued.action.aimDirection);
         continue;
       }
 
@@ -1008,19 +1008,22 @@ export class GameScene extends Phaser.Scene {
         this.updateHud();
         continue;
       }
-      this.resolveHitscanShot(audioDelayMs);
+      this.resolveHitscanShot(audioDelayMs, queued.action.aimDirection);
     }
   }
 
-  private synchronizePlayerActionTimeline(updateTimeMs: number): void {
-    this.playerActions.synchronize(
-      this.simulationElapsedMs,
-      this.simulationStepState.accumulatorMs,
+  private advancePlayerActionFrame(
+    updateTimeMs: number,
+    simulationDeltaMs: number,
+  ): void {
+    this.playerActions.advanceFrame(
+      this.simulationElapsedMs + this.simulationStepState.accumulatorMs,
+      simulationDeltaMs,
       updateTimeMs,
     );
   }
 
-  private resolveMeleeAttack(): void {
+  private resolveMeleeAttack(aimDirection: Vector2): void {
     const definition = this.weapon.getDefinition();
     const staminaCost = Math.max(0, definition.config.staminaCost ?? 0);
     if (this.stamina.current < staminaCost || !this.weapon.fire()) {
@@ -1032,7 +1035,7 @@ export class GameScene extends Phaser.Scene {
     this.player.triggerMeleeSwingVisual();
     const hits = resolveMeleeHits(
       this.player,
-      this.finalAimDirection,
+      aimDirection,
       this.zombies.map((zombie) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
@@ -1083,60 +1086,53 @@ export class GameScene extends Phaser.Scene {
     this.updateHud();
   }
 
-  private resolveShoveRequest(): void {
-    const request = consumeShoveRequest(this.playerInput);
-    this.playerInput = request.state;
-    if (!request.requested || !isPlaying(this.sessionState)) return;
-    const windup = startShoveWindup(
-      this.pendingShove,
-      this.simulationStepState.accumulatorMs,
-    );
+  private resolveShoveRequest(aimDirection: Vector2): void {
+    if (!isPlaying(this.sessionState)) return;
+    const windup = startShoveWindup(this.pendingShove?.windup ?? null);
     if (!windup.started) return;
-
-    const inputTimeRecovery = recoverStaminaAtInputTime(
-      this.stamina,
-      this.simulationStepState.accumulatorMs,
-      this.prepaidStaminaRecoveryMs,
-      SHOVE_CONFIG,
-    );
-    this.stamina = inputTimeRecovery.stamina;
-    this.prepaidStaminaRecoveryMs = inputTimeRecovery.prepaidMs;
 
     const result = resolveShove(
       this.stamina,
       this.player,
-      this.finalAimDirection,
+      aimDirection,
       [],
       SHOVE_CONFIG,
     );
     this.stamina = result.stamina;
     if (result.performed) {
       this.player.triggerShoveVisual();
-      this.pendingShove = windup.state;
+      this.pendingShove = {
+        windup: windup.state,
+        aimDirection: { ...aimDirection },
+      };
     }
   }
 
   private advancePendingShove(
     deltaMs: number,
-  ): { preImpactMs: number; postImpactMs: number } | null {
+  ): { preImpactMs: number; postImpactMs: number; aimDirection: Vector2 } | null {
     if (!this.pendingShove) return null;
     const windup = advanceShoveWindup(
-      this.pendingShove,
+      this.pendingShove.windup,
       deltaMs,
       SHOVE_IMPACT_DELAY_MS,
     );
-    this.pendingShove = windup.state;
+    const aimDirection = this.pendingShove.aimDirection;
+    this.pendingShove = windup.state === null
+      ? null
+      : { windup: windup.state, aimDirection };
     if (!windup.impacted) return null;
     return {
       preImpactMs: Math.max(0, deltaMs - windup.postImpactMs),
       postImpactMs: windup.postImpactMs,
+      aimDirection,
     };
   }
 
-  private applyShoveImpact(): void {
+  private applyShoveImpact(aimDirection: Vector2): void {
     const targets = resolveShoveTargets(
       this.player,
-      this.finalAimDirection,
+      aimDirection,
       this.zombies.map((zombie) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
@@ -1165,8 +1161,13 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolveHitscanShot(audioOffsetMs?: number): void {
-    const aimDirection = this.refreshAimAssist();
+  private resolveHitscanShot(
+    audioOffsetMs?: number,
+    queuedAimDirection?: Vector2,
+  ): void {
+    const aimDirection = queuedAimDirection
+      ? { ...queuedAimDirection }
+      : this.refreshAimAssist();
     const weaponDefinition = this.weapon.getDefinition();
     if (audioOffsetMs === undefined) {
       this.weaponAudio?.playShot(weaponDefinition.id);
@@ -1815,7 +1816,7 @@ export class GameScene extends Phaser.Scene {
       if (isOverWeaponPickup) return;
       if (!isPrimaryFireInput(pointer)) return;
       this.updateAimDirection(pointer, 'mouse');
-      this.playerActions.requestFire(pointer.time);
+      this.playerActions.requestFire(pointer.time, this.finalAimDirection);
       return;
     }
 
@@ -1860,11 +1861,11 @@ export class GameScene extends Phaser.Scene {
     } else if (role === 'aim') {
       this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
-      this.playerActions.requestFire(pointer.time);
+      this.playerActions.requestFire(pointer.time, this.finalAimDirection);
     } else if (role === 'reload') {
       this.playerActions.requestReload(pointer.time);
     } else if (role === 'shove') {
-      this.playerInput = requestShove(this.playerInput);
+      this.playerActions.requestShove(pointer.time, this.finalAimDirection);
     } else if (role === 'interaction') {
       this.tryOpenSupplyCrate();
     }

@@ -5,7 +5,6 @@ import type { MovementInput } from './movement';
 export interface PlayerInputSnapshot {
   movement: MovementInput;
   manualAimDirection: Vector2;
-  shoveRequested: boolean;
 }
 
 export function createPlayerInputState(
@@ -14,7 +13,6 @@ export function createPlayerInputState(
   return {
     movement: { x: 0, y: 0 },
     manualAimDirection: resolveAimDirection(aimDirection, { x: 1, y: 0 }),
-    shoveRequested: false,
   };
 }
 
@@ -35,23 +33,9 @@ export function withAimCandidate(
   };
 }
 
-export function requestShove(state: PlayerInputSnapshot): PlayerInputSnapshot {
-  return { ...state, shoveRequested: true };
-}
-
-export function consumeShoveRequest(
-  state: PlayerInputSnapshot,
-): { requested: boolean; state: PlayerInputSnapshot } {
-  return {
-    requested: state.shoveRequested,
-    state: state.shoveRequested ? { ...state, shoveRequested: false } : state,
-  };
-}
-
 export function clearActiveInput(state: PlayerInputSnapshot): PlayerInputSnapshot {
   return {
     ...state,
     movement: { x: 0, y: 0 },
-    shoveRequested: false,
   };
 }
