@@ -209,12 +209,8 @@ import {
 } from '../logic/movement';
 import {
   clearActiveInput,
-  consumeFireRequest,
-  consumeReloadRequest,
   consumeShoveRequest,
   createPlayerInputState,
-  requestFire,
-  requestReload,
   requestShove,
   withAimCandidate,
   withMovement,
@@ -231,6 +227,7 @@ import { GameplayKeyStateGuard } from '../systems/gameplayKeyState';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
 import { PauseMenu } from '../systems/PauseMenu';
+import { PlayerActionQueue } from '../systems/PlayerActionQueue';
 import { ResponsiveUiSystem } from '../systems/ResponsiveUiSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
@@ -252,6 +249,7 @@ export class GameScene extends Phaser.Scene {
   private restartKey?: Phaser.Input.Keyboard.Key;
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
+  private readonly playerActions = new PlayerActionQueue();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
   private prepaidStaminaRecoveryMs = 0;
   private pendingShove: ShoveWindupState | null = null;
@@ -299,7 +297,6 @@ export class GameScene extends Phaser.Scene {
   private previousSupplyDropPosition: Vector2 | null = null;
   private simulationStepState: FixedStepState = createFixedStepState();
   private simulationElapsedMs = 0;
-  private lastUpdateTimeMs = 0;
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
@@ -342,7 +339,8 @@ export class GameScene extends Phaser.Scene {
     this.previousSupplyDropPosition = null;
     this.simulationStepState = createFixedStepState();
     this.simulationElapsedMs = 0;
-    this.lastUpdateTimeMs = this.game.loop.now;
+    this.playerActions.clear();
+    this.playerActions.synchronize(0, 0, this.game.loop.now);
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
     this.prepaidStaminaRecoveryMs = 0;
@@ -426,7 +424,9 @@ export class GameScene extends Phaser.Scene {
     this.firstShotAccuracy = createFirstShotAccuracyState();
     this.resizePlayArea(this.scale.gameSize);
     this.updateTimeBasedLighting();
-    this.hud = new HudSystem(this, (slot) => this.selectWeaponSlot(slot));
+    this.hud = new HudSystem(this, (slot, inputTimestampMs) => {
+      this.playerActions.requestWeaponSlot(slot, inputTimestampMs);
+    });
     this.effects = new CombatEffects(this);
     this.weaponAudio = new WeaponAudio(this);
     this.aimAssistVisual = new AimAssistVisual(this);
@@ -551,7 +551,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(time: number, deltaMs: number): void {
-    this.lastUpdateTimeMs = time;
     if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
       if (this.pauseMenu?.isOpen()) {
         this.pauseMenu.hide();
@@ -559,7 +558,10 @@ export class GameScene extends Phaser.Scene {
         this.pauseMenu?.show();
       }
     }
-    if (this.pauseMenu?.isOpen()) return;
+    if (this.pauseMenu?.isOpen()) {
+      this.synchronizePlayerActionTimeline(time);
+      return;
+    }
 
     this.player.updateVisual(
       deltaMs,
@@ -581,11 +583,12 @@ export class GameScene extends Phaser.Scene {
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.restartSession();
       }
+      this.synchronizePlayerActionTimeline(time);
       return;
     }
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
-      this.playerInput = requestReload(this.playerInput);
+      this.playerActions.requestReload(this.reloadKey.timeDown);
     }
     if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
       if (this.canOpenSupplyCrate()) {
@@ -598,10 +601,10 @@ export class GameScene extends Phaser.Scene {
       this.playerInput = requestShove(this.playerInput);
     }
     if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
-      this.selectWeaponSlot(0);
+      this.playerActions.requestWeaponSlot(0, this.weaponSlotKeys[0].timeDown);
     }
     if (this.weaponSlotKeys?.[1] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[1])) {
-      this.selectWeaponSlot(1);
+      this.playerActions.requestWeaponSlot(1, this.weaponSlotKeys[1].timeDown);
     }
 
     const keyboardMovement = this.movementKeys ? {
@@ -615,11 +618,6 @@ export class GameScene extends Phaser.Scene {
         : this.mobileMovement,
     );
 
-    const reload = consumeReloadRequest(this.playerInput);
-    this.playerInput = reload.state;
-    if (reload.requested) {
-      this.startWeaponReload();
-    }
     const fixedSteps = consumeFixedSteps(
       this.simulationStepState,
       deltaMs,
@@ -629,7 +627,7 @@ export class GameScene extends Phaser.Scene {
     let playerDamageEventCount = 0;
     let playerDied = false;
 
-    this.resolveFireRequests(this.simulationElapsedMs, 0);
+    this.resolvePlayerActions(this.simulationElapsedMs, 0);
     for (let step = 0; step < fixedSteps.stepCount; step += 1) {
       this.updateCameraZoom(SIMULATION_CONFIG.fixedStepMs);
       this.refreshStationaryMouseAim();
@@ -644,12 +642,13 @@ export class GameScene extends Phaser.Scene {
         this.simulationStepState = createFixedStepState();
         break;
       }
-      this.resolveFireRequests(
+      this.resolvePlayerActions(
         this.simulationElapsedMs,
         (step + 1) * SIMULATION_CONFIG.fixedStepMs,
       );
     }
     if (!playerDied) this.resolveShoveRequest();
+    this.synchronizePlayerActionTimeline(time);
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -981,14 +980,22 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolveFireRequests(
+  private resolvePlayerActions(
     simulationBoundaryMs: number,
     audioDelayMs: number,
   ): void {
     while (isPlaying(this.sessionState)) {
-      const fire = consumeFireRequest(this.playerInput, simulationBoundaryMs);
-      this.playerInput = fire.state;
-      if (!fire.requested) return;
+      const queued = this.playerActions.consumeThrough(simulationBoundaryMs);
+      if (!queued) return;
+
+      if (queued.action.type === 'reload') {
+        this.startWeaponReload();
+        continue;
+      }
+      if (queued.action.type === 'selectWeaponSlot') {
+        this.selectWeaponSlot(queued.action.slot);
+        continue;
+      }
 
       const definition = this.weapon.getDefinition();
       if (definition.attackType === 'melee') {
@@ -1005,13 +1012,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private fireRequestSimulationTime(pointer: Phaser.Input.Pointer): number {
-    const elapsedSinceUpdateMs = Number.isFinite(pointer.time)
-      ? Math.max(0, pointer.time - this.lastUpdateTimeMs)
-      : 0;
-    return this.simulationElapsedMs
-      + this.simulationStepState.accumulatorMs
-      + elapsedSinceUpdateMs;
+  private synchronizePlayerActionTimeline(updateTimeMs: number): void {
+    this.playerActions.synchronize(
+      this.simulationElapsedMs,
+      this.simulationStepState.accumulatorMs,
+      updateTimeMs,
+    );
   }
 
   private resolveMeleeAttack(): void {
@@ -1809,10 +1815,7 @@ export class GameScene extends Phaser.Scene {
       if (isOverWeaponPickup) return;
       if (!isPrimaryFireInput(pointer)) return;
       this.updateAimDirection(pointer, 'mouse');
-      this.playerInput = requestFire(
-        this.playerInput,
-        this.fireRequestSimulationTime(pointer),
-      );
+      this.playerActions.requestFire(pointer.time);
       return;
     }
 
@@ -1857,12 +1860,9 @@ export class GameScene extends Phaser.Scene {
     } else if (role === 'aim') {
       this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
-      this.playerInput = requestFire(
-        this.playerInput,
-        this.fireRequestSimulationTime(pointer),
-      );
+      this.playerActions.requestFire(pointer.time);
     } else if (role === 'reload') {
-      this.playerInput = requestReload(this.playerInput);
+      this.playerActions.requestReload(pointer.time);
     } else if (role === 'shove') {
       this.playerInput = requestShove(this.playerInput);
     } else if (role === 'interaction') {
@@ -2106,6 +2106,7 @@ export class GameScene extends Phaser.Scene {
     this.resetPinchState();
     this.mobileMovement = { x: 0, y: 0 };
     this.playerInput = clearActiveInput(this.playerInput);
+    this.playerActions.clear();
     this.mobileControls?.setJoystickPointer(null);
   }
 

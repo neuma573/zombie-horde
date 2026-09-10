@@ -2,12 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   clearActiveInput,
-  consumeFireRequest,
-  consumeReloadRequest,
   consumeShoveRequest,
   createPlayerInputState,
-  requestFire,
-  requestReload,
   requestShove,
   withAimCandidate,
   withMovement,
@@ -23,40 +19,17 @@ describe('common player input', () => {
     expect(zeroAim.manualAimDirection).toEqual(aimed.manualAimDirection);
   });
 
-  it('consumes fire and reload requests exactly once', () => {
-    let state = requestShove(requestReload(requestFire(requestFire(createPlayerInputState()))));
-    const fire = consumeFireRequest(state);
-    state = fire.state;
-    const secondFire = consumeFireRequest(state);
-    state = secondFire.state;
-    const reload = consumeReloadRequest(state);
-    state = reload.state;
+  it('consumes shove requests exactly once', () => {
+    let state = requestShove(createPlayerInputState());
     const shove = consumeShoveRequest(state);
     state = shove.state;
 
-    expect(fire.requested).toBe(true);
-    expect(fire.requestedAtSimulationMs).toBe(0);
-    expect(secondFire.requested).toBe(true);
-    expect(reload.requested).toBe(true);
     expect(shove.requested).toBe(true);
-    expect(consumeFireRequest(state).requested).toBe(false);
-    expect(consumeReloadRequest(state).requested).toBe(false);
     expect(consumeShoveRequest(state).requested).toBe(false);
   });
 
-  it('releases queued fire only at its simulation boundary', () => {
-    const queued = requestFire(createPlayerInputState(), 40);
-    const beforeBoundary = consumeFireRequest(queued, 39.99);
-    const atBoundary = consumeFireRequest(beforeBoundary.state, 40);
-
-    expect(beforeBoundary.requested).toBe(false);
-    expect(beforeBoundary.state).toBe(queued);
-    expect(atBoundary.requested).toBe(true);
-    expect(atBoundary.requestedAtSimulationMs).toBe(40);
-  });
-
   it('clears active movement and requests without losing the last aim', () => {
-    const active = requestFire(withMovement(
+    const active = requestShove(withMovement(
       withAimCandidate(createPlayerInputState(), { x: 0, y: -2 }),
       { x: 1, y: 0.5 },
     ));
@@ -64,8 +37,6 @@ describe('common player input', () => {
     expect(clearActiveInput(active)).toEqual({
       movement: { x: 0, y: 0 },
       manualAimDirection: { x: 0, y: -1 },
-      pendingFireRequests: [],
-      reloadRequested: false,
       shoveRequested: false,
     });
   });

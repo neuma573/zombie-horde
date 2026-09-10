@@ -105,7 +105,10 @@ export class HudSystem {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly selectWeaponSlot: (slot: WeaponSlotIndex) => void,
+    private readonly selectWeaponSlot: (
+      slot: WeaponSlotIndex,
+      inputTimestampMs: number,
+    ) => void,
     private readonly randomSource: () => number = Math.random,
   ) {
     this.statusText = scene.add.text(0, 0, '', {
@@ -179,14 +182,14 @@ export class HudSystem {
       icon.on(
         Phaser.Input.Events.POINTER_DOWN,
         (
-          _pointer: Phaser.Input.Pointer,
+          pointer: Phaser.Input.Pointer,
           _localX: number,
           _localY: number,
           event: Phaser.Types.Input.EventData,
         ) => handleWeaponSlotPress(
           index as WeaponSlotIndex,
           () => event.stopPropagation(),
-          this.selectWeaponSlot,
+          (slot) => this.selectWeaponSlot(slot, pointer.time),
         ),
       );
     });
