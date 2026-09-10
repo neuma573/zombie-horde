@@ -17,6 +17,10 @@ import {
   type OwnedWeapon,
   type WeaponDefinition,
 } from '../../logic/weapon';
+import {
+  dispatchPlayerActionsThrough,
+  type PlayerActionHandlers,
+} from '../../systems/PlayerActionCoordinator';
 import { PlayerActionQueue } from '../../systems/PlayerActionQueue';
 import { WeaponSystem } from '../../systems/WeaponSystem';
 
@@ -46,37 +50,39 @@ function acceptsQueuedAttack(nextFrameDeltaMs: number): boolean {
   for (let step = 0; step < fixedSteps.stepCount; step += 1) {
     weapon.update(SIMULATION_CONFIG.fixedStepMs);
     simulationElapsedMs += SIMULATION_CONFIG.fixedStepMs;
-    const action = actions.consumeThrough(simulationElapsedMs);
-    if (action?.action.type === 'fire') accepted = weapon.fire();
+    dispatchPlayerActionsThrough(
+      actions,
+      simulationElapsedMs,
+      createWeaponActionHandlers(weapon, [], new Map(), (didFire) => {
+        accepted = didFire;
+      }),
+    );
   }
 
   return accepted;
 }
 
-function resolveWeaponActions(
-  actions: PlayerActionQueue,
+function createWeaponActionHandlers(
   weapon: WeaponSystem,
-  simulationBoundaryMs: number,
+  firedWeaponIds: WeaponDefinition['id'][],
   pickups: ReadonlyMap<number, OwnedWeapon> = new Map(),
-): WeaponDefinition['id'][] {
-  const firedWeaponIds: WeaponDefinition['id'][] = [];
-  let queued = actions.consumeThrough(simulationBoundaryMs);
-
-  while (queued) {
-    if (queued.action.type === 'fire' && weapon.fire()) {
-      firedWeaponIds.push(weapon.getDefinition().id);
-    } else if (queued.action.type === 'reload') {
-      weapon.reload();
-    } else if (queued.action.type === 'selectWeaponSlot') {
-      weapon.selectSlot(queued.action.slot);
-    } else if (queued.action.type === 'pickupWeapon') {
-      const pickup = pickups.get(queued.action.pickupId);
+  onFire: (didFire: boolean) => void = () => {},
+): PlayerActionHandlers {
+  return {
+    fire: () => {
+      const weaponId = weapon.getDefinition().id;
+      const didFire = weapon.fire();
+      if (didFire) firedWeaponIds.push(weaponId);
+      onFire(didFire);
+    },
+    reload: () => weapon.reload(),
+    selectWeaponSlot: (slot) => weapon.selectSlot(slot),
+    shove: () => {},
+    pickupWeapon: (pickupId) => {
+      const pickup = pickups.get(pickupId);
       if (pickup) weapon.pickupOwned(pickup);
-    }
-    queued = actions.consumeThrough(simulationBoundaryMs);
-  }
-
-  return firedWeaponIds;
+    },
+  };
 }
 
 describe('melee input timeline', () => {
@@ -95,7 +101,12 @@ describe('melee input timeline', () => {
     actions.requestWeaponSlot(1, 45);
     actions.advanceFrame(0, 50, 50);
 
-    const firedWeaponIds = resolveWeaponActions(actions, weapon, 50);
+    const firedWeaponIds: WeaponDefinition['id'][] = [];
+    dispatchPlayerActionsThrough(
+      actions,
+      50,
+      createWeaponActionHandlers(weapon, firedWeaponIds),
+    );
 
     expect(firedWeaponIds).toEqual(['pistol']);
     expect(weapon.getDefinition().id).toBe('policeBaton');
@@ -111,7 +122,12 @@ describe('melee input timeline', () => {
     actions.requestReload(45);
     actions.advanceFrame(0, 50, 50);
 
-    const firedWeaponIds = resolveWeaponActions(actions, weapon, 50);
+    const firedWeaponIds: WeaponDefinition['id'][] = [];
+    dispatchPlayerActionsThrough(
+      actions,
+      50,
+      createWeaponActionHandlers(weapon, firedWeaponIds),
+    );
 
     expect(firedWeaponIds).toEqual(['pistol']);
     expect(weapon.getState().magazineAmmo).toBe(PISTOL_WEAPON.config.magazineSize - 2);
@@ -128,11 +144,15 @@ describe('melee input timeline', () => {
     actions.requestWeaponPickup(7, 45);
     actions.advanceFrame(0, 50, 50);
 
-    const firedWeaponIds = resolveWeaponActions(
+    const firedWeaponIds: WeaponDefinition['id'][] = [];
+    dispatchPlayerActionsThrough(
       actions,
-      weapon,
       50,
-      new Map([[7, createOwnedWeapon(DOUBLE_BARREL_SHOTGUN_WEAPON)]]),
+      createWeaponActionHandlers(
+        weapon,
+        firedWeaponIds,
+        new Map([[7, createOwnedWeapon(DOUBLE_BARREL_SHOTGUN_WEAPON)]]),
+      ),
     );
 
     expect(firedWeaponIds).toEqual(['pistol']);
@@ -140,33 +160,38 @@ describe('melee input timeline', () => {
   });
 
   it('uses the click-time aim after a later pointer move', () => {
+    const weapon = new WeaponSystem(POLICE_BATON_WEAPON);
     const actions = new PlayerActionQueue();
     actions.reset(0, 0);
     actions.requestFire(40, { x: 1, y: 0 });
     actions.advanceFrame(0, 50, 50);
-    const fire = actions.consumeThrough(50);
     const targets = [
       { id: 'clicked', position: { x: 50, y: 0 }, radius: 18 },
       { id: 'later-aim', position: { x: 0, y: 50 }, radius: 18 },
     ];
+    let hitIds: string[] = [];
 
-    const hits = fire?.action.type === 'fire'
-      ? resolveMeleeHits(
-        { x: 0, y: 0 },
-        fire.action.aimDirection,
-        targets,
-        {
-          range: POLICE_BATON_WEAPON.config.range,
-          halfAngleRadians: POLICE_BATON_WEAPON.config.halfAngleRadians,
-          maxTargets: POLICE_BATON_WEAPON.config.maxTargets,
-        },
-      )
-      : [];
+    dispatchPlayerActionsThrough(actions, 50, {
+      ...createWeaponActionHandlers(weapon, []),
+      fire: (aimDirection) => {
+        hitIds = resolveMeleeHits(
+          { x: 0, y: 0 },
+          aimDirection,
+          targets,
+          {
+            range: POLICE_BATON_WEAPON.config.range,
+            halfAngleRadians: POLICE_BATON_WEAPON.config.halfAngleRadians,
+            maxTargets: POLICE_BATON_WEAPON.config.maxTargets,
+          },
+        ).map((hit) => hit.id);
+      },
+    });
 
-    expect(hits.map((hit) => hit.id)).toEqual(['clicked']);
+    expect(hitIds).toEqual(['clicked']);
   });
 
   it('spends shared stamina on an earlier shove before a later baton attack', () => {
+    const weapon = new WeaponSystem(POLICE_BATON_WEAPON);
     const actions = new PlayerActionQueue();
     actions.reset(0, 0);
     actions.requestShove(40, { x: 1, y: 0 });
@@ -177,14 +202,14 @@ describe('melee input timeline', () => {
     };
     let shovePerformed = false;
     let batonPerformed = false;
-    let queued = actions.consumeThrough(50);
-
-    while (queued) {
-      if (queued.action.type === 'shove') {
+    const handlers = createWeaponActionHandlers(weapon, []);
+    dispatchPlayerActionsThrough(actions, 50, {
+      ...handlers,
+      shove: (aimDirection) => {
         const shove = resolveShove(
           stamina,
           { x: 0, y: 0 },
-          queued.action.aimDirection,
+          aimDirection,
           [],
           {
             staminaMax: 100,
@@ -197,13 +222,13 @@ describe('melee input timeline', () => {
         );
         stamina = shove.stamina;
         shovePerformed = shove.performed;
-      } else if (queued.action.type === 'fire') {
+      },
+      fire: () => {
         const cost = POLICE_BATON_WEAPON.config.staminaCost;
         batonPerformed = stamina.current >= cost;
         if (batonPerformed) stamina = { current: stamina.current - cost };
-      }
-      queued = actions.consumeThrough(50);
-    }
+      },
+    });
 
     expect(shovePerformed).toBe(true);
     expect(batonPerformed).toBe(false);

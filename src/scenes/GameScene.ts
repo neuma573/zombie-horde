@@ -224,6 +224,7 @@ import { GameplayKeyStateGuard } from '../systems/gameplayKeyState';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
 import { PauseMenu } from '../systems/PauseMenu';
+import { dispatchPlayerActionsThrough } from '../systems/PlayerActionCoordinator';
 import { PlayerActionQueue } from '../systems/PlayerActionQueue';
 import { ResponsiveUiSystem } from '../systems/ResponsiveUiSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
@@ -988,44 +989,38 @@ export class GameScene extends Phaser.Scene {
     simulationBoundaryMs: number,
     audioDelayMs: number,
   ): void {
-    while (isPlaying(this.sessionState)) {
-      const queued = this.playerActions.consumeThrough(simulationBoundaryMs);
-      if (!queued) return;
+    dispatchPlayerActionsThrough(
+      this.playerActions,
+      simulationBoundaryMs,
+      {
+        fire: (aimDirection) => this.resolveFireRequest(aimDirection, audioDelayMs),
+        reload: () => this.startWeaponReload(),
+        selectWeaponSlot: (slot) => this.selectWeaponSlot(slot),
+        shove: (aimDirection) => this.resolveShoveRequest(aimDirection),
+        pickupWeapon: (pickupId) => {
+          const pickup = this.weaponPickups.find(
+            (candidate) => candidate.pickupId === pickupId,
+          );
+          if (pickup) this.tryPickupWeapon(pickup);
+        },
+      },
+      () => isPlaying(this.sessionState),
+    );
+  }
 
-      if (queued.action.type === 'reload') {
-        this.startWeaponReload();
-        continue;
-      }
-      if (queued.action.type === 'selectWeaponSlot') {
-        this.selectWeaponSlot(queued.action.slot);
-        continue;
-      }
-      if (queued.action.type === 'shove') {
-        this.resolveShoveRequest(queued.action.aimDirection);
-        continue;
-      }
-      if (queued.action.type === 'pickupWeapon') {
-        const { pickupId } = queued.action;
-        const pickup = this.weaponPickups.find(
-          (candidate) => candidate.pickupId === pickupId,
-        );
-        if (pickup) this.tryPickupWeapon(pickup);
-        continue;
-      }
-
-      const definition = this.weapon.getDefinition();
-      if (definition.attackType === 'melee') {
-        this.resolveMeleeAttack(queued.action.aimDirection);
-        continue;
-      }
-
-      if (!this.weapon.fire()) {
-        this.startMobileAutoReloadIfNeeded();
-        this.updateHud();
-        continue;
-      }
-      this.resolveHitscanShot(audioDelayMs, queued.action.aimDirection);
+  private resolveFireRequest(aimDirection: Vector2, audioDelayMs: number): void {
+    const definition = this.weapon.getDefinition();
+    if (definition.attackType === 'melee') {
+      this.resolveMeleeAttack(aimDirection);
+      return;
     }
+
+    if (!this.weapon.fire()) {
+      this.startMobileAutoReloadIfNeeded();
+      this.updateHud();
+      return;
+    }
+    this.resolveHitscanShot(audioDelayMs, aimDirection);
   }
 
   private advancePlayerActionFrame(
