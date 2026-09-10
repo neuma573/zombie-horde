@@ -6,7 +6,7 @@ import {
   muzzleLightExposure,
   RIFLE_VISUAL,
   resolveOneHandedMeleeActionPose,
-  resolveMeleeFacingRotation,
+  resolveActionFacingRotation,
   resolveOneHandedMeleePose,
   resolveSystemaMeleeShovePose,
   resolveRifleReloadVisual,
@@ -41,8 +41,16 @@ describe('player visual pose', () => {
     const latestAim = { x: 0, y: 1 };
     const queuedSwingAim = { x: 1, y: 0 };
 
-    expect(resolveMeleeFacingRotation(latestAim, queuedSwingAim)).toBeCloseTo(0);
-    expect(resolveMeleeFacingRotation(latestAim, null)).toBeCloseTo(Math.PI / 2);
+    expect(resolveActionFacingRotation(latestAim, queuedSwingAim, null)).toBeCloseTo(0);
+    expect(resolveActionFacingRotation(latestAim, null, null)).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('faces a queued ranged shot for its rendered frame', () => {
+    const latestAim = { x: 0, y: 1 };
+    const queuedShotAim = { x: 1, y: 0 };
+
+    expect(resolveActionFacingRotation(latestAim, null, queuedShotAim)).toBeCloseTo(0);
+    expect(resolveActionFacingRotation(latestAim, null, null)).toBeCloseTo(Math.PI / 2);
   });
 
   it('swings a one-handed melee weapon with the right arm', () => {

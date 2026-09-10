@@ -8,7 +8,7 @@ import {
   blendVisualColor,
   clampPonytailRelativeRotation,
   RIFLE_VISUAL,
-  resolveMeleeFacingRotation,
+  resolveActionFacingRotation,
   resolveRifleReloadVisual,
   resolveOneHandedMeleeActionPose,
   resolveShotgunBreakAngle,
@@ -93,6 +93,7 @@ export class Player extends Phaser.GameObjects.Container {
   private meleeSwingVisualElapsedMs: number | null = null;
   private aimDirection: Vector2 = { x: 1, y: 0 };
   private meleeSwingAimDirection: Vector2 | null = null;
+  private rangedShotAimDirection: Vector2 | null = null;
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
   private movementAmount = 0;
@@ -230,9 +231,13 @@ export class Player extends Phaser.GameObjects.Container {
     const leavingMeleeWeapon = this.weaponId === 'policeBaton'
       && weaponId !== 'policeBaton';
     this.weaponId = weaponId;
+    const hadRangedShotFacing = this.rangedShotAimDirection !== null;
+    this.rangedShotAimDirection = null;
     if (leavingMeleeWeapon) {
       this.meleeSwingVisualElapsedMs = null;
       this.meleeSwingAimDirection = null;
+    }
+    if (leavingMeleeWeapon || hadRangedShotFacing) {
       this.applyFacingRotation();
     }
     this.sidearm.setVisible(weaponId === 'pistol');
@@ -256,6 +261,11 @@ export class Player extends Phaser.GameObjects.Container {
     this.weaponRecoilIntensity = 1;
   }
 
+  triggerRangedShotVisual(aimDirection: Vector2): void {
+    this.rangedShotAimDirection = { ...aimDirection };
+    this.applyFacingRotation();
+  }
+
   triggerShoveVisual(): void {
     this.shoveVisualElapsedMs = 0;
   }
@@ -276,6 +286,10 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   updateVisual(deltaMs: number, isMoving = false): void {
+    if (this.rangedShotAimDirection !== null) {
+      this.rangedShotAimDirection = null;
+      this.applyFacingRotation();
+    }
     this.muzzleReflectionIntensity = decayTransientLight(
       this.muzzleReflectionIntensity,
       deltaMs,
@@ -812,9 +826,10 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private applyFacingRotation(): void {
-    this.setRotation(resolveMeleeFacingRotation(
+    this.setRotation(resolveActionFacingRotation(
       this.aimDirection,
       this.meleeSwingAimDirection,
+      this.rangedShotAimDirection,
     ));
   }
 

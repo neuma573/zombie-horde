@@ -1181,6 +1181,8 @@ export class GameScene extends Phaser.Scene {
       ? { ...queuedAimDirection }
       : this.refreshAimAssist();
     const weaponDefinition = this.weapon.getDefinition();
+    this.updatePlayerWeaponVisual();
+    this.player.triggerRangedShotVisual(aimDirection);
     if (audioOffsetMs === undefined) {
       this.weaponAudio?.playShot(weaponDefinition.id);
     } else {
