@@ -20,6 +20,7 @@ import {
   isSameDisplayedWeapon,
   positionTooltip,
   retainsSpentShotgunShells,
+  weaponTooltipStatLines,
   type HudLayout,
   type HudViewModel,
   type SafeAreaInsets,
@@ -362,8 +363,7 @@ export class HudSystem {
     this.pickupText.setText([
       `${viewModel.name}  ·  ${rarity}`,
       viewModel.description,
-      `FIRE RATE ${viewModel.fireRateText}   RECOIL ${viewModel.recoil}`,
-      `MAGAZINE ${viewModel.magazineSize}`,
+      ...weaponTooltipStatLines(viewModel),
       viewModel.interactionText,
     ]);
     const bounds = this.pickupText.getBounds();
@@ -899,9 +899,18 @@ export class HudSystem {
       name: weapon.name,
       description: weapon.description,
       rarity: weapon.rarity,
-      fireRateText: weapon.fireRateText,
-      recoil: weapon.recoil,
-      magazineSize: weapon.magazineSize,
+      ...(weapon.attackType === 'melee'
+        ? {
+          attackType: weapon.attackType,
+          swingIntervalMs: weapon.swingIntervalMs,
+          staminaCost: weapon.staminaCost,
+        }
+        : {
+          attackType: weapon.attackType,
+          fireRateText: weapon.fireRateText,
+          recoil: weapon.recoil,
+          magazineSize: weapon.magazineSize,
+        }),
       interactionText: `WEAPON SLOT ${this.hoveredWeaponSlot + 1}`,
     }, { x: icon.x, y: icon.y + 24 }, 'below');
   }

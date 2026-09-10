@@ -99,7 +99,11 @@ import {
   wheelZoomTarget,
   type PinchZoomState,
 } from '../logic/cameraZoom';
-import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
+import {
+  createHudViewModel,
+  weaponTooltipStats,
+  type SafeAreaInsets,
+} from '../logic/hud';
 import {
   advanceGameTime,
   createGameTimeState,
@@ -1526,7 +1530,6 @@ export class GameScene extends Phaser.Scene {
       this.hud?.showWeaponPickup(null);
       return;
     }
-    const config = pickup.definition.config;
     const screenPosition = cameraScreenPoint(
       pickup,
       {
@@ -1540,11 +1543,7 @@ export class GameScene extends Phaser.Scene {
       name: pickup.definition.name,
       description: pickup.definition.description,
       rarity: pickup.definition.rarity,
-      fireRateText: config.burstSize === 3
-        ? `3-RND / ${config.fireIntervalMs}ms`
-        : `SEMI / ${config.fireIntervalMs}ms`,
-      recoil: pickup.definition.recoil,
-      magazineSize: config.magazineSize,
+      ...weaponTooltipStats(pickup.definition),
       interactionText: this.mobileControlsEnabled
         ? this.hasEmptyWeaponSlot()
           ? 'Move onto the weapon to pick up'
@@ -2063,11 +2062,7 @@ export class GameScene extends Phaser.Scene {
         name: owned.definition.name,
         description: owned.definition.description,
         rarity: owned.definition.rarity,
-        fireRateText: owned.definition.config.burstSize === 3
-          ? `3-RND / ${owned.definition.config.fireIntervalMs}ms`
-          : `SEMI / ${owned.definition.config.fireIntervalMs}ms`,
-        recoil: owned.definition.recoil,
-        magazineSize: owned.definition.config.magazineSize,
+        ...weaponTooltipStats(owned.definition),
       }) : null),
       activeWeaponSlot: inventory.activeSlot,
     });
