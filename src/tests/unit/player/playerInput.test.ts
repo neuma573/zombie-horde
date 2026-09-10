@@ -35,12 +35,24 @@ describe('common player input', () => {
     state = shove.state;
 
     expect(fire.requested).toBe(true);
+    expect(fire.requestedAtSimulationMs).toBe(0);
     expect(secondFire.requested).toBe(true);
     expect(reload.requested).toBe(true);
     expect(shove.requested).toBe(true);
     expect(consumeFireRequest(state).requested).toBe(false);
     expect(consumeReloadRequest(state).requested).toBe(false);
     expect(consumeShoveRequest(state).requested).toBe(false);
+  });
+
+  it('releases queued fire only at its simulation boundary', () => {
+    const queued = requestFire(createPlayerInputState(), 40);
+    const beforeBoundary = consumeFireRequest(queued, 39.99);
+    const atBoundary = consumeFireRequest(beforeBoundary.state, 40);
+
+    expect(beforeBoundary.requested).toBe(false);
+    expect(beforeBoundary.state).toBe(queued);
+    expect(atBoundary.requested).toBe(true);
+    expect(atBoundary.requestedAtSimulationMs).toBe(40);
   });
 
   it('clears active movement and requests without losing the last aim', () => {
@@ -52,7 +64,7 @@ describe('common player input', () => {
     expect(clearActiveInput(active)).toEqual({
       movement: { x: 0, y: 0 },
       manualAimDirection: { x: 0, y: -1 },
-      pendingFireCount: 0,
+      pendingFireRequests: [],
       reloadRequested: false,
       shoveRequested: false,
     });

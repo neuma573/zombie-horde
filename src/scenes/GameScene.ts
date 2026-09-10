@@ -294,6 +294,8 @@ export class GameScene extends Phaser.Scene {
   private currentSupplyDropConfig: SupplyDropConfig = SUPPLY_DROP_CONFIG;
   private previousSupplyDropPosition: Vector2 | null = null;
   private simulationStepState: FixedStepState = createFixedStepState();
+  private simulationElapsedMs = 0;
+  private lastUpdateTimeMs = 0;
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
@@ -335,6 +337,8 @@ export class GameScene extends Phaser.Scene {
     this.currentSupplyDropConfig = SUPPLY_DROP_CONFIG;
     this.previousSupplyDropPosition = null;
     this.simulationStepState = createFixedStepState();
+    this.simulationElapsedMs = 0;
+    this.lastUpdateTimeMs = this.game.loop.now;
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
     this.prepaidStaminaRecoveryMs = 0;
@@ -542,7 +546,8 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  update(_time: number, deltaMs: number): void {
+  update(time: number, deltaMs: number): void {
+    this.lastUpdateTimeMs = time;
     if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
       if (this.pauseMenu?.isOpen()) {
         this.pauseMenu.hide();
@@ -620,6 +625,7 @@ export class GameScene extends Phaser.Scene {
     let playerDamageEventCount = 0;
     let playerDied = false;
 
+    this.resolveFireRequests(this.simulationElapsedMs, 0);
     for (let step = 0; step < fixedSteps.stepCount; step += 1) {
       this.updateCameraZoom(SIMULATION_CONFIG.fixedStepMs);
       this.refreshStationaryMouseAim();
@@ -627,17 +633,19 @@ export class GameScene extends Phaser.Scene {
         SIMULATION_CONFIG.fixedStepMs,
         step * SIMULATION_CONFIG.fixedStepMs,
       );
+      this.simulationElapsedMs += SIMULATION_CONFIG.fixedStepMs;
       playerDamageEventCount += simulation.damageEventCount;
       if (simulation.died) {
         playerDied = true;
         this.simulationStepState = createFixedStepState();
         break;
       }
+      this.resolveFireRequests(
+        this.simulationElapsedMs,
+        (step + 1) * SIMULATION_CONFIG.fixedStepMs,
+      );
     }
-    if (!playerDied) {
-      this.resolveFireRequests();
-      this.resolveShoveRequest();
-    }
+    if (!playerDied) this.resolveShoveRequest();
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -969,9 +977,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolveFireRequests(): void {
+  private resolveFireRequests(
+    simulationBoundaryMs: number,
+    audioDelayMs: number,
+  ): void {
     while (isPlaying(this.sessionState)) {
-      const fire = consumeFireRequest(this.playerInput);
+      const fire = consumeFireRequest(this.playerInput, simulationBoundaryMs);
       this.playerInput = fire.state;
       if (!fire.requested) return;
 
@@ -986,21 +997,22 @@ export class GameScene extends Phaser.Scene {
         this.updateHud();
         continue;
       }
-      this.resolveHitscanShot();
+      this.resolveHitscanShot(audioDelayMs);
     }
+  }
+
+  private fireRequestSimulationTime(pointer: Phaser.Input.Pointer): number {
+    const elapsedSinceUpdateMs = Number.isFinite(pointer.time)
+      ? Math.max(0, pointer.time - this.lastUpdateTimeMs)
+      : 0;
+    return this.simulationElapsedMs
+      + this.simulationStepState.accumulatorMs
+      + elapsedSinceUpdateMs;
   }
 
   private resolveMeleeAttack(): void {
     const definition = this.weapon.getDefinition();
     const staminaCost = Math.max(0, definition.config.staminaCost ?? 0);
-    const inputTimeRecovery = recoverStaminaAtInputTime(
-      this.stamina,
-      this.simulationStepState.accumulatorMs,
-      this.prepaidStaminaRecoveryMs,
-      SHOVE_CONFIG,
-    );
-    this.stamina = inputTimeRecovery.stamina;
-    this.prepaidStaminaRecoveryMs = inputTimeRecovery.prepaidMs;
     if (this.stamina.current < staminaCost || !this.weapon.fire()) {
       this.updateHud();
       return;
@@ -1798,7 +1810,10 @@ export class GameScene extends Phaser.Scene {
       if (isOverWeaponPickup) return;
       if (!isPrimaryFireInput(pointer)) return;
       this.updateAimDirection(pointer, 'mouse');
-      this.playerInput = requestFire(this.playerInput);
+      this.playerInput = requestFire(
+        this.playerInput,
+        this.fireRequestSimulationTime(pointer),
+      );
       return;
     }
 
@@ -1843,7 +1858,10 @@ export class GameScene extends Phaser.Scene {
     } else if (role === 'aim') {
       this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
-      this.playerInput = requestFire(this.playerInput);
+      this.playerInput = requestFire(
+        this.playerInput,
+        this.fireRequestSimulationTime(pointer),
+      );
     } else if (role === 'reload') {
       this.playerInput = requestReload(this.playerInput);
     } else if (role === 'shove') {
