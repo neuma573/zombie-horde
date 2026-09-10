@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { SIMULATION_CONFIG } from '../../config/simulationConfig';
 import {
+  DOUBLE_BARREL_SHOTGUN_WEAPON,
   PISTOL_WEAPON,
   POLICE_BATON_WEAPON,
 } from '../../config/weaponConfig';
@@ -11,7 +12,11 @@ import {
   resolveShove,
   type StaminaState,
 } from '../../logic/meleeAttack';
-import type { WeaponDefinition } from '../../logic/weapon';
+import {
+  createOwnedWeapon,
+  type OwnedWeapon,
+  type WeaponDefinition,
+} from '../../logic/weapon';
 import { PlayerActionQueue } from '../../systems/PlayerActionQueue';
 import { WeaponSystem } from '../../systems/WeaponSystem';
 
@@ -52,6 +57,7 @@ function resolveWeaponActions(
   actions: PlayerActionQueue,
   weapon: WeaponSystem,
   simulationBoundaryMs: number,
+  pickups: ReadonlyMap<number, OwnedWeapon> = new Map(),
 ): WeaponDefinition['id'][] {
   const firedWeaponIds: WeaponDefinition['id'][] = [];
   let queued = actions.consumeThrough(simulationBoundaryMs);
@@ -63,6 +69,9 @@ function resolveWeaponActions(
       weapon.reload();
     } else if (queued.action.type === 'selectWeaponSlot') {
       weapon.selectSlot(queued.action.slot);
+    } else if (queued.action.type === 'pickupWeapon') {
+      const pickup = pickups.get(queued.action.pickupId);
+      if (pickup) weapon.pickupOwned(pickup);
     }
     queued = actions.consumeThrough(simulationBoundaryMs);
   }
@@ -107,6 +116,27 @@ describe('melee input timeline', () => {
     expect(firedWeaponIds).toEqual(['pistol']);
     expect(weapon.getState().magazineAmmo).toBe(PISTOL_WEAPON.config.magazineSize - 2);
     expect(weapon.getState().reloadRemainingMs).toBe(PISTOL_WEAPON.config.reloadDurationMs);
+  });
+
+  it('fires the current weapon before picking up a replacement', () => {
+    const weapon = new WeaponSystem(PISTOL_WEAPON);
+    weapon.pickup(POLICE_BATON_WEAPON);
+    weapon.selectSlot(0);
+    const actions = new PlayerActionQueue();
+    actions.reset(0, 0);
+    actions.requestFire(40, { x: 1, y: 0 });
+    actions.requestWeaponPickup(7, 45);
+    actions.advanceFrame(0, 50, 50);
+
+    const firedWeaponIds = resolveWeaponActions(
+      actions,
+      weapon,
+      50,
+      new Map([[7, createOwnedWeapon(DOUBLE_BARREL_SHOTGUN_WEAPON)]]),
+    );
+
+    expect(firedWeaponIds).toEqual(['pistol']);
+    expect(weapon.getDefinition().id).toBe('doubleBarrelShotgun');
   });
 
   it('uses the click-time aim after a later pointer move', () => {

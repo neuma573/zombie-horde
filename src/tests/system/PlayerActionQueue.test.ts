@@ -27,6 +27,7 @@ describe('PlayerActionQueue', () => {
     queue.requestReload(1_050);
     queue.requestWeaponSlot(1, 1_045);
     queue.requestShove(1_042, { x: 0, y: 1 });
+    queue.requestWeaponPickup(7, 1_043);
     queue.requestFire(1_040, { x: 1, y: 0 });
     queue.advanceFrame(0, 20, 1_100);
 
@@ -37,6 +38,10 @@ describe('PlayerActionQueue', () => {
     expect(queue.consumeThrough(20)?.action).toEqual({
       type: 'shove',
       aimDirection: { x: 0, y: 1 },
+    });
+    expect(queue.consumeThrough(20)?.action).toEqual({
+      type: 'pickupWeapon',
+      pickupId: 7,
     });
     expect(queue.consumeThrough(20)?.action).toEqual({
       type: 'selectWeaponSlot',

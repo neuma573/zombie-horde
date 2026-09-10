@@ -304,6 +304,7 @@ export class GameScene extends Phaser.Scene {
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
   private weaponPickups: WeaponPickup[] = [];
+  private nextWeaponPickupId = 0;
   private itemPickups: ItemPickup[] = [];
   private hoveredWeaponPickup?: WeaponPickup;
   private hud?: HudSystem;
@@ -406,6 +407,7 @@ export class GameScene extends Phaser.Scene {
       appearance,
     );
     this.weaponPickups = [];
+    this.nextWeaponPickupId = 0;
     this.itemPickups = [];
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
@@ -591,7 +593,13 @@ export class GameScene extends Phaser.Scene {
       if (this.canOpenSupplyCrate()) {
         this.tryOpenSupplyCrate();
       } else if (!this.hasEmptyWeaponSlot()) {
-        this.tryPickupWeapon();
+        const pickup = this.nearestWeaponPickupInRange();
+        if (pickup) {
+          this.playerActions.requestWeaponPickup(
+            pickup.pickupId,
+            this.pickupKey.timeDown,
+          );
+        }
       }
     }
     if (this.shoveKey && Phaser.Input.Keyboard.JustDown(this.shoveKey)) {
@@ -994,6 +1002,14 @@ export class GameScene extends Phaser.Scene {
       }
       if (queued.action.type === 'shove') {
         this.resolveShoveRequest(queued.action.aimDirection);
+        continue;
+      }
+      if (queued.action.type === 'pickupWeapon') {
+        const { pickupId } = queued.action;
+        const pickup = this.weaponPickups.find(
+          (candidate) => candidate.pickupId === pickupId,
+        );
+        if (pickup) this.tryPickupWeapon(pickup);
         continue;
       }
 
@@ -1438,7 +1454,15 @@ export class GameScene extends Phaser.Scene {
         : definition.id === 'policeBaton'
           ? 'weapon-police-baton'
           : 'weapon-rifle';
-    const pickup = new WeaponPickup(this, x, y, ownedWeapon, textureKey);
+    const pickup = new WeaponPickup(
+      this,
+      x,
+      y,
+      this.nextWeaponPickupId,
+      ownedWeapon,
+      textureKey,
+    );
+    this.nextWeaponPickupId += 1;
     pickup.on(Phaser.Input.Events.POINTER_OVER, () => {
       this.hoveredWeaponPickup = pickup;
       this.updateWeaponPickupInfo();
@@ -1458,7 +1482,7 @@ export class GameScene extends Phaser.Scene {
         && !isMobileControlPointerRole(mobileRole)
         && this.isWeaponPickupInRange(pickup)
       ) {
-        this.tryPickupWeapon(pickup);
+        this.playerActions.requestWeaponPickup(pickup.pickupId, pointer.time);
       }
     });
     this.weaponPickups.push(pickup);

@@ -11,6 +11,9 @@ export type PlayerAction = {
 } | {
   type: 'shove';
   aimDirection: Vector2;
+} | {
+  type: 'pickupWeapon';
+  pickupId: number;
 };
 
 export interface QueuedPlayerAction {
@@ -75,6 +78,10 @@ export class PlayerActionQueue {
 
   requestShove(inputTimestampMs: number, aimDirection: Vector2): void {
     this.enqueue({ type: 'shove', aimDirection: { ...aimDirection } }, inputTimestampMs);
+  }
+
+  requestWeaponPickup(pickupId: number, inputTimestampMs: number): void {
+    this.enqueue({ type: 'pickupWeapon', pickupId }, inputTimestampMs);
   }
 
   consumeThrough(simulationBoundaryMs: number): QueuedPlayerAction | null {
