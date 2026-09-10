@@ -9,8 +9,7 @@ import {
   clampPonytailRelativeRotation,
   RIFLE_VISUAL,
   resolveRifleReloadVisual,
-  resolveOneHandedMeleePose,
-  resolveSystemaMeleeShovePose,
+  resolveOneHandedMeleeActionPose,
   resolveShotgunBreakAngle,
   resolveShoveArmPose,
   resolveShoveVisualPose,
@@ -784,19 +783,12 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private resolveBatonPose() {
-    if (this.meleeSwingVisualElapsedMs !== null) {
-      return resolveOneHandedMeleePose(
-        this.meleeSwingVisualElapsedMs,
-        MELEE_SWING_VISUAL_DURATION_MS,
-      );
-    }
-    if (this.shoveVisualElapsedMs !== null) {
-      return resolveSystemaMeleeShovePose(
-        this.shoveVisualElapsedMs,
-        SHOVE_VISUAL_DURATION_MS,
-      );
-    }
-    return resolveOneHandedMeleePose(null, MELEE_SWING_VISUAL_DURATION_MS);
+    return resolveOneHandedMeleeActionPose(
+      this.meleeSwingVisualElapsedMs,
+      MELEE_SWING_VISUAL_DURATION_MS,
+      this.shoveVisualElapsedMs,
+      SHOVE_VISUAL_DURATION_MS,
+    );
   }
 
   private drawRifle(): void {

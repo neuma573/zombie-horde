@@ -100,6 +100,25 @@ export function resolveSystemaMeleeShovePose(
   };
 }
 
+export function resolveOneHandedMeleeActionPose(
+  swingElapsedMs: number | null,
+  swingDurationMs: number,
+  shoveElapsedMs: number | null,
+  shoveDurationMs: number,
+): OneHandedMeleePose {
+  const swingPose = resolveOneHandedMeleePose(swingElapsedMs, swingDurationMs);
+  if (shoveElapsedMs === null) return swingPose;
+
+  const shovePose = resolveSystemaMeleeShovePose(shoveElapsedMs, shoveDurationMs);
+  if (swingElapsedMs === null) return shovePose;
+
+  return {
+    ...swingPose,
+    leftHand: shovePose.leftHand,
+    leftElbow: shovePose.leftElbow,
+  };
+}
+
 export interface ArmJointPose {
   elbow: { x: number; y: number };
   hand: { x: number; y: number };

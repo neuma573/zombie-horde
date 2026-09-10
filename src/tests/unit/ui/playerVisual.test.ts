@@ -5,6 +5,7 @@ import {
   clampPonytailRelativeRotation,
   muzzleLightExposure,
   RIFLE_VISUAL,
+  resolveOneHandedMeleeActionPose,
   resolveOneHandedMeleePose,
   resolveSystemaMeleeShovePose,
   resolveRifleReloadVisual,
@@ -77,6 +78,20 @@ describe('player visual pose', () => {
     expect(Math.abs(extended.rightHand.x - ready.rightHand.x)).toBeLessThanOrEqual(2);
     expect(extended.rightHand.y).toBe(ready.rightHand.y);
     expect(resolveSystemaMeleeShovePose(260, 260)).toEqual(ready);
+  });
+
+  it('combines a shove extension with an active baton swing', () => {
+    const swing = resolveOneHandedMeleePose(250, 360);
+    const shove = resolveSystemaMeleeShovePose(70, 260);
+
+    const combined = resolveOneHandedMeleeActionPose(250, 360, 70, 260);
+
+    expect(combined.leftHand).toEqual(shove.leftHand);
+    expect(combined.leftElbow).toEqual(shove.leftElbow);
+    expect(combined.rightHand).toEqual(swing.rightHand);
+    expect(combined.rightElbow).toEqual(swing.rightElbow);
+    expect(combined.weaponPosition).toEqual(swing.weaponPosition);
+    expect(combined.weaponRotation).toBe(swing.weaponRotation);
   });
 
   it('opens and closes the shotgun barrels during a break-action reload', () => {
