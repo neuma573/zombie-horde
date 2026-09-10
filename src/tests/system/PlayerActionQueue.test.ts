@@ -21,13 +21,14 @@ describe('PlayerActionQueue', () => {
     expect(regularFrame.consumeThrough(110)?.requestedAtSimulationMs).toBe(110);
   });
 
-  it('preserves all combat action ordering between updates', () => {
+  it('preserves all player action ordering between updates', () => {
     const queue = new PlayerActionQueue();
     queue.reset(0, 1_000);
     queue.requestReload(1_050);
     queue.requestWeaponSlot(1, 1_045);
     queue.requestShove(1_042, { x: 0, y: 1 });
     queue.requestWeaponPickup(7, 1_043);
+    queue.requestOpenSupplyCrate(1_041);
     queue.requestFire(1_040, { x: 1, y: 0 });
     queue.advanceFrame(0, 20, 1_100);
 
@@ -35,6 +36,7 @@ describe('PlayerActionQueue', () => {
       type: 'fire',
       aimDirection: { x: 1, y: 0 },
     });
+    expect(queue.consumeThrough(20)?.action).toEqual({ type: 'openSupplyCrate' });
     expect(queue.consumeThrough(20)?.action).toEqual({
       type: 'shove',
       aimDirection: { x: 0, y: 1 },

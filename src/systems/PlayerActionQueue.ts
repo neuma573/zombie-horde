@@ -14,6 +14,8 @@ export type PlayerAction = {
 } | {
   type: 'pickupWeapon';
   pickupId: number;
+} | {
+  type: 'openSupplyCrate';
 };
 
 export interface QueuedPlayerAction {
@@ -82,6 +84,10 @@ export class PlayerActionQueue {
 
   requestWeaponPickup(pickupId: number, inputTimestampMs: number): void {
     this.enqueue({ type: 'pickupWeapon', pickupId }, inputTimestampMs);
+  }
+
+  requestOpenSupplyCrate(inputTimestampMs: number): void {
+    this.enqueue({ type: 'openSupplyCrate' }, inputTimestampMs);
   }
 
   consumeThrough(simulationBoundaryMs: number): QueuedPlayerAction | null {

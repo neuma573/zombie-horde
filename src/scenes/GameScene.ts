@@ -592,7 +592,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
       if (this.canOpenSupplyCrate()) {
-        this.tryOpenSupplyCrate();
+        this.playerActions.requestOpenSupplyCrate(this.pickupKey.timeDown);
       } else if (!this.hasEmptyWeaponSlot()) {
         const pickup = this.nearestWeaponPickupInRange();
         if (pickup) {
@@ -1003,6 +1003,7 @@ export class GameScene extends Phaser.Scene {
           );
           if (pickup) this.tryPickupWeapon(pickup);
         },
+        openSupplyCrate: () => this.tryOpenSupplyCrate(),
       },
       () => isPlaying(this.sessionState),
     );
@@ -1886,7 +1887,7 @@ export class GameScene extends Phaser.Scene {
     } else if (role === 'shove') {
       this.playerActions.requestShove(pointer.time, this.finalAimDirection);
     } else if (role === 'interaction') {
-      this.tryOpenSupplyCrate();
+      this.playerActions.requestOpenSupplyCrate(pointer.time);
     }
   }
 

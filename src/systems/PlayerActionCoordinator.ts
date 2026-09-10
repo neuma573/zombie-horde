@@ -7,6 +7,7 @@ export interface PlayerActionHandlers {
   selectWeaponSlot(slot: 0 | 1): void;
   shove(aimDirection: Vector2): void;
   pickupWeapon(pickupId: number): void;
+  openSupplyCrate(): void;
 }
 
 export function dispatchPlayerActionsThrough(
@@ -41,5 +42,8 @@ function dispatchPlayerAction(
       return;
     case 'pickupWeapon':
       handlers.pickupWeapon(action.pickupId);
+      return;
+    case 'openSupplyCrate':
+      handlers.openSupplyCrate();
   }
 }

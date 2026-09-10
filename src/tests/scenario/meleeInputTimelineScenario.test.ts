@@ -82,6 +82,7 @@ function createWeaponActionHandlers(
       const pickup = pickups.get(pickupId);
       if (pickup) weapon.pickupOwned(pickup);
     },
+    openSupplyCrate: () => {},
   };
 }
 
