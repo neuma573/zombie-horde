@@ -13,6 +13,7 @@ import { SHOVE_CONFIG } from '../config/meleeConfig';
 import { SHOTGUN_KNOCKBACK_CONFIG } from '../config/shotgunConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
+import { STARTING_SUPPLY_OFFSET, STARTING_WEAPON_PICKUPS } from '../config/startingLootConfig';
 import {
   SUPPLY_DROP_BALANCE,
   SUPPLY_DROP_CONFIG,
@@ -41,6 +42,8 @@ import { CombatEffects } from '../effects/CombatEffects';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import { SupplyDropVisual } from '../effects/SupplyDropVisual';
+import { InteractionPrompt } from '../effects/InteractionPrompt';
+import { resolveInteractionPrompt } from '../logic/interactionPrompt';
 import { WeaponAudio } from '../effects/WeaponAudio';
 import { syncSoundEnabled } from '../effects/audioSettings';
 import { preloadGameAssets } from '../effects/gameAssetPreloader';
@@ -315,6 +318,7 @@ export class GameScene extends Phaser.Scene {
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
   private supplyDropVisual?: SupplyDropVisual;
+  private interactionPrompt?: InteractionPrompt;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
@@ -442,6 +446,7 @@ export class GameScene extends Phaser.Scene {
         this.gameplayKeyStateGuard.suppressHeldUntilKeyUp(this.gameplayKeys());
         this.clearActiveMobilePointers();
         this.pauseSceneManagers();
+        this.interactionPrompt?.hide();
       },
       () => {
         this.resumeSceneManagers();
@@ -459,6 +464,7 @@ export class GameScene extends Phaser.Scene {
       this.mobileControls,
     );
     this.supplyDropVisual = new SupplyDropVisual(this);
+    this.interactionPrompt = new InteractionPrompt(this);
     this.uiCamera = this.cameras.add(
       0,
       0,
@@ -470,6 +476,7 @@ export class GameScene extends Phaser.Scene {
     this.syncCameraLayers();
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
+    this.createStartingLoot();
     this.updateHud();
     this.updateSupplyDropVisual();
 
@@ -541,6 +548,8 @@ export class GameScene extends Phaser.Scene {
       this.pauseMenu = undefined;
       this.supplyDropVisual?.destroy();
       this.supplyDropVisual = undefined;
+      this.interactionPrompt?.destroy();
+      this.interactionPrompt = undefined;
       this.weaponPickups.forEach((pickup) => pickup.destroy());
       this.weaponPickups = [];
       this.itemPickups.forEach((pickup) => pickup.destroy());
@@ -2053,6 +2062,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHud(deltaMs = 0): void {
+    this.interactionPrompt?.update(
+      resolveInteractionPrompt({
+        playing: isPlaying(this.sessionState) && !this.pauseMenu?.isOpen(),
+        mobile: this.mobileControlsEnabled,
+        canOpenCrate: this.canOpenSupplyCrate(),
+        hasEmptyWeaponSlot: this.hasEmptyWeaponSlot(),
+        nearbyWeaponName: this.nearestWeaponPickupInRange()?.definition.name ?? null,
+      }),
+      cameraScreenPoint(this.player, {
+        x: this.cameras.main.scrollX, y: this.cameras.main.scrollY,
+      }, this.viewport, this.cameras.main.zoom),
+      this.viewport,
+      this.readSafeArea(),
+    );
     const weapon = this.weapon.getState();
     const inventory = this.weapon.getInventory();
     const reload = this.weapon.getReloadProgress();
@@ -2361,6 +2384,7 @@ export class GameScene extends Phaser.Scene {
       targetScreen,
       this.viewport,
       this.currentSupplyDropConfig.indicatorMargin,
+      this.readSafeArea(),
     );
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
@@ -2394,8 +2418,27 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private startSupplyDrop(): boolean {
-    const target = selectSupplyDropLocation(
+  private createStartingLoot(): void {
+    for (const { definition, offset } of STARTING_WEAPON_PICKUPS) {
+      const position = revalidatePickupPosition(
+        { x: this.player.x + offset.x, y: this.player.y + offset.y },
+        this.playArea, OBSTACLE_CONFIG, WEAPON_PICKUP_RADIUS / 2,
+      );
+      this.createWeaponPickup(position.x, position.y, createOwnedWeapon(definition));
+    }
+    const target = revalidatePickupPosition(
+      { x: this.player.x + STARTING_SUPPLY_OFFSET.x, y: this.player.y + STARTING_SUPPLY_OFFSET.y },
+      this.playArea, OBSTACLE_CONFIG, SUPPLY_DROP_BALANCE.locationClearance,
+    );
+    this.startSupplyDrop(target);
+    this.supplyDropState = advanceSupplyDrop(
+      this.supplyDropState,
+      this.currentSupplyDropConfig.announcementDurationMs + this.currentSupplyDropConfig.dropDelayMs,
+    );
+  }
+
+  private startSupplyDrop(initialTarget?: Vector2): boolean {
+    const target = initialTarget ?? selectSupplyDropLocation(
       this.player,
       this.playArea,
       OBSTACLE_CONFIG,

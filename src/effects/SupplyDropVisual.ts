@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
 import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
+import { positionTooltip, type SafeAreaInsets } from '../logic/hud';
+import { resolveSupplyDropFeedback } from '../logic/supplyDropFeedback';
 import {
   resolveSupplyDropIndicator,
   type SupplyDropSnapshot,
@@ -17,6 +19,9 @@ export class SupplyDropVisual {
   private readonly planeIndicatorBubble: Phaser.GameObjects.Graphics;
   private readonly planeIndicatorIcon: Phaser.GameObjects.Graphics;
   private readonly crateIndicator: Phaser.GameObjects.Graphics;
+  private readonly crateIndicatorIcon: Phaser.GameObjects.Graphics;
+  private readonly planeLabel: Phaser.GameObjects.Text;
+  private readonly crateLabel: Phaser.GameObjects.Text;
   private drawnCrateOpened = false;
 
   constructor(scene: Phaser.Scene) {
@@ -28,7 +33,7 @@ export class SupplyDropVisual {
       .setDepth(WORLD_RENDER_DEPTH.supplyDrop)
       .setVisible(false);
     this.parachute = scene.add.graphics()
-      .setDepth(WORLD_RENDER_DEPTH.supplyDrop + 1)
+      .setDepth(WORLD_RENDER_DEPTH.supplyParachute)
       .setVisible(false);
     this.crate = scene.add.graphics()
       .setDepth(WORLD_RENDER_DEPTH.supplyDrop + 1)
@@ -48,6 +53,16 @@ export class SupplyDropVisual {
       .setDepth(INDICATOR_DEPTH)
       .setScrollFactor(0)
       .setVisible(false);
+    this.crateIndicatorIcon = scene.add.graphics()
+      .setDepth(INDICATOR_DEPTH + 1).setScrollFactor(0).setVisible(false);
+    const labelStyle = {
+      fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold',
+      backgroundColor: '#101820', padding: { x: 8, y: 5 }, align: 'center',
+    };
+    this.planeLabel = scene.add.text(0, 0, '', { ...labelStyle, color: '#a9d4e5' })
+      .setOrigin(0.5).setDepth(INDICATOR_DEPTH + 2).setScrollFactor(0).setVisible(false);
+    this.crateLabel = scene.add.text(0, 0, '', { ...labelStyle, color: '#ffdc86' })
+      .setOrigin(0.5).setDepth(INDICATOR_DEPTH + 2).setScrollFactor(0).setVisible(false);
 
     this.drawPlaneShadow();
     this.drawParachute();
@@ -62,6 +77,7 @@ export class SupplyDropVisual {
     targetScreen: { x: number; y: number },
     viewport: { width: number; height: number },
     indicatorMargin: number,
+    safeArea: SafeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 },
   ): void {
     this.planeShadow
       .setVisible(snapshot.planeVisible)
@@ -85,6 +101,9 @@ export class SupplyDropVisual {
       .setScale(shadowScale);
     this.crate
       .setVisible(crateVisible)
+      .setDepth(snapshot.phase === 'falling'
+        ? WORLD_RENDER_DEPTH.airborneSupplyCrate
+        : WORLD_RENDER_DEPTH.supplyDrop + 1)
       .setPosition(snapshot.cratePosition.x, snapshot.cratePosition.y)
       .setScale(1.65 - snapshot.fallProgress * 0.65);
     this.parachute
@@ -99,10 +118,8 @@ export class SupplyDropVisual {
       viewport,
       indicatorMargin,
     );
-    const showPlaneIndicator = (
-      snapshot.phase === 'announced'
-      || snapshot.planeVisible
-    );
+    const feedback = resolveSupplyDropFeedback(snapshot);
+    const showPlaneIndicator = feedback.planeLabel !== null;
     const planeMarkerVisible = showPlaneIndicator && planeIndicator.visible;
     this.planeIndicatorBubble
       .setVisible(planeMarkerVisible)
@@ -127,6 +144,33 @@ export class SupplyDropVisual {
       .setVisible(showCrateIndicator && crateIndicator.visible)
       .setPosition(crateIndicator.position.x, crateIndicator.position.y)
       .setRotation(crateIndicator.rotation);
+    this.crateIndicatorIcon
+      .setVisible(showCrateIndicator && crateIndicator.visible)
+      .setPosition(crateIndicator.position.x, crateIndicator.position.y);
+
+    const updateLabel = (
+      label: Phaser.GameObjects.Text,
+      message: string | null,
+      anchor: { x: number; y: number },
+      placement: 'above' | 'below' = anchor.y < viewport.height / 2 ? 'below' : 'above',
+    ): void => {
+      label.setVisible(message !== null);
+      if (message === null) return;
+      label.setWordWrapWidth(Math.max(1,
+        Math.min(160, viewport.width - safeArea.left - safeArea.right - 40),
+      )).setText(message);
+      // Place edge labels toward the screen center, leaving room for the arrow.
+      const position = positionTooltip(
+        anchor, label, viewport,
+        placement, safeArea,
+      );
+      label.setPosition(position.x, position.y);
+    };
+    updateLabel(this.planeLabel, feedback.planeLabel,
+      planeIndicator.visible ? planeIndicator.position : planeScreen);
+    updateLabel(this.crateLabel, feedback.crateLabel,
+      crateIndicator.visible ? crateIndicator.position : { x: targetScreen.x, y: targetScreen.y + 25 },
+      crateIndicator.visible ? undefined : 'below');
   }
 
   destroy(): void {
@@ -138,6 +182,9 @@ export class SupplyDropVisual {
     this.planeIndicatorBubble.destroy();
     this.planeIndicatorIcon.destroy();
     this.crateIndicator.destroy();
+    this.crateIndicatorIcon.destroy();
+    this.planeLabel.destroy();
+    this.crateLabel.destroy();
   }
 
   private drawPlaneShadow(): void {
@@ -320,15 +367,17 @@ export class SupplyDropVisual {
 
   private drawCrateIndicator(): void {
     this.crateIndicator
-      .fillStyle(0x16090a, 0.88)
+      .fillStyle(0x101820, 0.94)
       .fillCircle(0, 0, 15)
-      .lineStyle(2, 0xe5484d, 0.95)
+      .lineStyle(2, 0xffdc86, 0.95)
       .strokeCircle(0, 0, 15)
-      .fillStyle(0xff6267, 1)
-      .fillTriangle(5, -7, 5, 7, 13, 0)
-      .fillStyle(0xf3d4c0, 1)
-      .fillRect(-8, -5, 9, 10)
-      .fillStyle(0x7a2528, 1)
-      .fillRect(-5, -5, 3, 10);
+      .fillStyle(0xffdc86, 1)
+      .fillTriangle(18, -6, 18, 6, 26, 0);
+    this.crateIndicatorIcon
+      .fillStyle(0xffdc86, 1)
+      .fillRoundedRect(-8, -7, 16, 14, 2)
+      .fillStyle(0x68502a, 1)
+      .fillRect(-2, -7, 4, 14)
+      .fillRect(-8, -1, 16, 3);
   }
 }

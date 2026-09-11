@@ -3,6 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { WORLD_RENDER_DEPTH } from '../../config/renderDepth';
 
 describe('world render depth', () => {
+  it('renders airborne supplies above the player with the canopy above the crate', () => {
+    expect(WORLD_RENDER_DEPTH.airborneSupplyCrate).toBeGreaterThan(WORLD_RENDER_DEPTH.player);
+    expect(WORLD_RENDER_DEPTH.supplyParachute).toBeGreaterThan(WORLD_RENDER_DEPTH.airborneSupplyCrate);
+  });
+
   it('keeps zombie remains below the player', () => {
     expect(WORLD_RENDER_DEPTH.bloodPool).toBeLessThan(
       WORLD_RENDER_DEPTH.zombieCorpse,
