@@ -7,7 +7,6 @@ export const PISTOL_WEAPON = {
   description: 'Reliable semi-automatic sidearm.',
   rarity: 'common',
   recoil: 2,
-  attackType: 'ranged',
   accuracy: {
     baseSpreadDegrees: 1.6,
     consecutiveSpreadGrowthDegrees: 0.7,
@@ -31,7 +30,6 @@ export const BURST_RIFLE_WEAPON = {
   description: 'Fires a controlled three-round burst.',
   rarity: 'common',
   recoil: 7,
-  attackType: 'ranged',
   accuracy: {
     baseSpreadDegrees: 0.65,
     consecutiveSpreadGrowthDegrees: 1,
@@ -57,7 +55,6 @@ export const DOUBLE_BARREL_SHOTGUN_WEAPON = {
   description: 'Devastating up close, with a wide pellet spread.',
   rarity: 'common',
   recoil: 10,
-  attackType: 'ranged',
   accuracy: {
     baseSpreadDegrees: 0,
     consecutiveSpreadGrowthDegrees: 8,
@@ -79,39 +76,10 @@ export const DOUBLE_BARREL_SHOTGUN_WEAPON = {
   },
 } as const satisfies WeaponDefinition;
 
-export const POLICE_BATON_WEAPON = {
-  id: 'policeBaton',
-  name: 'Police Baton',
-  description: 'Fast one-handed strike that consumes stamina.',
-  rarity: 'common',
-  recoil: 0,
-  attackType: 'melee',
-  meleeGrip: 'oneHanded',
-  accuracy: {
-    baseSpreadDegrees: 0,
-    consecutiveSpreadGrowthDegrees: 0,
-    maxSpreadDegrees: 0,
-  },
-  ammoType: null,
-  config: {
-    damage: 24,
-    range: 78,
-    fireIntervalMs: 480,
-    magazineSize: 0,
-    reserveAmmo: 0,
-    reloadDurationMs: 0,
-    maxTargets: 2,
-    usesAmmo: false,
-    staminaCost: 24,
-    halfAngleRadians: Math.PI / 5,
-  },
-} as const satisfies WeaponDefinition;
-
 export const WEAPON_DEFINITIONS = {
   pistol: PISTOL_WEAPON,
   burstRifle: BURST_RIFLE_WEAPON,
   doubleBarrelShotgun: DOUBLE_BARREL_SHOTGUN_WEAPON,
-  policeBaton: POLICE_BATON_WEAPON,
 } as const;
 
 export const BASIC_WEAPON_CONFIG = PISTOL_WEAPON.config;

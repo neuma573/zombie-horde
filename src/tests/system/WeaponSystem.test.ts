@@ -1,54 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { createOwnedWeapon } from '../../logic/weapon';
-import { BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON, PISTOL_WEAPON, POLICE_BATON_WEAPON } from '../../config/weaponConfig';
+import { BURST_RIFLE_WEAPON, PISTOL_WEAPON } from '../../config/weaponConfig';
 import { WeaponSystem } from '../../systems/WeaponSystem';
 
 describe('WeaponSystem', () => {
-  it.each([PISTOL_WEAPON, BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON])(
-    'preserves $id ammunition after switching to a baton and back',
-    (firearm) => {
-      const system = new WeaponSystem(firearm, {
-        pistolAmmo: 37, rifleAmmo: 61, shotgunAmmo: 13,
-      });
-      expect(system.fire()).toBe(true);
-      system.update(1_000);
-      const magazineAmmo = system.getState().magazineAmmo;
-      const reserves = { ...system.getAmmoReserves() };
-
-      system.pickup(POLICE_BATON_WEAPON);
-      expect(system.getDefinition().id).toBe('policeBaton');
-      expect(system.fire()).toBe(true);
-      system.reload();
-      system.update(1_000);
-      expect(system.getState()).toMatchObject({
-        magazineAmmo: 0, reserveAmmo: 0, reloadRemainingMs: null,
-      });
-      expect(system.getAmmoReserves()).toEqual(reserves);
-      system.selectSlot(0);
-
-      expect(system.getDefinition().id).toBe(firearm.id);
-      expect(system.getState().magazineAmmo).toBe(magazineAmmo);
-      expect(system.getState().reserveAmmo).toBe(reserves[firearm.ammoType]);
-      expect(system.getAmmoReserves()).toEqual(reserves);
-    },
-  );
-
-  it('retains ammunition collected while a baton is equipped', () => {
-    const system = new WeaponSystem(PISTOL_WEAPON, { pistolAmmo: 37 });
-    system.fire();
-    system.pickup(POLICE_BATON_WEAPON);
-
-    system.addReserveAmmo('pistolAmmo', 20);
-    system.update(1_000);
-    expect(system.getState().reserveAmmo).toBe(0);
-    system.selectSlot(0);
-
-    expect(system.getState().magazineAmmo).toBe(PISTOL_WEAPON.config.magazineSize - 1);
-    expect(system.getState().reserveAmmo).toBe(57);
-    expect(system.getAmmoReserves().pistolAmmo).toBe(57);
-  });
-
   it('stacks reserve ammunition without a maximum holding limit', () => {
     const system = new WeaponSystem(PISTOL_WEAPON, { pistolAmmo: 90 });
 

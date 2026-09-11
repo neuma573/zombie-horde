@@ -20,7 +20,6 @@ import {
   isSameDisplayedWeapon,
   positionTooltip,
   retainsSpentShotgunShells,
-  weaponTooltipStatLines,
   type HudLayout,
   type HudViewModel,
   type SafeAreaInsets,
@@ -36,7 +35,6 @@ import {
 import type { WeaponId } from '../logic/weapon';
 
 function ammoTextureKey(weaponId: WeaponId | null): string {
-  if (weaponId === 'policeBaton') return 'weapon-police-baton';
   if (weaponId === 'pistol') return 'ammo-pistol';
   if (weaponId === 'doubleBarrelShotgun') return 'ammo-shotgun';
   return 'ammo-rifle';
@@ -105,10 +103,7 @@ export class HudSystem {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly selectWeaponSlot: (
-      slot: WeaponSlotIndex,
-      inputTimestampMs: number,
-    ) => void,
+    private readonly selectWeaponSlot: (slot: WeaponSlotIndex) => void,
     private readonly randomSource: () => number = Math.random,
   ) {
     this.statusText = scene.add.text(0, 0, '', {
@@ -182,14 +177,14 @@ export class HudSystem {
       icon.on(
         Phaser.Input.Events.POINTER_DOWN,
         (
-          pointer: Phaser.Input.Pointer,
+          _pointer: Phaser.Input.Pointer,
           _localX: number,
           _localY: number,
           event: Phaser.Types.Input.EventData,
         ) => handleWeaponSlotPress(
           index as WeaponSlotIndex,
           () => event.stopPropagation(),
-          (slot) => this.selectWeaponSlot(slot, pointer.time),
+          this.selectWeaponSlot,
         ),
       );
     });
@@ -366,7 +361,8 @@ export class HudSystem {
     this.pickupText.setText([
       `${viewModel.name}  ·  ${rarity}`,
       viewModel.description,
-      ...weaponTooltipStatLines(viewModel),
+      `FIRE RATE ${viewModel.fireRateText}   RECOIL ${viewModel.recoil}`,
+      `MAGAZINE ${viewModel.magazineSize}`,
       viewModel.interactionText,
     ]);
     const bounds = this.pickupText.getBounds();
@@ -878,9 +874,7 @@ export class HudSystem {
               ? 'weapon-pistol'
               : weapon.id === 'doubleBarrelShotgun'
                 ? 'weapon-shotgun'
-                : weapon.id === 'policeBaton'
-                  ? 'weapon-police-baton'
-                  : 'weapon-rifle',
+                : 'weapon-rifle',
           )
           .setDisplaySize(iconSize, iconSize)
           .setVisible(true);
@@ -902,18 +896,9 @@ export class HudSystem {
       name: weapon.name,
       description: weapon.description,
       rarity: weapon.rarity,
-      ...(weapon.attackType === 'melee'
-        ? {
-          attackType: weapon.attackType,
-          swingIntervalMs: weapon.swingIntervalMs,
-          staminaCost: weapon.staminaCost,
-        }
-        : {
-          attackType: weapon.attackType,
-          fireRateText: weapon.fireRateText,
-          recoil: weapon.recoil,
-          magazineSize: weapon.magazineSize,
-        }),
+      fireRateText: weapon.fireRateText,
+      recoil: weapon.recoil,
+      magazineSize: weapon.magazineSize,
       interactionText: `WEAPON SLOT ${this.hoveredWeaponSlot + 1}`,
     }, { x: icon.x, y: icon.y + 24 }, 'below');
   }

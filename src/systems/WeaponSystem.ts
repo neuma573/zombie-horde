@@ -72,9 +72,7 @@ export class WeaponSystem {
     this.advanceWeaponsBy(remainingMs);
     this.burstTimerMs = Math.max(0, this.burstTimerMs - remainingMs);
     const active = this.getOwnedWeapon();
-    if (active.definition.ammoType !== null) {
-      this.ammoReserves[active.definition.ammoType] = active.state.reserveAmmo;
-    }
+    this.ammoReserves[active.definition.ammoType] = active.state.reserveAmmo;
     return firedAtMs;
   }
 
@@ -118,9 +116,7 @@ export class WeaponSystem {
       ...ownedWeapon,
       state: {
         ...ownedWeapon.state,
-        reserveAmmo: ownedWeapon.definition.ammoType === null
-          ? 0
-          : this.ammoReserves[ownedWeapon.definition.ammoType],
+        reserveAmmo: this.ammoReserves[ownedWeapon.definition.ammoType],
         reloadRemainingMs: null,
       },
     };
@@ -191,8 +187,7 @@ export class WeaponSystem {
       state,
     };
     this.inventory = { ...this.inventory, slots };
-    const ammoType = this.getDefinition().ammoType;
-    if (ammoType !== null) this.ammoReserves[ammoType] = state.reserveAmmo;
+    this.ammoReserves[this.getDefinition().ammoType] = state.reserveAmmo;
   }
 
   private advanceWeaponsBy(elapsedMs: number): void {
@@ -234,9 +229,7 @@ export class WeaponSystem {
     const owned = this.getOwnedWeapon();
     this.updateActiveState({
       ...owned.state,
-      reserveAmmo: owned.definition.ammoType === null
-        ? 0
-        : this.ammoReserves[owned.definition.ammoType],
+      reserveAmmo: this.ammoReserves[owned.definition.ammoType],
       reloadRemainingMs: null,
     });
   }

@@ -14,6 +14,8 @@ import { SHOTGUN_KNOCKBACK_CONFIG } from '../config/shotgunConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
 import {
+  EMERGENCY_SUPPLY_FALL_DURATION_MS,
+  NORMAL_SUPPLY_FALL_DURATION_MS,
   SUPPLY_DROP_BALANCE,
   SUPPLY_DROP_CONFIG,
 } from '../config/supplyDropConfig';
@@ -21,7 +23,6 @@ import {
   BURST_RIFLE_WEAPON,
   DOUBLE_BARREL_SHOTGUN_WEAPON,
   PISTOL_WEAPON,
-  POLICE_BATON_WEAPON,
   STARTING_AMMO_RESERVES,
 } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
@@ -99,11 +100,7 @@ import {
   wheelZoomTarget,
   type PinchZoomState,
 } from '../logic/cameraZoom';
-import {
-  createHudViewModel,
-  weaponTooltipStats,
-  type SafeAreaInsets,
-} from '../logic/hud';
+import { createHudViewModel, type SafeAreaInsets } from '../logic/hud';
 import {
   advanceGameTime,
   createGameTimeState,
@@ -115,6 +112,7 @@ import {
   addClamped,
   canCollectConsumable,
   claimSupplyLoot,
+  hasUsableAmmoPickup,
   revalidatePickupPosition,
   selectSupplyLoot,
   spreadSupplyLootPositions,
@@ -132,6 +130,7 @@ import {
   selectSupplyDropLocation,
   totalAvailableAmmo,
   type SupplyDropConfig,
+  type SupplyDropKind,
   type SupplyDropState,
   type SupplyTriggerState,
 } from '../logic/supplyDrop';
@@ -159,9 +158,9 @@ import {
 import {
   advanceShoveWindup,
   createStaminaState,
-  recoverStamina,
+  recoverStaminaAfterPrepaidTime,
+  recoverStaminaAtInputTime,
   resolveShove,
-  resolveMeleeHits,
   resolveShoveTargets,
   startShoveWindup,
   type ShoveWindupState,
@@ -175,6 +174,7 @@ import {
   createPelletDirections,
   createFirstShotAccuracyState,
   createOwnedWeapon,
+  hasLoadedWeaponPickup,
   shouldAutoPickupWeapon,
   shouldAutoReload,
   shouldShowFieldWeaponInfo,
@@ -208,7 +208,13 @@ import {
 } from '../logic/movement';
 import {
   clearActiveInput,
+  consumeFireRequest,
+  consumeReloadRequest,
+  consumeShoveRequest,
   createPlayerInputState,
+  requestFire,
+  requestReload,
+  requestShove,
   withAimCandidate,
   withMovement,
   type PlayerInputSnapshot,
@@ -224,8 +230,6 @@ import { GameplayKeyStateGuard } from '../systems/gameplayKeyState';
 import { HudSystem } from '../systems/HudSystem';
 import { MobileControls } from '../systems/MobileControls';
 import { PauseMenu } from '../systems/PauseMenu';
-import { dispatchPlayerActionsThrough } from '../systems/PlayerActionCoordinator';
-import { PlayerActionQueue } from '../systems/PlayerActionQueue';
 import { ResponsiveUiSystem } from '../systems/ResponsiveUiSystem';
 import { SpawnSystem } from '../systems/SpawnSystem';
 import { WaveSystem } from '../systems/WaveSystem';
@@ -247,12 +251,9 @@ export class GameScene extends Phaser.Scene {
   private restartKey?: Phaser.Input.Keyboard.Key;
   private pauseKey?: Phaser.Input.Keyboard.Key;
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
-  private readonly playerActions = new PlayerActionQueue();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
-  private pendingShove: {
-    windup: ShoveWindupState;
-    aimDirection: Vector2;
-  } | null = null;
+  private prepaidStaminaRecoveryMs = 0;
+  private pendingShove: ShoveWindupState | null = null;
   private viewDirection: Vector2 = { x: 1, y: 0 };
   private finalAimDirection: Vector2 = { x: 1, y: 0 };
   private aimSource: AimSource = 'none';
@@ -291,12 +292,12 @@ export class GameScene extends Phaser.Scene {
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
   private supplyDropState: SupplyDropState = createSupplyDropState();
   private supplyDropActive = false;
+  private supplyDropKind: SupplyDropKind = 'normal';
   private supplyDropLootReleased = false;
   private supplyTriggerState: SupplyTriggerState = createSupplyTriggerState();
   private currentSupplyDropConfig: SupplyDropConfig = SUPPLY_DROP_CONFIG;
   private previousSupplyDropPosition: Vector2 | null = null;
   private simulationStepState: FixedStepState = createFixedStepState();
-  private simulationElapsedMs = 0;
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
   private viewport: Size = { width: 0, height: 0 };
   private readonly damage = new DamageSystem();
@@ -305,7 +306,6 @@ export class GameScene extends Phaser.Scene {
   private wave!: WaveSystem;
   private weapon!: WeaponSystem;
   private weaponPickups: WeaponPickup[] = [];
-  private nextWeaponPickupId = 0;
   private itemPickups: ItemPickup[] = [];
   private hoveredWeaponPickup?: WeaponPickup;
   private hud?: HudSystem;
@@ -334,15 +334,15 @@ export class GameScene extends Phaser.Scene {
     this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
     this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
     this.supplyDropActive = false;
+    this.supplyDropKind = 'normal';
     this.supplyDropLootReleased = false;
     this.supplyTriggerState = createSupplyTriggerState();
     this.currentSupplyDropConfig = SUPPLY_DROP_CONFIG;
     this.previousSupplyDropPosition = null;
     this.simulationStepState = createFixedStepState();
-    this.simulationElapsedMs = 0;
-    this.playerActions.reset(0, this.game.loop.now);
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
+    this.prepaidStaminaRecoveryMs = 0;
     this.pendingShove = null;
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
@@ -366,8 +366,6 @@ export class GameScene extends Phaser.Scene {
     this.spawn = new SpawnSystem(SPAWN_CONFIG, ZOMBIE_CONFIG.radius);
     this.wave = new WaveSystem(WAVE_CONFIG);
     this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
-    this.weapon.pickup(POLICE_BATON_WEAPON);
-    this.weapon.selectSlot(0);
     this.viewport = { width: this.scale.width, height: this.scale.height };
     this.playArea = createWorldSize(
       URBAN_MAP_CONFIG,
@@ -408,7 +406,6 @@ export class GameScene extends Phaser.Scene {
       appearance,
     );
     this.weaponPickups = [];
-    this.nextWeaponPickupId = 0;
     this.itemPickups = [];
     this.snapCameraToPlayer();
     this.timeBasedLighting = new TimeBasedLighting(this, TIME_BASED_LIGHTING_CONFIG);
@@ -424,9 +421,7 @@ export class GameScene extends Phaser.Scene {
     this.firstShotAccuracy = createFirstShotAccuracyState();
     this.resizePlayArea(this.scale.gameSize);
     this.updateTimeBasedLighting();
-    this.hud = new HudSystem(this, (slot, inputTimestampMs) => {
-      this.playerActions.requestWeaponSlot(slot, inputTimestampMs);
-    });
+    this.hud = new HudSystem(this, (slot) => this.selectWeaponSlot(slot));
     this.effects = new CombatEffects(this);
     this.weaponAudio = new WeaponAudio(this);
     this.aimAssistVisual = new AimAssistVisual(this);
@@ -550,7 +545,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  update(time: number, deltaMs: number): void {
+  update(_time: number, deltaMs: number): void {
     if (this.pauseKey && Phaser.Input.Keyboard.JustDown(this.pauseKey)) {
       if (this.pauseMenu?.isOpen()) {
         this.pauseMenu.hide();
@@ -558,10 +553,7 @@ export class GameScene extends Phaser.Scene {
         this.pauseMenu?.show();
       }
     }
-    if (this.pauseMenu?.isOpen()) {
-      this.advancePlayerActionFrame(time, 0);
-      return;
-    }
+    if (this.pauseMenu?.isOpen()) return;
 
     this.player.updateVisual(
       deltaMs,
@@ -583,37 +575,27 @@ export class GameScene extends Phaser.Scene {
       if (this.restartKey && Phaser.Input.Keyboard.JustDown(this.restartKey)) {
         this.restartSession();
       }
-      this.advancePlayerActionFrame(time, 0);
       return;
     }
 
     if (this.reloadKey && Phaser.Input.Keyboard.JustDown(this.reloadKey)) {
-      this.playerActions.requestReload(this.reloadKey.timeDown);
+      this.playerInput = requestReload(this.playerInput);
     }
     if (this.pickupKey && Phaser.Input.Keyboard.JustDown(this.pickupKey)) {
       if (this.canOpenSupplyCrate()) {
-        this.playerActions.requestOpenSupplyCrate(this.pickupKey.timeDown);
+        this.tryOpenSupplyCrate();
       } else if (!this.hasEmptyWeaponSlot()) {
-        const pickup = this.nearestWeaponPickupInRange();
-        if (pickup) {
-          this.playerActions.requestWeaponPickup(
-            pickup.pickupId,
-            this.pickupKey.timeDown,
-          );
-        }
+        this.tryPickupWeapon();
       }
     }
     if (this.shoveKey && Phaser.Input.Keyboard.JustDown(this.shoveKey)) {
-      this.playerActions.requestShove(
-        this.shoveKey.timeDown,
-        this.finalAimDirection,
-      );
+      this.playerInput = requestShove(this.playerInput);
     }
     if (this.weaponSlotKeys?.[0] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[0])) {
-      this.playerActions.requestWeaponSlot(0, this.weaponSlotKeys[0].timeDown);
+      this.selectWeaponSlot(0);
     }
     if (this.weaponSlotKeys?.[1] && Phaser.Input.Keyboard.JustDown(this.weaponSlotKeys[1])) {
-      this.playerActions.requestWeaponSlot(1, this.weaponSlotKeys[1].timeDown);
+      this.selectWeaponSlot(1);
     }
 
     const keyboardMovement = this.movementKeys ? {
@@ -627,7 +609,11 @@ export class GameScene extends Phaser.Scene {
         : this.mobileMovement,
     );
 
-    this.advancePlayerActionFrame(time, deltaMs);
+    const reload = consumeReloadRequest(this.playerInput);
+    this.playerInput = reload.state;
+    if (reload.requested) {
+      this.startWeaponReload();
+    }
     const fixedSteps = consumeFixedSteps(
       this.simulationStepState,
       deltaMs,
@@ -637,7 +623,6 @@ export class GameScene extends Phaser.Scene {
     let playerDamageEventCount = 0;
     let playerDied = false;
 
-    this.resolvePlayerActions(this.simulationElapsedMs, 0);
     for (let step = 0; step < fixedSteps.stepCount; step += 1) {
       this.updateCameraZoom(SIMULATION_CONFIG.fixedStepMs);
       this.refreshStationaryMouseAim();
@@ -645,18 +630,14 @@ export class GameScene extends Phaser.Scene {
         SIMULATION_CONFIG.fixedStepMs,
         step * SIMULATION_CONFIG.fixedStepMs,
       );
-      this.simulationElapsedMs += SIMULATION_CONFIG.fixedStepMs;
       playerDamageEventCount += simulation.damageEventCount;
       if (simulation.died) {
         playerDied = true;
         this.simulationStepState = createFixedStepState();
         break;
       }
-      this.resolvePlayerActions(
-        this.simulationElapsedMs,
-        (step + 1) * SIMULATION_CONFIG.fixedStepMs,
-      );
     }
+    if (!playerDied) this.resolveShoveRequest();
     this.weaponAudio?.flushQueuedShots();
     this.weaponAudio?.flushQueuedReloadCues();
 
@@ -703,11 +684,14 @@ export class GameScene extends Phaser.Scene {
     const reloadingWeaponId = reloadRemainingMs !== null
       ? this.weapon.getDefinition().id
       : null;
-    this.stamina = recoverStamina(
+    const staminaRecovery = recoverStaminaAfterPrepaidTime(
       this.stamina,
       deltaMs,
+      this.prepaidStaminaRecoveryMs,
       SHOVE_CONFIG,
     );
+    this.stamina = staminaRecovery.stamina;
+    this.prepaidStaminaRecoveryMs = staminaRecovery.remainingPrepaidMs;
     const shoveImpact = this.advancePendingShove(deltaMs);
     this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
@@ -742,7 +726,7 @@ export class GameScene extends Phaser.Scene {
       if (!contactDied) {
         this.refreshStationaryMouseAim();
         this.refreshAimAssist();
-        this.applyShoveImpact(shoveImpact.aimDirection);
+        this.applyShoveImpact();
         const postImpact = this.advanceActorsThroughBurstShots(
           shoveImpact.postImpactMs,
           audioDelayMs + shoveImpact.preImpactMs,
@@ -985,34 +969,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolvePlayerActions(
-    simulationBoundaryMs: number,
-    audioDelayMs: number,
-  ): void {
-    dispatchPlayerActionsThrough(
-      this.playerActions,
-      simulationBoundaryMs,
-      {
-        fire: (aimDirection) => this.resolveFireRequest(aimDirection, audioDelayMs),
-        reload: () => this.startWeaponReload(),
-        selectWeaponSlot: (slot) => this.selectWeaponSlot(slot),
-        shove: (aimDirection) => this.resolveShoveRequest(aimDirection),
-        pickupWeapon: (pickupId) => {
-          const pickup = this.weaponPickups.find(
-            (candidate) => candidate.pickupId === pickupId,
-          );
-          if (pickup) this.tryPickupWeapon(pickup);
-        },
-        openSupplyCrate: () => this.tryOpenSupplyCrate(),
-      },
-      () => isPlaying(this.sessionState),
-    );
-  }
+  private resolveFireRequest(): void {
+    const fire = consumeFireRequest(this.playerInput);
+    this.playerInput = fire.state;
 
-  private resolveFireRequest(aimDirection: Vector2, audioDelayMs: number): void {
-    const definition = this.weapon.getDefinition();
-    if (definition.attackType === 'melee') {
-      this.resolveMeleeAttack(aimDirection);
+    if (!fire.requested || !isPlaying(this.sessionState)) {
       return;
     }
 
@@ -1021,130 +982,63 @@ export class GameScene extends Phaser.Scene {
       this.updateHud();
       return;
     }
-    this.resolveHitscanShot(audioDelayMs, aimDirection);
+    this.resolveHitscanShot();
   }
 
-  private advancePlayerActionFrame(
-    updateTimeMs: number,
-    simulationDeltaMs: number,
-  ): void {
-    this.playerActions.advanceFrame(
-      this.simulationElapsedMs + this.simulationStepState.accumulatorMs,
-      simulationDeltaMs,
-      updateTimeMs,
+  private resolveShoveRequest(): void {
+    const request = consumeShoveRequest(this.playerInput);
+    this.playerInput = request.state;
+    if (!request.requested || !isPlaying(this.sessionState)) return;
+    const windup = startShoveWindup(
+      this.pendingShove,
+      this.simulationStepState.accumulatorMs,
     );
-  }
-
-  private resolveMeleeAttack(aimDirection: Vector2): void {
-    const definition = this.weapon.getDefinition();
-    const staminaCost = Math.max(0, definition.config.staminaCost ?? 0);
-    if (this.stamina.current < staminaCost || !this.weapon.fire()) {
-      this.updateHud();
-      return;
-    }
-
-    this.stamina = { current: this.stamina.current - staminaCost };
-    this.player.triggerMeleeSwingVisual(aimDirection);
-    const hits = resolveMeleeHits(
-      this.player,
-      aimDirection,
-      this.zombies.map((zombie) => ({
-        id: zombie.id,
-        position: { x: zombie.x, y: zombie.y },
-        radius: zombie.hitRadius,
-      })),
-      {
-        range: definition.config.range,
-        halfAngleRadians: definition.config.halfAngleRadians ?? 0,
-        maxTargets: definition.config.maxTargets,
-      },
-      this.activeMovementObstacles(),
-    );
-    const deadIds = new Set<string>();
-    for (const hit of hits) {
-      const zombie = this.zombies.find((candidate) => candidate.id === hit.id);
-      if (!zombie) continue;
-      const result = this.damage.apply(zombie, definition.config.damage);
-      const impact = {
-        position: { x: zombie.x, y: zombie.y },
-        radius: zombie.hitRadius,
-        died: result.died,
-        direction: hit.direction,
-        rotation: zombie.rotation,
-        variantKey: zombie.id,
-        appearance: zombie.appearance,
-      };
-      zombie.triggerHitReaction(hit.direction);
-      this.effects?.playZombieHit(impact);
-      if (result.died) {
-        this.effects?.playZombieDeath(impact);
-        zombie.destroy();
-        deadIds.add(zombie.id);
-      }
-    }
-    if (deadIds.size > 0) {
-      this.killCount += deadIds.size;
-      this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
-      for (const id of deadIds) {
-        this.zombieKnockbacks.delete(id);
-        this.zombieNavigation.delete(id);
-        this.fastZombieRuns.delete(id);
-      }
-      if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
-        this.aimTargetId = null;
-        this.aimAssistVisual?.hide();
-      }
-    }
-    this.updateHud();
-  }
-
-  private resolveShoveRequest(aimDirection: Vector2): void {
-    if (!isPlaying(this.sessionState)) return;
-    const windup = startShoveWindup(this.pendingShove?.windup ?? null);
     if (!windup.started) return;
+
+    const inputTimeRecovery = recoverStaminaAtInputTime(
+      this.stamina,
+      this.simulationStepState.accumulatorMs,
+      this.prepaidStaminaRecoveryMs,
+      SHOVE_CONFIG,
+    );
+    this.stamina = inputTimeRecovery.stamina;
+    this.prepaidStaminaRecoveryMs = inputTimeRecovery.prepaidMs;
 
     const result = resolveShove(
       this.stamina,
       this.player,
-      aimDirection,
+      this.finalAimDirection,
       [],
       SHOVE_CONFIG,
     );
     this.stamina = result.stamina;
     if (result.performed) {
-      this.player.triggerShoveVisual(aimDirection);
-      this.pendingShove = {
-        windup: windup.state,
-        aimDirection: { ...aimDirection },
-      };
+      this.player.triggerShoveVisual();
+      this.pendingShove = windup.state;
     }
   }
 
   private advancePendingShove(
     deltaMs: number,
-  ): { preImpactMs: number; postImpactMs: number; aimDirection: Vector2 } | null {
+  ): { preImpactMs: number; postImpactMs: number } | null {
     if (!this.pendingShove) return null;
     const windup = advanceShoveWindup(
-      this.pendingShove.windup,
+      this.pendingShove,
       deltaMs,
       SHOVE_IMPACT_DELAY_MS,
     );
-    const aimDirection = this.pendingShove.aimDirection;
-    this.pendingShove = windup.state === null
-      ? null
-      : { windup: windup.state, aimDirection };
+    this.pendingShove = windup.state;
     if (!windup.impacted) return null;
     return {
       preImpactMs: Math.max(0, deltaMs - windup.postImpactMs),
       postImpactMs: windup.postImpactMs,
-      aimDirection,
     };
   }
 
-  private applyShoveImpact(aimDirection: Vector2): void {
+  private applyShoveImpact(): void {
     const targets = resolveShoveTargets(
       this.player,
-      aimDirection,
+      this.finalAimDirection,
       this.zombies.map((zombie) => ({
         id: zombie.id,
         position: { x: zombie.x, y: zombie.y },
@@ -1173,16 +1067,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private resolveHitscanShot(
-    audioOffsetMs?: number,
-    queuedAimDirection?: Vector2,
-  ): void {
-    const aimDirection = queuedAimDirection
-      ? { ...queuedAimDirection }
-      : this.refreshAimAssist();
+  private resolveHitscanShot(audioOffsetMs?: number): void {
+    const aimDirection = this.refreshAimAssist();
     const weaponDefinition = this.weapon.getDefinition();
-    this.updatePlayerWeaponVisual();
-    this.player.triggerRangedShotVisual(aimDirection);
     if (audioOffsetMs === undefined) {
       this.weaponAudio?.playShot(weaponDefinition.id);
     } else {
@@ -1449,18 +1336,8 @@ export class GameScene extends Phaser.Scene {
       ? 'weapon-pistol'
       : definition.id === 'doubleBarrelShotgun'
         ? 'weapon-shotgun'
-        : definition.id === 'policeBaton'
-          ? 'weapon-police-baton'
-          : 'weapon-rifle';
-    const pickup = new WeaponPickup(
-      this,
-      x,
-      y,
-      this.nextWeaponPickupId,
-      ownedWeapon,
-      textureKey,
-    );
-    this.nextWeaponPickupId += 1;
+        : 'weapon-rifle';
+    const pickup = new WeaponPickup(this, x, y, ownedWeapon, textureKey);
     pickup.on(Phaser.Input.Events.POINTER_OVER, () => {
       this.hoveredWeaponPickup = pickup;
       this.updateWeaponPickupInfo();
@@ -1480,7 +1357,7 @@ export class GameScene extends Phaser.Scene {
         && !isMobileControlPointerRole(mobileRole)
         && this.isWeaponPickupInRange(pickup)
       ) {
-        this.playerActions.requestWeaponPickup(pickup.pickupId, pointer.time);
+        this.tryPickupWeapon(pickup);
       }
     });
     this.weaponPickups.push(pickup);
@@ -1559,6 +1436,7 @@ export class GameScene extends Phaser.Scene {
       this.hud?.showWeaponPickup(null);
       return;
     }
+    const config = pickup.definition.config;
     const screenPosition = cameraScreenPoint(
       pickup,
       {
@@ -1572,7 +1450,11 @@ export class GameScene extends Phaser.Scene {
       name: pickup.definition.name,
       description: pickup.definition.description,
       rarity: pickup.definition.rarity,
-      ...weaponTooltipStats(pickup.definition),
+      fireRateText: config.burstSize === 3
+        ? `3-RND / ${config.fireIntervalMs}ms`
+        : `SEMI / ${config.fireIntervalMs}ms`,
+      recoil: pickup.definition.recoil,
+      magazineSize: config.magazineSize,
       interactionText: this.mobileControlsEnabled
         ? this.hasEmptyWeaponSlot()
           ? 'Move onto the weapon to pick up'
@@ -1838,7 +1720,8 @@ export class GameScene extends Phaser.Scene {
       if (isOverWeaponPickup) return;
       if (!isPrimaryFireInput(pointer)) return;
       this.updateAimDirection(pointer, 'mouse');
-      this.playerActions.requestFire(pointer.time, this.finalAimDirection);
+      this.playerInput = requestFire(this.playerInput);
+      this.resolveFireRequest();
       return;
     }
 
@@ -1883,13 +1766,14 @@ export class GameScene extends Phaser.Scene {
     } else if (role === 'aim') {
       this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
-      this.playerActions.requestFire(pointer.time, this.finalAimDirection);
+      this.playerInput = requestFire(this.playerInput);
+      this.resolveFireRequest();
     } else if (role === 'reload') {
-      this.playerActions.requestReload(pointer.time);
+      this.playerInput = requestReload(this.playerInput);
     } else if (role === 'shove') {
-      this.playerActions.requestShove(pointer.time, this.finalAimDirection);
+      this.playerInput = requestShove(this.playerInput);
     } else if (role === 'interaction') {
-      this.playerActions.requestOpenSupplyCrate(pointer.time);
+      this.tryOpenSupplyCrate();
     }
   }
 
@@ -2085,7 +1969,11 @@ export class GameScene extends Phaser.Scene {
         name: owned.definition.name,
         description: owned.definition.description,
         rarity: owned.definition.rarity,
-        ...weaponTooltipStats(owned.definition),
+        fireRateText: owned.definition.config.burstSize === 3
+          ? `3-RND / ${owned.definition.config.fireIntervalMs}ms`
+          : `SEMI / ${owned.definition.config.fireIntervalMs}ms`,
+        recoil: owned.definition.recoil,
+        magazineSize: owned.definition.config.magazineSize,
       }) : null),
       activeWeaponSlot: inventory.activeSlot,
     });
@@ -2129,7 +2017,6 @@ export class GameScene extends Phaser.Scene {
     this.resetPinchState();
     this.mobileMovement = { x: 0, y: 0 };
     this.playerInput = clearActiveInput(this.playerInput);
-    this.playerActions.clear();
     this.mobileControls?.setJoystickPointer(null);
   }
 
@@ -2220,7 +2107,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.viewDirection = { ...result.finalAimDirection };
     this.finalAimDirection = result.finalAimDirection;
-    this.player.setAimDirection(this.finalAimDirection);
+    this.player.setRotation(Math.atan2(
+      this.finalAimDirection.y,
+      this.finalAimDirection.x,
+    ));
     this.updateAimAssistVisual();
     return { ...this.finalAimDirection };
   }
@@ -2233,7 +2123,10 @@ export class GameScene extends Phaser.Scene {
     this.aimAssistVisual?.hide();
 
     if (this.player) {
-      this.player.setAimDirection(this.finalAimDirection);
+      this.player.setRotation(Math.atan2(
+        this.finalAimDirection.y,
+        this.finalAimDirection.x,
+      ));
     }
   }
 
@@ -2379,33 +2272,48 @@ export class GameScene extends Phaser.Scene {
       {
         activeSupply: this.supplyDropActive,
         waveCleared,
+        allAmmoDepleted: ammo.current === 0
+          && !this.hasAvailableAmmoPickup()
+          && !hasLoadedWeaponPickup(
+            this.weaponPickups.map((pickup) => pickup.ownedWeapon),
+          ),
         ammoRatio: ammo.capacity > 0 ? ammo.current / ammo.capacity : 0,
         healthRatio: this.player.health / PLAYER_CONFIG.health,
         randomValue: Math.random(),
       },
       SUPPLY_DROP_BALANCE,
     );
-    if (!trigger.shouldDrop) {
+    if (!trigger.kind) {
       this.supplyTriggerState = trigger.state;
       return;
     }
-    if (this.startSupplyDrop()) {
+    if (this.startSupplyDrop(trigger.kind)) {
       this.supplyTriggerState = trigger.state;
     }
   }
 
-  private startSupplyDrop(): boolean {
+  private startSupplyDrop(kind: SupplyDropKind): boolean {
+    const threatDirection = this.zombies.reduce(
+      (direction, zombie) => ({
+        x: direction.x + zombie.x - this.player.x,
+        y: direction.y + zombie.y - this.player.y,
+      }),
+      { x: 0, y: 0 },
+    );
     const target = selectSupplyDropLocation(
+      kind,
       this.player,
       this.playArea,
       OBSTACLE_CONFIG,
       this.previousSupplyDropPosition,
+      threatDirection,
       Math.floor(Math.random() * 0x1_0000_0000),
       {
         sampleCount: SUPPLY_DROP_BALANCE.locationSampleCount,
         clearance: SUPPLY_DROP_BALANCE.locationClearance,
         normalMinimumPlayerDistance: SUPPLY_DROP_BALANCE.normalMinimumPlayerDistance,
         normalMaximumPlayerDistance: SUPPLY_DROP_BALANCE.normalMaximumPlayerDistance,
+        emergencyMinimumPlayerDistance: SUPPLY_DROP_BALANCE.emergencyMinimumPlayerDistance,
         previousDropMinimumDistance: SUPPLY_DROP_BALANCE.previousDropMinimumDistance,
       },
     );
@@ -2415,8 +2323,12 @@ export class GameScene extends Phaser.Scene {
     this.currentSupplyDropConfig = {
       ...SUPPLY_DROP_CONFIG,
       target,
+      fallDurationMs: kind === 'emergency'
+        ? EMERGENCY_SUPPLY_FALL_DURATION_MS
+        : NORMAL_SUPPLY_FALL_DURATION_MS,
     };
     this.supplyDropState = createSupplyDropState(this.currentSupplyDropConfig.crateHealth);
+    this.supplyDropKind = kind;
     this.supplyDropLootReleased = false;
     this.supplyDropActive = true;
     this.updateSupplyDropVisual();
@@ -2444,6 +2356,7 @@ export class GameScene extends Phaser.Scene {
     this.supplyDropLootReleased = claim.released;
     if (!claim.shouldDrop) return;
     const loot = selectSupplyLoot(
+      this.supplyDropKind,
       this.wave.getState().waveNumber,
       this.player.health / PLAYER_CONFIG.health,
       Math.random(),
@@ -2548,6 +2461,18 @@ export class GameScene extends Phaser.Scene {
     const collectedSet = new Set(collected);
     this.itemPickups = this.itemPickups.filter((pickup) => !collectedSet.has(pickup));
     this.updateHud();
+  }
+
+  private hasAvailableAmmoPickup(): boolean {
+    const ownedAmmoTypes = new Set(
+      this.weapon.getInventory().slots.flatMap((owned) => (
+        owned ? [owned.definition.ammoType] : []
+      )),
+    );
+    return hasUsableAmmoPickup(
+      this.itemPickups.map((pickup) => pickup.kind),
+      ownedAmmoTypes,
+    );
   }
 
   private revalidateSupplyCoordinates(): void {

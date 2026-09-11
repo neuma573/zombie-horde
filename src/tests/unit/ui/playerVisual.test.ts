@@ -5,10 +5,6 @@ import {
   clampPonytailRelativeRotation,
   muzzleLightExposure,
   RIFLE_VISUAL,
-  resolveOneHandedMeleeActionPose,
-  resolveActionFacingRotation,
-  resolveOneHandedMeleePose,
-  resolveSystemaMeleeShovePose,
   resolveRifleReloadVisual,
   resolveShotgunBreakAngle,
   resolveSidearmHandPose,
@@ -37,95 +33,6 @@ describe('ponytail rotation', () => {
 });
 
 describe('player visual pose', () => {
-  it('faces a queued melee swing until the swing ends', () => {
-    const latestAim = { x: 0, y: 1 };
-    const queuedSwingAim = { x: 1, y: 0 };
-
-    expect(resolveActionFacingRotation(latestAim, [
-      { direction: queuedSwingAim, sequence: 0 },
-    ])).toBeCloseTo(0);
-    expect(resolveActionFacingRotation(latestAim, [])).toBeCloseTo(Math.PI / 2);
-  });
-
-  it('faces a queued ranged shot for its rendered frame', () => {
-    const latestAim = { x: 0, y: 1 };
-    const queuedShotAim = { x: 1, y: 0 };
-
-    expect(resolveActionFacingRotation(latestAim, [
-      { direction: queuedShotAim, sequence: 0 },
-    ])).toBeCloseTo(0);
-    expect(resolveActionFacingRotation(latestAim, [])).toBeCloseTo(Math.PI / 2);
-  });
-
-  it('faces the latest queued action while visual actions overlap', () => {
-    const latestAim = { x: -1, y: 0 };
-    const shoveAim = { x: 0, y: 1 };
-    const meleeAim = { x: 1, y: 0 };
-
-    expect(resolveActionFacingRotation(latestAim, [
-      { direction: shoveAim, sequence: 2 },
-      { direction: meleeAim, sequence: 1 },
-    ])).toBeCloseTo(Math.PI / 2);
-  });
-
-  it('swings a one-handed melee weapon with the right arm', () => {
-    const ready = resolveOneHandedMeleePose(null, 360);
-    const windup = resolveOneHandedMeleePose(101, 360);
-    const impact = resolveOneHandedMeleePose(202, 360);
-
-    expect(windup.rightHand.y).toBeGreaterThan(ready.rightHand.y);
-    expect(impact.rightHand.x).toBeGreaterThan(ready.rightHand.x);
-    expect(impact.rightHand.y).toBeLessThan(ready.rightHand.y);
-    expect(impact.weaponRotation).toBeLessThan(ready.weaponRotation);
-  });
-
-  it('keeps the left hand nearly still during a one-handed melee swing', () => {
-    const ready = resolveOneHandedMeleePose(null, 360);
-    const impact = resolveOneHandedMeleePose(202, 360);
-
-    expect(Math.hypot(
-      impact.leftHand.x - ready.leftHand.x,
-      impact.leftHand.y - ready.leftHand.y,
-    )).toBeLessThanOrEqual(2);
-    expect(Math.hypot(
-      impact.rightHand.x - ready.rightHand.x,
-      impact.rightHand.y - ready.rightHand.y,
-    )).toBeGreaterThan(15);
-  });
-
-  it('keeps the resting left hand visibly ahead of the body', () => {
-    const ready = resolveOneHandedMeleePose(null, 360);
-
-    expect(ready.leftHand.x).toBeGreaterThan(15);
-    expect(Math.abs(ready.leftHand.y)).toBeGreaterThan(10);
-  });
-
-  it('pushes with the open left hand while keeping the baton aimed', () => {
-    const ready = resolveSystemaMeleeShovePose(null, 260);
-    const extended = resolveSystemaMeleeShovePose(70, 260);
-
-    expect(ready.weaponRotation).toBe(0);
-    expect(extended.weaponRotation).toBe(ready.weaponRotation);
-    expect(extended.leftHand.x).toBeGreaterThan(ready.leftHand.x + 10);
-    expect(Math.abs(extended.rightHand.x - ready.rightHand.x)).toBeLessThanOrEqual(2);
-    expect(extended.rightHand.y).toBe(ready.rightHand.y);
-    expect(resolveSystemaMeleeShovePose(260, 260)).toEqual(ready);
-  });
-
-  it('combines a shove extension with an active baton swing', () => {
-    const swing = resolveOneHandedMeleePose(250, 360);
-    const shove = resolveSystemaMeleeShovePose(70, 260);
-
-    const combined = resolveOneHandedMeleeActionPose(250, 360, 70, 260);
-
-    expect(combined.leftHand).toEqual(shove.leftHand);
-    expect(combined.leftElbow).toEqual(shove.leftElbow);
-    expect(combined.rightHand).toEqual(swing.rightHand);
-    expect(combined.rightElbow).toEqual(swing.rightElbow);
-    expect(combined.weaponPosition).toEqual(swing.weaponPosition);
-    expect(combined.weaponRotation).toBe(swing.weaponRotation);
-  });
-
   it('opens and closes the shotgun barrels during a break-action reload', () => {
     expect(resolveShotgunBreakAngle(false, 0.5)).toBe(0);
     expect(resolveShotgunBreakAngle(true, 0)).toBe(0);
