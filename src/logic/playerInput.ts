@@ -5,9 +5,6 @@ import type { MovementInput } from './movement';
 export interface PlayerInputSnapshot {
   movement: MovementInput;
   manualAimDirection: Vector2;
-  pendingFireCount: number;
-  reloadRequested: boolean;
-  shoveRequested: boolean;
 }
 
 export function createPlayerInputState(
@@ -16,9 +13,6 @@ export function createPlayerInputState(
   return {
     movement: { x: 0, y: 0 },
     manualAimDirection: resolveAimDirection(aimDirection, { x: 1, y: 0 }),
-    pendingFireCount: 0,
-    reloadRequested: false,
-    shoveRequested: false,
   };
 }
 
@@ -39,53 +33,9 @@ export function withAimCandidate(
   };
 }
 
-export function requestFire(state: PlayerInputSnapshot): PlayerInputSnapshot {
-  return { ...state, pendingFireCount: state.pendingFireCount + 1 };
-}
-
-export function requestReload(state: PlayerInputSnapshot): PlayerInputSnapshot {
-  return { ...state, reloadRequested: true };
-}
-
-export function requestShove(state: PlayerInputSnapshot): PlayerInputSnapshot {
-  return { ...state, shoveRequested: true };
-}
-
-export function consumeFireRequest(
-  state: PlayerInputSnapshot,
-): { requested: boolean; state: PlayerInputSnapshot } {
-  return {
-    requested: state.pendingFireCount > 0,
-    state: state.pendingFireCount > 0
-      ? { ...state, pendingFireCount: state.pendingFireCount - 1 }
-      : state,
-  };
-}
-
-export function consumeReloadRequest(
-  state: PlayerInputSnapshot,
-): { requested: boolean; state: PlayerInputSnapshot } {
-  return {
-    requested: state.reloadRequested,
-    state: state.reloadRequested ? { ...state, reloadRequested: false } : state,
-  };
-}
-
-export function consumeShoveRequest(
-  state: PlayerInputSnapshot,
-): { requested: boolean; state: PlayerInputSnapshot } {
-  return {
-    requested: state.shoveRequested,
-    state: state.shoveRequested ? { ...state, shoveRequested: false } : state,
-  };
-}
-
 export function clearActiveInput(state: PlayerInputSnapshot): PlayerInputSnapshot {
   return {
     ...state,
     movement: { x: 0, y: 0 },
-    pendingFireCount: 0,
-    reloadRequested: false,
-    shoveRequested: false,
   };
 }

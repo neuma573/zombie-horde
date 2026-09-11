@@ -23,34 +23,55 @@ describe('supply trigger rules', () => {
     });
   });
 
-  it('triggers emergency supply immediately only when no supply is active', () => {
-    const initial = createSupplyTriggerState();
-    const emergency = resolveSupplyTrigger(initial, {
+  it('does not trigger a supply mid-wave even when ammunition is depleted', () => {
+    const initial = { consecutiveMisses: 3 };
+    const result = resolveSupplyTrigger(initial, {
       activeSupply: false,
       waveCleared: false,
-      allAmmoDepleted: true,
-      ammoRatio: 0,
-      healthRatio: 1,
-      randomValue: 1,
-    }, SUPPLY_DROP_BALANCE);
-    const blocked = resolveSupplyTrigger(initial, {
-      activeSupply: true,
-      waveCleared: true,
-      allAmmoDepleted: true,
       ammoRatio: 0,
       healthRatio: 0,
       randomValue: 0,
     }, SUPPLY_DROP_BALANCE);
 
-    expect(emergency.kind).toBe('emergency');
-    expect(blocked.kind).toBeNull();
+    expect(result).toEqual({ state: initial, shouldDrop: false, chance: 0 });
+  });
+
+  it('blocks another supply while one is active', () => {
+    const initial = { consecutiveMisses: 3 };
+    const result = resolveSupplyTrigger(initial, {
+      activeSupply: true,
+      waveCleared: true,
+      ammoRatio: 0,
+      healthRatio: 0,
+      randomValue: 0,
+    }, SUPPLY_DROP_BALANCE);
+
+    expect(result).toEqual({ state: initial, shouldDrop: false, chance: 0 });
+  });
+
+  it('uses the wave-clear probability even when ammunition is depleted', () => {
+    const input = {
+      activeSupply: false, waveCleared: true, ammoRatio: 0, healthRatio: 1,
+    };
+    const initial = createSupplyTriggerState();
+    const missed = resolveSupplyTrigger(initial, {
+      ...input, randomValue: 1,
+    }, SUPPLY_DROP_BALANCE);
+    const selected = resolveSupplyTrigger(initial, {
+      ...input, randomValue: 0,
+    }, SUPPLY_DROP_BALANCE);
+
+    expect(missed.shouldDrop).toBe(false);
+    expect(missed.state.consecutiveMisses).toBe(1);
+    expect(selected.shouldDrop).toBe(true);
+    expect(selected.state.consecutiveMisses).toBe(0);
+    expect(selected.chance).toBeLessThan(1);
   });
 
   it('raises normal supply chance for low ammo, critical health, and consecutive misses', () => {
     const healthy = resolveSupplyTrigger(createSupplyTriggerState(), {
       activeSupply: false,
       waveCleared: true,
-      allAmmoDepleted: false,
       ammoRatio: 1,
       healthRatio: 1,
       randomValue: 0.99,
@@ -58,16 +79,15 @@ describe('supply trigger rules', () => {
     const needy = resolveSupplyTrigger({ consecutiveMisses: 2 }, {
       activeSupply: false,
       waveCleared: true,
-      allAmmoDepleted: false,
       ammoRatio: 0.05,
       healthRatio: 0.2,
       randomValue: 0.5,
     }, SUPPLY_DROP_BALANCE);
 
-    expect(healthy.kind).toBeNull();
+    expect(healthy.shouldDrop).toBe(false);
     expect(healthy.state.consecutiveMisses).toBe(1);
     expect(needy.chance).toBeGreaterThan(healthy.chance);
-    expect(needy.kind).toBe('normal');
+    expect(needy.shouldDrop).toBe(true);
     expect(needy.state.consecutiveMisses).toBe(0);
   });
 });

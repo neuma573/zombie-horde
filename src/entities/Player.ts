@@ -8,7 +8,9 @@ import {
   blendVisualColor,
   clampPonytailRelativeRotation,
   RIFLE_VISUAL,
+  resolveActionFacingRotation,
   resolveRifleReloadVisual,
+  resolveOneHandedMeleeActionPose,
   resolveShotgunBreakAngle,
   resolveShoveArmPose,
   resolveShoveVisualPose,
@@ -17,7 +19,9 @@ import {
   SIDEARM_VISUAL,
   type SidearmPose,
   type RifleReloadVisual,
+  type ActionFacing,
 } from '../logic/playerVisual';
+import type { Vector2 } from '../logic/hitscan';
 import type { WeaponId } from '../logic/weapon';
 
 export const PLAYER_RADIUS = PLAYER_CONFIG.radius;
@@ -55,6 +59,8 @@ const FEMALE_VISUAL_COLORS = {
 const MUZZLE_REFLECTION_DECAY_RATE = 22;
 const WEAPON_RECOIL_DECAY_RATE = 15;
 const SHOVE_VISUAL_DURATION_MS = 260;
+const MELEE_SWING_VISUAL_DURATION_MS = 360;
+const MELEE_SWING_IMPACT_PROGRESS = 0.56;
 const PONYTAIL_FOLLOW_RATE = 10;
 const PONYTAIL_SWAY_SPEED = 0.012;
 const PONYTAIL_MAX_LAG_RADIANS = Math.PI * 0.4;
@@ -85,6 +91,12 @@ export class Player extends Phaser.GameObjects.Container {
   private weaponRecoilDistance = 0;
   private shotgunBreakAngle = 0;
   private shoveVisualElapsedMs: number | null = null;
+  private meleeSwingVisualElapsedMs: number | null = null;
+  private aimDirection: Vector2 = { x: 1, y: 0 };
+  private shoveFacing: ActionFacing | null = null;
+  private meleeSwingFacing: ActionFacing | null = null;
+  private rangedShotFacing: ActionFacing | null = null;
+  private nextActionFacingSequence = 0;
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
   private movementAmount = 0;
@@ -203,6 +215,12 @@ export class Player extends Phaser.GameObjects.Container {
         pose.y,
       )
       .setRotation(pose.rotation);
+    if (this.weaponId === 'policeBaton') {
+      const meleePose = this.resolveBatonPose();
+      this.rifle
+        .setPosition(meleePose.weaponPosition.x, meleePose.weaponPosition.y)
+        .setRotation(meleePose.weaponRotation);
+    }
     this.arms.setX(0);
     this.rifleUnderArm.setX(0);
     this.drawArms(pose);
@@ -213,7 +231,18 @@ export class Player extends Phaser.GameObjects.Container {
 
   setWeaponVisual(weaponId: WeaponId): void {
     if (weaponId === this.weaponId) return;
+    const leavingMeleeWeapon = this.weaponId === 'policeBaton'
+      && weaponId !== 'policeBaton';
     this.weaponId = weaponId;
+    const hadRangedShotFacing = this.rangedShotFacing !== null;
+    this.rangedShotFacing = null;
+    if (leavingMeleeWeapon) {
+      this.meleeSwingVisualElapsedMs = null;
+      this.meleeSwingFacing = null;
+    }
+    if (leavingMeleeWeapon || hadRangedShotFacing) {
+      this.applyFacingRotation();
+    }
     this.sidearm.setVisible(weaponId === 'pistol');
     this.rifle.setVisible(weaponId !== 'pistol');
     this.rifleReload.setVisible(weaponId !== 'pistol');
@@ -235,11 +264,37 @@ export class Player extends Phaser.GameObjects.Container {
     this.weaponRecoilIntensity = 1;
   }
 
-  triggerShoveVisual(): void {
+  triggerRangedShotVisual(aimDirection: Vector2): void {
+    this.rangedShotFacing = this.captureActionFacing(aimDirection);
+    this.applyFacingRotation();
+  }
+
+  triggerShoveVisual(aimDirection: Vector2): void {
+    this.shoveFacing = this.captureActionFacing(aimDirection);
     this.shoveVisualElapsedMs = 0;
+    this.applyFacingRotation();
+  }
+
+  setAimDirection(aimDirection: Vector2): void {
+    this.aimDirection = { ...aimDirection };
+    this.applyFacingRotation();
+  }
+
+  triggerMeleeSwingVisual(aimDirection: Vector2): void {
+    // Melee damage is resolved at input time, so begin the rendered motion at
+    // the contact keyframe and show the follow-through from that same moment.
+    this.meleeSwingFacing = this.captureActionFacing(aimDirection);
+    this.meleeSwingVisualElapsedMs = (
+      MELEE_SWING_VISUAL_DURATION_MS * MELEE_SWING_IMPACT_PROGRESS
+    );
+    this.applyFacingRotation();
   }
 
   updateVisual(deltaMs: number, isMoving = false): void {
+    if (this.rangedShotFacing !== null) {
+      this.rangedShotFacing = null;
+      this.applyFacingRotation();
+    }
     this.muzzleReflectionIntensity = decayTransientLight(
       this.muzzleReflectionIntensity,
       deltaMs,
@@ -254,6 +309,16 @@ export class Player extends Phaser.GameObjects.Container {
       this.shoveVisualElapsedMs += deltaMs;
       if (this.shoveVisualElapsedMs >= SHOVE_VISUAL_DURATION_MS) {
         this.shoveVisualElapsedMs = null;
+        this.shoveFacing = null;
+        this.applyFacingRotation();
+      }
+    }
+    if (this.meleeSwingVisualElapsedMs !== null && Number.isFinite(deltaMs) && deltaMs > 0) {
+      this.meleeSwingVisualElapsedMs += deltaMs;
+      if (this.meleeSwingVisualElapsedMs >= MELEE_SWING_VISUAL_DURATION_MS) {
+        this.meleeSwingVisualElapsedMs = null;
+        this.meleeSwingFacing = null;
+        this.applyFacingRotation();
       }
     }
     this.ponytailShotSwayIntensity = decayTransientLight(
@@ -284,7 +349,7 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private drawArms(pose: { x: number; y: number; rotation: number }): void {
-    if (this.weaponId !== 'pistol') {
+    if (this.weaponId !== 'pistol' && this.weaponId !== 'policeBaton') {
       this.drawRifleArms();
       return;
     }
@@ -300,10 +365,12 @@ export class Player extends Phaser.GameObjects.Container {
     const rightShoulderY = this.appearance === 'female-swat'
       ? 9
       : HUMANOID_VISUAL.shoulderY;
-    const resolvedHandPose = resolveSidearmHandPose(pose, {
-      leftY: leftShoulderY,
-      rightY: rightShoulderY,
-    });
+    const resolvedHandPose = this.weaponId === 'policeBaton'
+      ? this.resolveBatonPose()
+      : resolveSidearmHandPose(pose, {
+        leftY: leftShoulderY,
+        rightY: rightShoulderY,
+      });
     const shovePose = resolveShoveVisualPose(
       this.shoveVisualElapsedMs,
       SHOVE_VISUAL_DURATION_MS,
@@ -312,7 +379,9 @@ export class Player extends Phaser.GameObjects.Container {
       { x: 0, y: leftShoulderY },
       resolvedHandPose.leftElbow,
       resolvedHandPose.leftHand,
-      shovePose,
+      this.weaponId === 'policeBaton'
+        ? { forwardOffset: 0 }
+        : shovePose,
     );
     const handPose = {
       ...resolvedHandPose,
@@ -361,8 +430,17 @@ export class Player extends Phaser.GameObjects.Container {
       armWidth,
     );
     this.arms.fillStyle(0x05080b, 1);
-    this.arms.fillCircle(handPose.leftHand.x, handPose.leftHand.y, 3.5);
+    this.arms.fillCircle(
+      handPose.leftHand.x,
+      handPose.leftHand.y,
+      this.weaponId === 'policeBaton' ? 4.5 : 3.5,
+    );
     this.arms.fillCircle(handPose.rightHand.x, handPose.rightHand.y, 3.5);
+    if (this.weaponId === 'policeBaton') {
+      this.arms
+        .fillStyle(this.armColor('upper'), 1)
+        .fillCircle(handPose.leftHand.x + 0.5, handPose.leftHand.y, 3);
+    }
   }
 
   private drawRifleArms(): void {
@@ -739,9 +817,36 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private weaponLength(): number {
+    if (this.weaponId === 'policeBaton') return 42;
     return this.weaponId !== 'pistol'
       ? RIFLE_VISUAL.length
       : SIDEARM_VISUAL.length;
+  }
+
+  private resolveBatonPose() {
+    return resolveOneHandedMeleeActionPose(
+      this.meleeSwingVisualElapsedMs,
+      MELEE_SWING_VISUAL_DURATION_MS,
+      this.shoveVisualElapsedMs,
+      SHOVE_VISUAL_DURATION_MS,
+    );
+  }
+
+  private applyFacingRotation(): void {
+    this.setRotation(resolveActionFacingRotation(
+      this.aimDirection,
+      [this.shoveFacing, this.meleeSwingFacing, this.rangedShotFacing]
+        .filter((facing): facing is ActionFacing => facing !== null),
+    ));
+  }
+
+  private captureActionFacing(direction: Vector2): ActionFacing {
+    const facing = {
+      direction: { ...direction },
+      sequence: this.nextActionFacingSequence,
+    };
+    this.nextActionFacingSequence += 1;
+    return facing;
   }
 
   private drawRifle(): void {
@@ -763,6 +868,24 @@ export class Player extends Phaser.GameObjects.Container {
       0x89989f,
       this.muzzleReflectionIntensity * 0.55,
     );
+
+    if (this.weaponId === 'policeBaton') {
+      this.rifle
+        // The grip begins under the hand at local origin so the baton never floats.
+        .fillStyle(0x05080b, 1)
+        .fillRoundedRect(-4, -4.5, 22, 9, 3)
+        .fillRoundedRect(15, -3.5, 31, 7, 2.5)
+        .fillCircle(46, 0, 4)
+        .fillStyle(0x263039, 1)
+        .fillRoundedRect(-3, -3.2, 20, 6.4, 2)
+        .fillStyle(0x46535d, 1)
+        .fillRoundedRect(16, -2.2, 29, 4.4, 1.5)
+        .fillStyle(0x11171c, 1)
+        .fillRect(2, -3.2, 2, 6.4)
+        .fillRect(8, -3.2, 2, 6.4)
+        .fillRect(14, -3.2, 2, 6.4);
+      return;
+    }
 
     if (this.weaponId === 'doubleBarrelShotgun') {
       const wood = blendVisualColor(
@@ -833,6 +956,7 @@ export class Player extends Phaser.GameObjects.Container {
 
   private drawRifleReload(): void {
     this.rifleReload.clear();
+    if (this.weaponId === 'policeBaton') return;
     if (this.weaponId === 'doubleBarrelShotgun') {
       const wood = blendVisualColor(
         0x6e351f,
