@@ -1,24 +1,6 @@
 import type { SessionPhase } from './session';
 import type { WavePhase } from './wave';
-import type { WeaponDefinition, WeaponId, WeaponRarity } from './weapon';
-
-export type WeaponTooltipStats = {
-  attackType: 'ranged';
-  fireRateText: string;
-  recoil: number;
-  magazineSize: number;
-} | {
-  attackType: 'melee';
-  swingIntervalMs: number;
-  staminaCost: number;
-};
-
-type WeaponTooltipWeapon = {
-  id: WeaponId;
-  name: string;
-  description: string;
-  rarity: WeaponRarity;
-} & WeaponTooltipStats;
+import type { WeaponId, WeaponRarity } from './weapon';
 
 export interface HudState {
   health: number;
@@ -42,14 +24,20 @@ export interface HudState {
   killCount: number;
   sessionPhase: SessionPhase;
   gameTimeText: string;
-  weaponSlots?: Array<WeaponTooltipWeapon | null>;
+  weaponSlots?: Array<{
+    id: WeaponId;
+    name: string;
+    description: string;
+    rarity: WeaponRarity;
+    fireRateText: string;
+    recoil: number;
+    magazineSize: number;
+  } | null>;
   activeWeaponSlot?: 0 | 1;
 }
 
 export function ejectsCasingOnFire(weaponId: WeaponId | null): boolean {
-  return weaponId !== null
-    && weaponId !== 'doubleBarrelShotgun'
-    && weaponId !== 'policeBaton';
+  return weaponId !== null && weaponId !== 'doubleBarrelShotgun';
 }
 
 export function retainsSpentShotgunShells(
@@ -99,50 +87,26 @@ export interface HudViewModel {
   reloadPrompt: string | null;
   waveNumber: number;
   waveBannerText: string | null;
-  weaponSlots: Array<WeaponTooltipWeapon | null>;
+  weaponSlots: Array<{
+    id: WeaponId;
+    name: string;
+    description: string;
+    rarity: WeaponRarity;
+    fireRateText: string;
+    recoil: number;
+    magazineSize: number;
+  } | null>;
   activeWeaponSlot: 0 | 1;
 }
 
-export type WeaponPickupViewModel = {
+export interface WeaponPickupViewModel {
   name: string;
   description: string;
   rarity: WeaponRarity;
+  fireRateText: string;
+  recoil: number;
+  magazineSize: number;
   interactionText: string;
-} & WeaponTooltipStats;
-
-export function weaponTooltipStats(
-  definition: WeaponDefinition,
-): WeaponTooltipStats {
-  if (definition.attackType === 'melee') {
-    return {
-      attackType: 'melee',
-      swingIntervalMs: definition.config.fireIntervalMs,
-      staminaCost: Math.max(0, definition.config.staminaCost ?? 0),
-    };
-  }
-
-  return {
-    attackType: 'ranged',
-    fireRateText: definition.config.burstSize === 3
-      ? `3-RND / ${definition.config.fireIntervalMs}ms`
-      : `SEMI / ${definition.config.fireIntervalMs}ms`,
-    recoil: definition.recoil,
-    magazineSize: definition.config.magazineSize,
-  };
-}
-
-export function weaponTooltipStatLines(
-  viewModel: WeaponTooltipStats,
-): string[] {
-  return viewModel.attackType === 'melee'
-    ? [
-      `SWING INTERVAL ${viewModel.swingIntervalMs}ms`,
-      `STAMINA COST ${viewModel.staminaCost}`,
-    ]
-    : [
-      `FIRE RATE ${viewModel.fireRateText}   RECOIL ${viewModel.recoil}`,
-      `MAGAZINE ${viewModel.magazineSize}`,
-    ];
 }
 
 export type TooltipPlacement = 'above' | 'below';
@@ -437,7 +401,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     waveTagText: state.waveNumber > 0 ? `#Wave${state.waveNumber}` : '#Wave--',
     healthRatio: normalizedGaugeRatio(state.health, state.maxHealth),
     staminaRatio: normalizedGaugeRatio(state.stamina, state.maxStamina),
-    ammoText: state.weaponId === 'policeBaton' ? '' : `+${state.reserveAmmo}`,
+    ammoText: `+${state.reserveAmmo}`,
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
     spentCasings: Math.max(0, Math.floor(state.spentCasings ?? 0)),

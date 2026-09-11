@@ -25,7 +25,6 @@ export class WeaponPickup extends Phaser.GameObjects.Container {
     scene: Phaser.Scene,
     x: number,
     y: number,
-    readonly pickupId: number,
     readonly ownedWeapon: OwnedWeapon,
     textureKey: string,
   ) {

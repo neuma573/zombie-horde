@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   clearActiveInput,
+  consumeFireRequest,
+  consumeReloadRequest,
+  consumeShoveRequest,
   createPlayerInputState,
+  requestFire,
+  requestReload,
+  requestShove,
   withAimCandidate,
   withMovement,
 } from '../../../logic/playerInput';
@@ -17,15 +23,38 @@ describe('common player input', () => {
     expect(zeroAim.manualAimDirection).toEqual(aimed.manualAimDirection);
   });
 
-  it('clears active movement without losing the last aim', () => {
-    const active = withMovement(
+  it('consumes fire and reload requests exactly once', () => {
+    let state = requestShove(requestReload(requestFire(requestFire(createPlayerInputState()))));
+    const fire = consumeFireRequest(state);
+    state = fire.state;
+    const secondFire = consumeFireRequest(state);
+    state = secondFire.state;
+    const reload = consumeReloadRequest(state);
+    state = reload.state;
+    const shove = consumeShoveRequest(state);
+    state = shove.state;
+
+    expect(fire.requested).toBe(true);
+    expect(secondFire.requested).toBe(true);
+    expect(reload.requested).toBe(true);
+    expect(shove.requested).toBe(true);
+    expect(consumeFireRequest(state).requested).toBe(false);
+    expect(consumeReloadRequest(state).requested).toBe(false);
+    expect(consumeShoveRequest(state).requested).toBe(false);
+  });
+
+  it('clears active movement and requests without losing the last aim', () => {
+    const active = requestFire(withMovement(
       withAimCandidate(createPlayerInputState(), { x: 0, y: -2 }),
       { x: 1, y: 0.5 },
-    );
+    ));
 
     expect(clearActiveInput(active)).toEqual({
       movement: { x: 0, y: 0 },
       manualAimDirection: { x: 0, y: -1 },
+      pendingFireCount: 0,
+      reloadRequested: false,
+      shoveRequested: false,
     });
   });
 

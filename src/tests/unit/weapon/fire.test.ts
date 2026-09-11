@@ -39,20 +39,6 @@ describe('weapon fire', () => {
     expect(tryFire(empty, config)).toEqual({ fired: false, state: empty });
   });
 
-  it('uses cooldown without consuming ammunition for a melee attack', () => {
-    const melee = { ...config, magazineSize: 0, reserveAmmo: 0, usesAmmo: false };
-    const initial = createWeaponState(melee);
-    const firstAttack = tryFire(initial, melee);
-
-    expect(firstAttack.fired).toBe(true);
-    expect(firstAttack.state.magazineAmmo).toBe(0);
-    expect(tryFire(firstAttack.state, melee).fired).toBe(false);
-    expect(tryFire(
-      advanceWeapon(firstAttack.state, melee, melee.fireIntervalMs),
-      melee,
-    ).fired).toBe(true);
-  });
-
   it('retains fired casings only for break-action weapons', () => {
     const breakAction = {
       ...config,

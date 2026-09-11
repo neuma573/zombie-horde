@@ -219,21 +219,11 @@ export class WeaponAudio {
   }
 
   playEquip(weaponId: WeaponId): void {
-    const queuedShotTailDelayMs = this.flushQueuedShots();
     this.cancelReload();
-    const play = () => this.scene.sound.play(
+    this.scene.sound.play(
       WEAPON_AUDIO_CONFIG.weapons[weaponId].equipKey,
       { volume: WEAPON_AUDIO_CONFIG.volume.equip },
     );
-    if (queuedShotTailDelayMs === 0) {
-      play();
-      return;
-    }
-    const timer = this.scene.time.delayedCall(queuedShotTailDelayMs, () => {
-      this.shotTimers = this.shotTimers.filter((queued) => queued !== timer);
-      play();
-    });
-    this.shotTimers.push(timer);
   }
 
   cancelReload(): void {

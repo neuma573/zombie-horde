@@ -138,43 +138,6 @@ describe('WeaponAudio', () => {
     expect(played).toHaveLength(4);
   });
 
-  it('plays an earlier queued shot before equip audio', () => {
-    const { runtime, played } = createAudioRuntime();
-    const audio = new WeaponAudio(runtime);
-    audio.queueShot('pistol', 50);
-
-    audio.playEquip('policeBaton');
-
-    expect(played).toEqual([
-      'audio-pistol-shot-01',
-      'audio-pistol-tail-01',
-      'audio-pistol-equip',
-    ]);
-  });
-
-  it('plays the final queued burst shot before equip audio', () => {
-    const { runtime, played, scheduled } = createAudioRuntime();
-    const audio = new WeaponAudio(runtime);
-    audio.queueShot('burstRifle', 65);
-    audio.queueShot('burstRifle', 130);
-
-    audio.playEquip('policeBaton');
-
-    expect(played).toEqual([
-      'audio-rifle-shot-01',
-      'audio-rifle-tail-01',
-    ]);
-    expect(scheduled.map(({ delay }) => delay)).toEqual([65, 65]);
-
-    scheduled[0].run();
-    scheduled[1].run();
-    expect(played.slice(-3)).toEqual([
-      'audio-rifle-shot-02',
-      'audio-rifle-tail-02',
-      'audio-pistol-equip',
-    ]);
-  });
-
   it('plays the final queued burst shot before the initial reload cue', () => {
     const { runtime, played, scheduled } = createAudioRuntime();
     const audio = new WeaponAudio(runtime);

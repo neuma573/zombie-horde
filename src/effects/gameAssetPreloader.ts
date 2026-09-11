@@ -4,7 +4,6 @@ import roadDiamondOutlineUrl from '../assets/road_diamond_outline.svg';
 import pistolIconUrl from '../assets/weapons/pistol.png';
 import rifleIconUrl from '../assets/weapons/rifle.png';
 import shotgunIconUrl from '../assets/weapons/double-barrel-shotgun.png';
-import policeBatonIconUrl from '../assets/weapons/police-baton.png';
 import pistolAmmoUrl from '../assets/weapons/ammo-9mm-hud.svg';
 import rifleAmmoUrl from '../assets/weapons/ammo-556-hud.svg';
 import shotgunAmmoUrl from '../assets/weapons/ammo-12-gauge-hud.svg';
@@ -31,7 +30,6 @@ export const GAME_IMAGE_ASSETS = {
   'weapon-pistol': pistolIconUrl,
   'weapon-rifle': rifleIconUrl,
   'weapon-shotgun': shotgunIconUrl,
-  'weapon-police-baton': policeBatonIconUrl,
   'ammo-pistol': pistolAmmoUrl,
   'ammo-rifle': rifleAmmoUrl,
   'ammo-shotgun': shotgunAmmoUrl,
