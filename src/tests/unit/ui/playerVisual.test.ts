@@ -41,16 +41,31 @@ describe('player visual pose', () => {
     const latestAim = { x: 0, y: 1 };
     const queuedSwingAim = { x: 1, y: 0 };
 
-    expect(resolveActionFacingRotation(latestAim, queuedSwingAim, null)).toBeCloseTo(0);
-    expect(resolveActionFacingRotation(latestAim, null, null)).toBeCloseTo(Math.PI / 2);
+    expect(resolveActionFacingRotation(latestAim, [
+      { direction: queuedSwingAim, sequence: 0 },
+    ])).toBeCloseTo(0);
+    expect(resolveActionFacingRotation(latestAim, [])).toBeCloseTo(Math.PI / 2);
   });
 
   it('faces a queued ranged shot for its rendered frame', () => {
     const latestAim = { x: 0, y: 1 };
     const queuedShotAim = { x: 1, y: 0 };
 
-    expect(resolveActionFacingRotation(latestAim, null, queuedShotAim)).toBeCloseTo(0);
-    expect(resolveActionFacingRotation(latestAim, null, null)).toBeCloseTo(Math.PI / 2);
+    expect(resolveActionFacingRotation(latestAim, [
+      { direction: queuedShotAim, sequence: 0 },
+    ])).toBeCloseTo(0);
+    expect(resolveActionFacingRotation(latestAim, [])).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('faces the latest queued action while visual actions overlap', () => {
+    const latestAim = { x: -1, y: 0 };
+    const shoveAim = { x: 0, y: 1 };
+    const meleeAim = { x: 1, y: 0 };
+
+    expect(resolveActionFacingRotation(latestAim, [
+      { direction: shoveAim, sequence: 2 },
+      { direction: meleeAim, sequence: 1 },
+    ])).toBeCloseTo(Math.PI / 2);
   });
 
   it('swings a one-handed melee weapon with the right arm', () => {

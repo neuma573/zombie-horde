@@ -15,16 +15,21 @@ export interface OneHandedMeleePose extends SidearmHandPose {
   weaponRotation: number;
 }
 
+export interface ActionFacing {
+  direction: { x: number; y: number };
+  sequence: number;
+}
+
 export function resolveActionFacingRotation(
   aimDirection: { x: number; y: number },
-  meleeDirection: { x: number; y: number } | null,
-  rangedDirection: { x: number; y: number } | null,
+  actionFacings: readonly ActionFacing[],
 ): number {
-  const direction = validDirection(meleeDirection)
-    ? meleeDirection
-    : validDirection(rangedDirection)
-      ? rangedDirection
-      : aimDirection;
+  const latest = actionFacings
+    .filter((facing) => validDirection(facing.direction))
+    .reduce<ActionFacing | null>((current, facing) => (
+      current === null || facing.sequence > current.sequence ? facing : current
+    ), null);
+  const direction = latest?.direction ?? aimDirection;
   return validDirection(direction) ? Math.atan2(direction.y, direction.x) : 0;
 }
 

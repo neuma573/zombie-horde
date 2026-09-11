@@ -1112,7 +1112,7 @@ export class GameScene extends Phaser.Scene {
     );
     this.stamina = result.stamina;
     if (result.performed) {
-      this.player.triggerShoveVisual();
+      this.player.triggerShoveVisual(aimDirection);
       this.pendingShove = {
         windup: windup.state,
         aimDirection: { ...aimDirection },

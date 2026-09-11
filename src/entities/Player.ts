@@ -19,6 +19,7 @@ import {
   SIDEARM_VISUAL,
   type SidearmPose,
   type RifleReloadVisual,
+  type ActionFacing,
 } from '../logic/playerVisual';
 import type { Vector2 } from '../logic/hitscan';
 import type { WeaponId } from '../logic/weapon';
@@ -92,8 +93,10 @@ export class Player extends Phaser.GameObjects.Container {
   private shoveVisualElapsedMs: number | null = null;
   private meleeSwingVisualElapsedMs: number | null = null;
   private aimDirection: Vector2 = { x: 1, y: 0 };
-  private meleeSwingAimDirection: Vector2 | null = null;
-  private rangedShotAimDirection: Vector2 | null = null;
+  private shoveFacing: ActionFacing | null = null;
+  private meleeSwingFacing: ActionFacing | null = null;
+  private rangedShotFacing: ActionFacing | null = null;
+  private nextActionFacingSequence = 0;
   private ponytailWorldRotation = 0;
   private ponytailSwayTimeMs = 0;
   private movementAmount = 0;
@@ -231,11 +234,11 @@ export class Player extends Phaser.GameObjects.Container {
     const leavingMeleeWeapon = this.weaponId === 'policeBaton'
       && weaponId !== 'policeBaton';
     this.weaponId = weaponId;
-    const hadRangedShotFacing = this.rangedShotAimDirection !== null;
-    this.rangedShotAimDirection = null;
+    const hadRangedShotFacing = this.rangedShotFacing !== null;
+    this.rangedShotFacing = null;
     if (leavingMeleeWeapon) {
       this.meleeSwingVisualElapsedMs = null;
-      this.meleeSwingAimDirection = null;
+      this.meleeSwingFacing = null;
     }
     if (leavingMeleeWeapon || hadRangedShotFacing) {
       this.applyFacingRotation();
@@ -262,12 +265,14 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   triggerRangedShotVisual(aimDirection: Vector2): void {
-    this.rangedShotAimDirection = { ...aimDirection };
+    this.rangedShotFacing = this.captureActionFacing(aimDirection);
     this.applyFacingRotation();
   }
 
-  triggerShoveVisual(): void {
+  triggerShoveVisual(aimDirection: Vector2): void {
+    this.shoveFacing = this.captureActionFacing(aimDirection);
     this.shoveVisualElapsedMs = 0;
+    this.applyFacingRotation();
   }
 
   setAimDirection(aimDirection: Vector2): void {
@@ -278,7 +283,7 @@ export class Player extends Phaser.GameObjects.Container {
   triggerMeleeSwingVisual(aimDirection: Vector2): void {
     // Melee damage is resolved at input time, so begin the rendered motion at
     // the contact keyframe and show the follow-through from that same moment.
-    this.meleeSwingAimDirection = { ...aimDirection };
+    this.meleeSwingFacing = this.captureActionFacing(aimDirection);
     this.meleeSwingVisualElapsedMs = (
       MELEE_SWING_VISUAL_DURATION_MS * MELEE_SWING_IMPACT_PROGRESS
     );
@@ -286,8 +291,8 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   updateVisual(deltaMs: number, isMoving = false): void {
-    if (this.rangedShotAimDirection !== null) {
-      this.rangedShotAimDirection = null;
+    if (this.rangedShotFacing !== null) {
+      this.rangedShotFacing = null;
       this.applyFacingRotation();
     }
     this.muzzleReflectionIntensity = decayTransientLight(
@@ -304,13 +309,15 @@ export class Player extends Phaser.GameObjects.Container {
       this.shoveVisualElapsedMs += deltaMs;
       if (this.shoveVisualElapsedMs >= SHOVE_VISUAL_DURATION_MS) {
         this.shoveVisualElapsedMs = null;
+        this.shoveFacing = null;
+        this.applyFacingRotation();
       }
     }
     if (this.meleeSwingVisualElapsedMs !== null && Number.isFinite(deltaMs) && deltaMs > 0) {
       this.meleeSwingVisualElapsedMs += deltaMs;
       if (this.meleeSwingVisualElapsedMs >= MELEE_SWING_VISUAL_DURATION_MS) {
         this.meleeSwingVisualElapsedMs = null;
-        this.meleeSwingAimDirection = null;
+        this.meleeSwingFacing = null;
         this.applyFacingRotation();
       }
     }
@@ -828,9 +835,18 @@ export class Player extends Phaser.GameObjects.Container {
   private applyFacingRotation(): void {
     this.setRotation(resolveActionFacingRotation(
       this.aimDirection,
-      this.meleeSwingAimDirection,
-      this.rangedShotAimDirection,
+      [this.shoveFacing, this.meleeSwingFacing, this.rangedShotFacing]
+        .filter((facing): facing is ActionFacing => facing !== null),
     ));
+  }
+
+  private captureActionFacing(direction: Vector2): ActionFacing {
+    const facing = {
+      direction: { ...direction },
+      sequence: this.nextActionFacingSequence,
+    };
+    this.nextActionFacingSequence += 1;
+    return facing;
   }
 
   private drawRifle(): void {
