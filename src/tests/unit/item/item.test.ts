@@ -33,15 +33,15 @@ describe('supply loot', () => {
 
   it('limits weapon drops to pistols through wave five', () => {
     for (let wave = 1; wave <= 5; wave += 1) {
-      const loot = selectSupplyLoot('normal', wave, 1, 0, 1, LOOT_CONFIG);
+      const loot = selectSupplyLoot(wave, 1, 0, 1, LOOT_CONFIG);
       expect(loot[0]).toEqual({ type: 'weapon', weaponId: 'pistol' });
       expect(loot).toContainEqual({ type: 'consumable', kind: 'pistolAmmo' });
     }
   });
 
   it('uses the configured rifle probability starting at wave six', () => {
-    const rifle = selectSupplyLoot('normal', 6, 1, 0, 1, LOOT_CONFIG);
-    const pistol = selectSupplyLoot('normal', 6, 1, 1, 1, LOOT_CONFIG);
+    const rifle = selectSupplyLoot(6, 1, 0, 1, LOOT_CONFIG);
+    const pistol = selectSupplyLoot(6, 1, 1, 1, LOOT_CONFIG);
 
     expect(rifle[0]).toEqual({ type: 'weapon', weaponId: 'burstRifle' });
     expect(rifle).toContainEqual({ type: 'consumable', kind: 'rifleAmmo' });
@@ -50,7 +50,7 @@ describe('supply loot', () => {
 
   it('drops the double-barrel shotgun with matching ammunition from wave six', () => {
     const shotgunRoll = SUPPLY_DROP_BALANCE.rifleDropChance + 0.01;
-    const loot = selectSupplyLoot('normal', 6, 1, shotgunRoll, 1, LOOT_CONFIG);
+    const loot = selectSupplyLoot(6, 1, shotgunRoll, 1, LOOT_CONFIG);
 
     expect(loot[0]).toEqual({
       type: 'weapon',
@@ -59,14 +59,14 @@ describe('supply loot', () => {
     expect(loot).toContainEqual({ type: 'consumable', kind: 'shotgunAmmo' });
   });
 
-  it('guarantees medical supplies for emergency drops and boosts critical-health drops', () => {
-    const healthy = selectSupplyLoot('normal', 3, 1, 1, 0.8, LOOT_CONFIG);
-    const critical = selectSupplyLoot('normal', 3, 0.2, 1, 0.8, LOOT_CONFIG);
-    const emergency = selectSupplyLoot('emergency', 3, 1, 1, 1, LOOT_CONFIG);
+  it('boosts medical supply chance for critical health without guaranteeing a drop', () => {
+    const healthy = selectSupplyLoot(3, 1, 1, 0.8, LOOT_CONFIG);
+    const critical = selectSupplyLoot(3, 0.2, 1, 0.8, LOOT_CONFIG);
+    const missed = selectSupplyLoot(3, 0.2, 1, 1, LOOT_CONFIG);
 
     expect(healthy).not.toContainEqual({ type: 'consumable', kind: 'medical' });
     expect(critical).toContainEqual({ type: 'consumable', kind: 'medical' });
-    expect(emergency).toContainEqual({ type: 'consumable', kind: 'medical' });
+    expect(missed).not.toContainEqual({ type: 'consumable', kind: 'medical' });
   });
 
   it('spreads items around the crate without overlap, obstacles, or map overflow', () => {

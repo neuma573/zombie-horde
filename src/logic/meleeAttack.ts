@@ -26,6 +26,46 @@ export interface ShoveResult {
   pushedTargets: Array<{ id: string; desiredPosition: Vector2 }>;
 }
 
+export interface MeleeHit {
+  id: string;
+  direction: Vector2;
+}
+
+export function resolveMeleeHits(
+  origin: Vector2,
+  aimDirection: Vector2,
+  targets: readonly ShoveTarget[],
+  config: Pick<ShoveConfig, 'range' | 'halfAngleRadians'> & { maxTargets: number },
+  obstacles: readonly RectangleObstacle[] = [],
+): MeleeHit[] {
+  const candidates = resolveShoveTargets(
+    origin,
+    aimDirection,
+    targets,
+    { ...config, pushDistance: 0 },
+    obstacles,
+  ).map(({ id }) => {
+    const target = targets.find((candidate) => candidate.id === id)!;
+    const offset = {
+      x: target.position.x - origin.x,
+      y: target.position.y - origin.y,
+    };
+    const distance = Math.hypot(offset.x, offset.y);
+    return {
+      id,
+      distance,
+      direction: distance > 0
+        ? { x: offset.x / distance, y: offset.y / distance }
+        : { x: 1, y: 0 },
+    };
+  });
+
+  return candidates
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, Math.max(0, Math.floor(config.maxTargets)))
+    .map(({ id, direction }) => ({ id, direction }));
+}
+
 export interface ShoveWindupState {
   elapsedMs: number;
 }
