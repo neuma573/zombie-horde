@@ -100,30 +100,47 @@ describe('player visual pose', () => {
     expect(Math.abs(ready.leftHand.y)).toBeGreaterThan(10);
   });
 
-  it('pushes with the open left hand while keeping the baton aimed', () => {
+  it('pushes the crosswise baton with both hands and returns to the diagonal guard', () => {
     const ready = resolveSystemaMeleeShovePose(null, 260);
     const extended = resolveSystemaMeleeShovePose(70, 260);
 
-    expect(ready.weaponRotation).toBe(0);
-    expect(extended.weaponRotation).toBe(ready.weaponRotation);
+    expect(ready.weaponRotation).toBe(-0.65);
+    expect(extended.weaponRotation).toBe(-Math.PI / 2);
     expect(extended.leftHand.x).toBeGreaterThan(ready.leftHand.x + 10);
-    expect(Math.abs(extended.rightHand.x - ready.rightHand.x)).toBeLessThanOrEqual(2);
+    expect(extended.rightHand.x).toBeGreaterThan(ready.rightHand.x + 10);
     expect(extended.rightHand.y).toBe(ready.rightHand.y);
+    expect(extended.leftHand.x).toBeCloseTo(extended.rightHand.x);
+    expect(extended.weaponPosition).toEqual(extended.rightHand);
+    expect(resolveSystemaMeleeShovePose(0, 260)).toEqual(ready);
     expect(resolveSystemaMeleeShovePose(260, 260)).toEqual(ready);
   });
 
-  it('combines a shove extension with an active baton swing', () => {
-    const swing = resolveOneHandedMeleePose(250, 360);
+  it.each([39, 70, 130, 182])('keeps both grips on the baton while pushing and retracting at %s ms', (elapsedMs) => {
+    const pose = resolveSystemaMeleeShovePose(elapsedMs, 260);
+    expect(pose.weaponPosition).toEqual(pose.rightHand);
+    expect(pose.leftHand.x).toBeCloseTo(pose.weaponPosition.x + Math.cos(pose.weaponRotation) * 25);
+    expect(pose.leftHand.y).toBeCloseTo(pose.weaponPosition.y + Math.sin(pose.weaponRotation) * 25);
+  });
+
+  it.each([0, 39, 70.2, 182, 260])('connects the baton shove phases continuously at %s ms', (elapsedMs) => {
+    const before = resolveSystemaMeleeShovePose(elapsedMs - 0.001, 260);
+    const after = resolveSystemaMeleeShovePose(elapsedMs + 0.001, 260);
+    expect(Math.hypot(after.leftHand.x - before.leftHand.x, after.leftHand.y - before.leftHand.y)).toBeLessThan(0.01);
+    expect(Math.hypot(after.rightHand.x - before.rightHand.x, after.rightHand.y - before.rightHand.y)).toBeLessThan(0.01);
+    expect(Math.abs(after.weaponRotation - before.weaponRotation)).toBeLessThan(0.001);
+  });
+
+  it('uses both arms for a baton shove even during an overlapping swing', () => {
     const shove = resolveSystemaMeleeShovePose(70, 260);
 
     const combined = resolveOneHandedMeleeActionPose(250, 360, 70, 260);
 
     expect(combined.leftHand).toEqual(shove.leftHand);
     expect(combined.leftElbow).toEqual(shove.leftElbow);
-    expect(combined.rightHand).toEqual(swing.rightHand);
-    expect(combined.rightElbow).toEqual(swing.rightElbow);
-    expect(combined.weaponPosition).toEqual(swing.weaponPosition);
-    expect(combined.weaponRotation).toBe(swing.weaponRotation);
+    expect(combined.rightHand).toEqual(shove.rightHand);
+    expect(combined.rightElbow).toEqual(shove.rightElbow);
+    expect(combined.weaponPosition).toEqual(shove.weaponPosition);
+    expect(combined.weaponRotation).toBe(shove.weaponRotation);
   });
 
   it('opens and closes the shotgun barrels during a break-action reload', () => {

@@ -75,10 +75,10 @@ export function resolveOneHandedMeleePose(
   const ready = {
     leftHand: { x: 20, y: -11 },
     leftElbow: { x: 9, y: -12 },
-    rightHand: { x: 16, y: 10 },
-    rightElbow: { x: 7, y: 12 },
-    weaponPosition: { x: 16, y: 10 },
-    weaponRotation: 0,
+    rightHand: { x: 24, y: 14 },
+    rightElbow: { x: 10, y: 15 },
+    weaponPosition: { x: 24, y: 14 },
+    weaponRotation: -0.65,
   };
   if (elapsedMs === null || !Number.isFinite(elapsedMs) || durationMs <= 0) return ready;
   const progress = Math.min(1, Math.max(0, elapsedMs / durationMs));
@@ -108,23 +108,31 @@ export function resolveSystemaMeleeShovePose(
 ): OneHandedMeleePose {
   const ready = resolveOneHandedMeleePose(null, durationMs);
   if (elapsedMs === null || !Number.isFinite(elapsedMs) || durationMs <= 0) return ready;
-  const shove = resolveShoveVisualPose(elapsedMs, durationMs);
-  const extension = Math.min(1, Math.max(0, shove.forwardOffset / 15));
-
-  return {
-    leftHand: { x: ready.leftHand.x + shove.forwardOffset, y: ready.leftHand.y },
-    leftElbow: {
-      x: lerpNumber(ready.leftElbow.x, 18, extension),
-      y: lerpNumber(ready.leftElbow.y, -11.5, extension),
-    },
-    rightHand: { x: ready.rightHand.x - extension * 2, y: ready.rightHand.y },
-    rightElbow: { x: ready.rightElbow.x - extension, y: ready.rightElbow.y },
-    weaponPosition: {
-      x: ready.weaponPosition.x - extension * 2,
-      y: ready.weaponPosition.y,
-    },
-    weaponRotation: ready.weaponRotation,
+  const progress = Math.min(1, Math.max(0, elapsedMs / durationMs));
+  const brace: OneHandedMeleePose = {
+    leftHand: { x: 24, y: -11 },
+    leftElbow: { x: 10, y: -13 },
+    rightHand: { x: 24, y: 14 },
+    rightElbow: { x: 10, y: 15 },
+    weaponPosition: { x: 24, y: 14 },
+    weaponRotation: -Math.PI / 2,
   };
+  const extended: OneHandedMeleePose = {
+    leftHand: { x: 38, y: -11 },
+    leftElbow: { x: 21, y: -12 },
+    rightHand: { x: 38, y: 14 },
+    rightElbow: { x: 21, y: 14 },
+    weaponPosition: { x: 38, y: 14 },
+    weaponRotation: -Math.PI / 2,
+  };
+  const blend = (from: OneHandedMeleePose, to: OneHandedMeleePose, t: number) => (
+    interpolateMeleePose(from, to, t * t * (3 - 2 * t))
+  );
+  // Establish the two-handed grip before the impact, then retract before releasing it.
+  if (progress < 0.15) return blend(ready, brace, progress / 0.15);
+  if (progress < 0.27) return blend(brace, extended, (progress - 0.15) / 0.12);
+  if (progress < 0.7) return blend(extended, brace, (progress - 0.27) / 0.43);
+  return blend(brace, ready, (progress - 0.7) / 0.3);
 }
 
 export function resolveOneHandedMeleeActionPose(
@@ -134,16 +142,18 @@ export function resolveOneHandedMeleeActionPose(
   shoveDurationMs: number,
 ): OneHandedMeleePose {
   const swingPose = resolveOneHandedMeleePose(swingElapsedMs, swingDurationMs);
-  if (shoveElapsedMs === null) return swingPose;
+  if (shoveElapsedMs === null || !Number.isFinite(shoveElapsedMs)
+    || !Number.isFinite(shoveDurationMs) || shoveDurationMs <= 0) return swingPose;
 
   const shovePose = resolveSystemaMeleeShovePose(shoveElapsedMs, shoveDurationMs);
   if (swingElapsedMs === null) return shovePose;
 
-  return {
-    ...swingPose,
-    leftHand: shovePose.leftHand,
-    leftElbow: shovePose.leftElbow,
-  };
+  const progress = Math.min(1, Math.max(0, shoveElapsedMs / shoveDurationMs));
+  const weight = progress < 0.15
+    ? progress / 0.15
+    : progress > 0.7 ? (1 - progress) / 0.3 : 1;
+  // Both arms must own the crosswise baton during a shove, including overlapping swings.
+  return interpolateMeleePose(swingPose, shovePose, weight * weight * (3 - 2 * weight));
 }
 
 export interface ArmJointPose {

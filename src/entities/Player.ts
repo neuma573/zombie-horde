@@ -817,7 +817,7 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private weaponLength(): number {
-    if (this.weaponId === 'policeBaton') return 42;
+    if (this.weaponId === 'policeBaton') return 30;
     return this.weaponId !== 'pistol'
       ? RIFLE_VISUAL.length
       : SIDEARM_VISUAL.length;
@@ -873,17 +873,17 @@ export class Player extends Phaser.GameObjects.Container {
       this.rifle
         // The grip begins under the hand at local origin so the baton never floats.
         .fillStyle(0x05080b, 1)
-        .fillRoundedRect(-4, -4.5, 22, 9, 3)
-        .fillRoundedRect(15, -3.5, 31, 7, 2.5)
-        .fillCircle(46, 0, 4)
+        .fillRoundedRect(-4, -4, 16, 8, 3)
+        .fillRoundedRect(10, -3, 19, 6, 2)
+        .fillCircle(29, 0, 3)
         .fillStyle(0x263039, 1)
-        .fillRoundedRect(-3, -3.2, 20, 6.4, 2)
+        .fillRoundedRect(-3, -2.8, 14, 5.6, 2)
         .fillStyle(0x46535d, 1)
-        .fillRoundedRect(16, -2.2, 29, 4.4, 1.5)
+        .fillRoundedRect(11, -1.8, 18, 3.6, 1.5)
         .fillStyle(0x11171c, 1)
-        .fillRect(2, -3.2, 2, 6.4)
-        .fillRect(8, -3.2, 2, 6.4)
-        .fillRect(14, -3.2, 2, 6.4);
+        .fillRect(1, -2.8, 1.5, 5.6)
+        .fillRect(5, -2.8, 1.5, 5.6)
+        .fillRect(9, -2.8, 1.5, 5.6);
       return;
     }
 
