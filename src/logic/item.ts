@@ -1,6 +1,5 @@
 import type { RectangleObstacle } from './obstacleCollision';
 import type { Position } from './movement';
-import type { SupplyDropKind } from './supplyDrop';
 import type { AmmoType, WeaponId } from './weapon';
 
 export type ConsumableItemKind = 'pistolAmmo' | 'rifleAmmo' | 'shotgunAmmo' | 'medical';
@@ -44,7 +43,6 @@ export function claimSupplyLoot(released: boolean): {
 }
 
 export function selectSupplyLoot(
-  kind: SupplyDropKind,
   waveNumber: number,
   healthRatio: number,
   weaponRoll: number,
@@ -68,8 +66,7 @@ export function selectSupplyLoot(
         ? config.criticalHealthMedicalChanceBonus
         : 0),
   );
-  const includeMedical = kind === 'emergency'
-    || clamp01(medicalRoll) < medicalChance;
+  const includeMedical = clamp01(medicalRoll) < medicalChance;
 
   return [
     { type: 'weapon', weaponId },

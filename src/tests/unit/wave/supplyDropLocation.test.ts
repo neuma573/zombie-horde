@@ -7,19 +7,16 @@ describe('supply location selection', () => {
     clearance: 30,
     normalMinimumPlayerDistance: 150,
     normalMaximumPlayerDistance: 500,
-    emergencyMinimumPlayerDistance: 500,
     previousDropMinimumDistance: 180,
   };
 
   it('selects a reachable normal location outside obstacles and away from the previous drop', () => {
     const obstacles = [{ x: 350, y: 200, width: 200, height: 300 }];
     const target = selectSupplyDropLocation(
-      'normal',
       { x: 100, y: 350 },
       { width: 900, height: 700 },
       obstacles,
       { x: 250, y: 350 },
-      { x: 1, y: 0 },
       42,
       locationConfig,
     );
@@ -33,31 +30,27 @@ describe('supply location selection', () => {
     ).toBe(false);
   });
 
-  it('places emergency supply farther away and favors the threat direction', () => {
+  it('keeps supply within the configured distance band on a large map', () => {
     const target = selectSupplyDropLocation(
-      'emergency',
       { x: 300, y: 300 },
       { width: 1_400, height: 800 },
       [],
       null,
-      { x: 1, y: 0 },
       7,
       locationConfig,
     );
 
     expect(target).not.toBeNull();
-    expect(Math.hypot(target!.x - 300, target!.y - 300)).toBeGreaterThanOrEqual(500);
-    expect(target!.x).toBeGreaterThan(300);
+    expect(Math.hypot(target!.x - 300, target!.y - 300)).toBeGreaterThanOrEqual(150);
+    expect(Math.hypot(target!.x - 300, target!.y - 300)).toBeLessThanOrEqual(500);
   });
 
   it('never relaxes the normal player-distance band when sampling misses', () => {
     const target = selectSupplyDropLocation(
-      'normal',
       { x: 50, y: 50 },
       { width: 4_000, height: 3_000 },
       [],
       null,
-      { x: 0, y: 0 },
       0,
       {
         ...locationConfig,
@@ -75,12 +68,10 @@ describe('supply location selection', () => {
 
   it('defers a normal drop when no reachable cell satisfies its distance band', () => {
     expect(selectSupplyDropLocation(
-      'normal',
       { x: 100, y: 100 },
       { width: 220, height: 220 },
       [],
       null,
-      { x: 0, y: 0 },
       0,
       {
         ...locationConfig,

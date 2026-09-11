@@ -128,5 +128,11 @@ export const WEAPON_AUDIO_CONFIG = {
         },
       ],
     },
+    policeBaton: {
+      equipKey: 'audio-pistol-equip',
+      shotKeys: ['audio-pistol-shot-01', 'audio-pistol-shot-02'],
+      tailKeys: ['audio-pistol-tail-01'],
+      reloadCues: [],
+    },
   } satisfies Record<WeaponId, WeaponAudioDefinition>,
 } as const;

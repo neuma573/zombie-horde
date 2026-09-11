@@ -7,6 +7,7 @@ import {
   recoverStamina,
   recoverStaminaAfterPrepaidTime,
   recoverStaminaAtInputTime,
+  resolveMeleeHits,
   resolveShove,
   resolveShoveTargets,
   startShoveWindup,
@@ -197,5 +198,35 @@ describe('shove attack', () => {
     );
 
     expect(result).toEqual([]);
+  });
+});
+
+describe('melee weapon attack', () => {
+  it('hits only the nearest targets inside the aimed arc', () => {
+    const hits = resolveMeleeHits(
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      [
+        { id: 'near', position: { x: 35, y: 0 }, radius: 18 },
+        { id: 'far', position: { x: 70, y: 0 }, radius: 18 },
+        { id: 'outside', position: { x: 0, y: 50 }, radius: 18 },
+      ],
+      { range: 78, halfAngleRadians: Math.PI / 5, maxTargets: 1 },
+    );
+
+    expect(hits.map((hit) => hit.id)).toEqual(['near']);
+    expect(hits[0].direction).toEqual({ x: 1, y: 0 });
+  });
+
+  it('does not hit a target through an obstacle', () => {
+    const hits = resolveMeleeHits(
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      [{ id: 'blocked', position: { x: 50, y: 0 }, radius: 18 }],
+      { range: 78, halfAngleRadians: Math.PI / 5, maxTargets: 2 },
+      [{ x: 25, y: -10, width: 10, height: 20 }],
+    );
+
+    expect(hits).toEqual([]);
   });
 });
