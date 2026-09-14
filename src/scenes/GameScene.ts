@@ -2599,7 +2599,6 @@ export class GameScene extends Phaser.Scene {
         pickup.kind,
         this.player.health,
         PLAYER_CONFIG.health,
-        ITEM_BALANCE_CONFIG.medicalHealingAmount,
       )) {
         continue;
       }
