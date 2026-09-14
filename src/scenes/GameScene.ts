@@ -14,7 +14,6 @@ import { SHOVE_CONFIG } from '../config/meleeConfig';
 import { SHOTGUN_KNOCKBACK_CONFIG } from '../config/shotgunConfig';
 import { SIMULATION_CONFIG } from '../config/simulationConfig';
 import { SPAWN_CONFIG } from '../config/spawnConfig';
-import { STARTING_SUPPLY_OFFSET, STARTING_WEAPON_PICKUPS } from '../config/startingLootConfig';
 import {
   SUPPLY_DROP_BALANCE,
   SUPPLY_DROP_CONFIG,
@@ -479,7 +478,6 @@ export class GameScene extends Phaser.Scene {
     this.syncCameraLayers();
     this.coarsePointerQuery = window.matchMedia('(pointer: coarse)');
     this.refreshInputMode();
-    this.createStartingLoot();
     this.updateHud();
     this.updateSupplyDropVisual();
 
@@ -2460,27 +2458,8 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private createStartingLoot(): void {
-    for (const { definition, offset } of STARTING_WEAPON_PICKUPS) {
-      const position = revalidatePickupPosition(
-        { x: this.player.x + offset.x, y: this.player.y + offset.y },
-        this.playArea, OBSTACLE_CONFIG, WEAPON_PICKUP_RADIUS / 2,
-      );
-      this.createWeaponPickup(position.x, position.y, createOwnedWeapon(definition));
-    }
-    const target = revalidatePickupPosition(
-      { x: this.player.x + STARTING_SUPPLY_OFFSET.x, y: this.player.y + STARTING_SUPPLY_OFFSET.y },
-      this.playArea, OBSTACLE_CONFIG, SUPPLY_DROP_BALANCE.locationClearance,
-    );
-    this.startSupplyDrop(target);
-    this.supplyDropState = advanceSupplyDrop(
-      this.supplyDropState,
-      this.currentSupplyDropConfig.announcementDurationMs + this.currentSupplyDropConfig.dropDelayMs,
-    );
-  }
-
-  private startSupplyDrop(initialTarget?: Vector2): boolean {
-    const target = initialTarget ?? selectSupplyDropLocation(
+  private startSupplyDrop(): boolean {
+    const target = selectSupplyDropLocation(
       this.player,
       this.playArea,
       OBSTACLE_CONFIG,
@@ -2544,6 +2523,8 @@ export class GameScene extends Phaser.Scene {
           ITEM_BALANCE_CONFIG.criticalHealthMedicalChanceBonus
         ),
       },
+      this.weapon.getInventory(),
+      this.weapon.getAmmoReserves(),
     );
     const positions = spreadSupplyLootPositions(
       loot.length,
