@@ -334,6 +334,11 @@ export class Player extends Phaser.GameObjects.Container {
     this.updateVisual(deltaMs);
   }
 
+  getMuzzleDirection(): { x: number; y: number } {
+    const rotation = this.rotation + this.sidearm.rotation;
+    return { x: Math.cos(rotation), y: Math.sin(rotation) };
+  }
+
   getMuzzlePosition(): { x: number; y: number } {
     const localMuzzleX = this.sidearm.x
       + Math.cos(this.sidearm.rotation) * this.weaponLength() / 2;

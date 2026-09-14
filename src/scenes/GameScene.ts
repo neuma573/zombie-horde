@@ -1797,6 +1797,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncCameraLayers(): void {
+    // Run after movement, recoil and camera updates, without restarting the flash fade.
+    const muzzlePosition = this.player.getMuzzlePosition();
+    this.effects?.updateMuzzlePosition(muzzlePosition);
+    this.timeBasedLighting?.updateMuzzleFlashPose(
+      cameraScreenPoint(
+        muzzlePosition,
+        { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
+        this.viewport,
+        this.cameras.main.zoom,
+      ),
+      this.player.getMuzzleDirection(),
+      this.cameras.main.zoom,
+    );
     if (!this.uiCamera) return;
 
     const fixedObjects: Phaser.GameObjects.GameObject[] = [];

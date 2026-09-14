@@ -32,6 +32,8 @@ export class TimeBasedLighting {
   private visualDarknessAlpha: number | null = null;
   private muzzleFlashIntensity = 0;
   private muzzleFlashSequence = 0;
+  private muzzleFlashLength = 0;
+  private muzzleFlashWidth = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -183,25 +185,34 @@ export class TimeBasedLighting {
     ];
     this.muzzleFlashSequence += 1;
     this.muzzleFlashIntensity = 1;
+    this.muzzleFlashLength = Math.min(
+      this.config.muzzleFlashForwardLength * variant.lengthScale,
+      Math.max(1, maximumDistance),
+    );
+    this.muzzleFlashWidth = this.config.muzzleFlashForwardWidth * variant.widthScale;
+    this.updateMuzzleFlashPose({ x: screenX, y: screenY }, direction, safeZoom);
+    this.muzzleFlashCoreMaskSource.setAlpha(1).setVisible(true);
+    this.muzzleFlashForwardMaskSource.setAlpha(1).setVisible(true);
+  }
+
+  updateMuzzleFlashPose(
+    screenPosition: { x: number; y: number },
+    direction: { x: number; y: number },
+    cameraZoom = 1,
+  ): void {
+    const safeZoom = Number.isFinite(cameraZoom) ? Math.max(0.01, cameraZoom) : 1;
     this.muzzleFlashCoreMaskSource
-      .setPosition(screenX, screenY)
+      .setPosition(screenPosition.x, screenPosition.y)
       .setDisplaySize(
         this.config.muzzleFlashCoreRadius * 2 * safeZoom,
         this.config.muzzleFlashCoreRadius * 2 * safeZoom,
-      )
-      .setAlpha(1)
-      .setVisible(true);
+      );
     this.muzzleFlashForwardMaskSource
-      .setPosition(screenX, screenY)
+      .setPosition(screenPosition.x, screenPosition.y)
       .setDisplaySize(
-        Math.min(
-          this.config.muzzleFlashForwardLength * variant.lengthScale,
-          Math.max(1, maximumDistance),
-        ) * safeZoom,
-        this.config.muzzleFlashForwardWidth * variant.widthScale * safeZoom,
-      )
-      .setAlpha(1)
-      .setVisible(true);
+        this.muzzleFlashLength * safeZoom,
+        this.muzzleFlashWidth * safeZoom,
+      );
 
     if (Math.hypot(direction.x, direction.y) > 1e-6) {
       this.muzzleFlashForwardMaskSource.setRotation(Math.atan2(direction.y, direction.x));
