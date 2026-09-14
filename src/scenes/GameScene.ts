@@ -1,3 +1,4 @@
+import { advanceMeleeSwing } from '../logic/meleeSwing';
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
@@ -252,6 +253,7 @@ export class GameScene extends Phaser.Scene {
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private readonly playerActions = new PlayerActionQueue();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
+  private pendingMelee: { elapsedMs: number; aimDirection: Vector2 } | null = null;
   private pendingShove: {
     windup: ShoveWindupState;
     aimDirection: Vector2;
@@ -348,6 +350,7 @@ export class GameScene extends Phaser.Scene {
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
     this.pendingShove = null;
+    this.pendingMelee = null;
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
     this.aimSource = 'none';
@@ -740,34 +743,49 @@ export class GameScene extends Phaser.Scene {
     ]));
     let contactDied = false;
     let damageEventCount = 0;
-    if (shoveImpact) {
-      const preImpact = this.advanceActorsThroughBurstShots(
-        shoveImpact.preImpactMs,
-        audioDelayMs,
-        movementObstacles,
+    const impacts: Array<{ offset: number; apply: () => void }> = [];
+    if (shoveImpact) impacts.push({
+      offset: shoveImpact.preImpactMs,
+      apply: () => this.applyShoveImpact(shoveImpact.aimDirection),
+    });
+    if (this.pendingMelee && this.weapon.getDefinition().attackType !== 'melee') {
+      this.pendingMelee = null;
+      this.player.setMeleeSwingElapsed(null);
+    }
+    if (this.pendingMelee) {
+      const direction = this.pendingMelee.aimDirection;
+      const swing = advanceMeleeSwing(this.pendingMelee.elapsedMs, deltaMs);
+      this.pendingMelee = swing.elapsedMs === null ? null : {
+        elapsedMs: swing.elapsedMs, aimDirection: direction,
+      };
+      this.player.setMeleeSwingElapsed(swing.elapsedMs);
+      if (swing.impactOffsetMs !== null) impacts.push({
+        offset: swing.impactOffsetMs,
+        apply: () => this.applyMeleeImpact(direction),
+      });
+    }
+    // Advance actors to each contact before resolving hits at their current positions.
+    let advancedMs = 0;
+    for (const impact of impacts.sort((a, b) => a.offset - b.offset)) {
+      const segment = this.advanceActorsThroughBurstShots(
+        impact.offset - advancedMs, audioDelayMs + advancedMs, movementObstacles,
       );
-      contactDied = preImpact.died;
-      damageEventCount += preImpact.damageEventCount;
-      if (!contactDied) {
-        this.refreshStationaryMouseAim();
-        this.refreshAimAssist();
-        this.applyShoveImpact(shoveImpact.aimDirection);
-        const postImpact = this.advanceActorsThroughBurstShots(
-          shoveImpact.postImpactMs,
-          audioDelayMs + shoveImpact.preImpactMs,
-          movementObstacles,
-        );
-        contactDied = postImpact.died;
-        damageEventCount += postImpact.damageEventCount;
-      }
-    } else {
-      const simulation = this.advanceActorsThroughBurstShots(
-        deltaMs,
-        audioDelayMs,
-        movementObstacles,
+      advancedMs = impact.offset;
+      contactDied = segment.died;
+      damageEventCount += segment.damageEventCount;
+      if (contactDied) break;
+      impact.apply();
+    }
+    if (!contactDied) {
+      const segment = this.advanceActorsThroughBurstShots(
+        deltaMs - advancedMs, audioDelayMs + advancedMs, movementObstacles,
       );
-      contactDied = simulation.died;
-      damageEventCount = simulation.damageEventCount;
+      contactDied = segment.died;
+      damageEventCount += segment.damageEventCount;
+    }
+    if (contactDied) {
+      this.pendingMelee = null;
+      this.player.setMeleeSwingElapsed(null);
     }
     if (
       reloadingWeaponId !== null
@@ -1045,6 +1063,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resolveMeleeAttack(aimDirection: Vector2): void {
+    if (this.pendingMelee || this.pendingShove) return;
     const definition = this.weapon.getDefinition();
     const staminaCost = Math.max(0, definition.config.staminaCost ?? 0);
     if (this.stamina.current < staminaCost || !this.weapon.fire()) {
@@ -1054,6 +1073,14 @@ export class GameScene extends Phaser.Scene {
 
     this.stamina = { current: this.stamina.current - staminaCost };
     this.player.triggerMeleeSwingVisual(aimDirection);
+    this.pendingMelee = { elapsedMs: 0, aimDirection: { ...aimDirection } };
+    this.updateHud();
+  }
+
+  private applyMeleeImpact(aimDirection: Vector2): void {
+    const definition = this.weapon.getDefinition();
+    if (definition.attackType !== 'melee') return;
+    this.effects?.playMeleeContact(this.player, aimDirection);
     const hits = resolveMeleeHits(
       this.player,
       aimDirection,
@@ -1108,7 +1135,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resolveShoveRequest(aimDirection: Vector2): void {
-    if (!isPlaying(this.sessionState)) return;
+    if (!isPlaying(this.sessionState) || this.pendingMelee) return;
     const windup = startShoveWindup(this.pendingShove?.windup ?? null);
     if (!windup.started) return;
 
@@ -1438,6 +1465,8 @@ export class GameScene extends Phaser.Scene {
     const previousSlot = this.weapon.getInventory().activeSlot;
     this.weapon.selectSlot(slot);
     if (this.weapon.getInventory().activeSlot !== previousSlot) {
+      this.pendingMelee = null;
+      this.player.setMeleeSwingElapsed(null);
       this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
     }
   }

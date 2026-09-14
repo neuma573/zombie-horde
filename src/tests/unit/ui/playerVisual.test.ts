@@ -93,6 +93,18 @@ describe('player visual pose', () => {
     )).toBeGreaterThan(15);
   });
 
+  it('aligns the resting baton with the forearm without bending the wrist', () => {
+    const ready = resolveOneHandedMeleePose(null, 360);
+    const forearmAngle = Math.atan2(
+      ready.rightHand.y - ready.rightElbow.y,
+      ready.rightHand.x - ready.rightElbow.x,
+    );
+
+    expect(forearmAngle).toBeCloseTo(ready.weaponRotation);
+    expect(ready.weaponPosition).toEqual(ready.rightHand);
+    expect(ready.rightElbow.y).toBeGreaterThan(ready.rightHand.y);
+  });
+
   it('keeps the resting left hand visibly ahead of the body', () => {
     const ready = resolveOneHandedMeleePose(null, 360);
 

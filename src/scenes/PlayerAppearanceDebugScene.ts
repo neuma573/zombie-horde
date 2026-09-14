@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
 import { Player } from '../entities/Player';
+import { MELEE_MOTION } from '../config/meleeMotionConfig';
 
 const DEBUG_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315] as const;
 
@@ -13,7 +14,12 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
   private automaticAim = false;
   private automaticAimElapsedMs = 0;
   private persistentMuzzleReflection = false;
-  private debugWeapon: 'pistol' | 'burstRifle' = 'burstRifle';
+  private debugWeapon: 'pistol' | 'burstRifle' | 'policeBaton' = 'burstRifle';
+  private motionElapsedMs = 0;
+  private motionPlaying = true;
+  private motionSpeed = 1;
+  private motionSlider?: HTMLInputElement;
+  private motionReadout?: HTMLOutputElement;
   private statusText!: Phaser.GameObjects.Text;
   private keys?: Record<string, Phaser.Input.Keyboard.Key>;
 
@@ -32,6 +38,10 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     this.persistentMuzzleReflection = debugParameters.get('debugMuzzle') === '1';
     if (debugParameters.get('debugWeapon') === 'pistol') {
       this.debugWeapon = 'pistol';
+    }
+    if (debugParameters.get('debugWeapon') === 'policeBaton') {
+      this.debugWeapon = 'policeBaton';
+      this.createMotionControls();
     }
 
     this.cameras.main.setBackgroundColor(0x30383c);
@@ -80,6 +90,16 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
 
   update(_time: number, deltaMs: number): void {
     this.handleInput(deltaMs);
+    if (this.debugWeapon === 'policeBaton') {
+      if (this.motionPlaying) {
+        this.motionElapsedMs = (this.motionElapsedMs + deltaMs * this.motionSpeed)
+          % MELEE_MOTION.durationMs;
+      }
+      this.male.setMeleeSwingElapsed(this.motionElapsedMs);
+      this.female.setMeleeSwingElapsed(this.motionElapsedMs);
+      if (this.motionSlider) this.motionSlider.value = String(this.motionElapsedMs);
+      if (this.motionReadout) this.motionReadout.value = `${Math.round(this.motionElapsedMs)} / ${MELEE_MOTION.durationMs} ms`;
+    }
     if (this.persistentMuzzleReflection) {
       this.male.triggerMuzzleReflection(false);
       this.female.triggerMuzzleReflection(false);
@@ -89,6 +109,32 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     this.male.updateVisual(deltaMs, this.moving);
     this.female.updateVisual(deltaMs, this.moving);
     this.updateStatus();
+  }
+
+  private createMotionControls(): void {
+    const panel = document.createElement('div');
+    panel.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;z-index:1000;padding:12px;background:#111e;color:white;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font:14px sans-serif';
+    const play = document.createElement('button');
+    play.textContent = '재생 / 정지';
+    play.onclick = () => { this.motionPlaying = !this.motionPlaying; };
+    const slider = document.createElement('input');
+    slider.type = 'range'; slider.min = '0'; slider.max = String(MELEE_MOTION.durationMs); slider.step = '1';
+    slider.setAttribute('aria-label', '공격 모션 시간');
+    slider.style.flex = '1';
+    slider.oninput = () => { this.motionPlaying = false; this.motionElapsedMs = Number(slider.value); };
+    const speed = document.createElement('select');
+    speed.setAttribute('aria-label', '재생 속도');
+    for (const value of [0.1, 0.25, 0.5, 1]) {
+      const option = document.createElement('option'); option.value = String(value); option.textContent = `${value}배속`; speed.append(option);
+    }
+    speed.value = '1'; speed.onchange = () => { this.motionSpeed = Number(speed.value); };
+    this.motionReadout = document.createElement('output');
+    this.motionSlider = slider;
+    panel.append(play, slider, speed, this.motionReadout);
+    document.body.append(panel);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      panel.remove(); this.motionSlider = undefined; this.motionReadout = undefined;
+    });
   }
 
   private handleInput(deltaMs: number): void {

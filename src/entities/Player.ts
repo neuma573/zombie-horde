@@ -3,6 +3,8 @@ import Phaser from 'phaser';
 import { HUMANOID_VISUAL } from '../config/characterVisualConfig';
 import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
 import { PLAYER_CONFIG } from '../config/playerConfig';
+import { MELEE_MOTION } from '../config/meleeMotionConfig';
+import { resolveMeleeDisplayPose } from '../logic/meleeDisplayPose';
 import { decayTransientLight } from '../logic/timeBasedLighting';
 import {
   blendVisualColor,
@@ -59,8 +61,7 @@ const FEMALE_VISUAL_COLORS = {
 const MUZZLE_REFLECTION_DECAY_RATE = 22;
 const WEAPON_RECOIL_DECAY_RATE = 15;
 const SHOVE_VISUAL_DURATION_MS = 260;
-const MELEE_SWING_VISUAL_DURATION_MS = 360;
-const MELEE_SWING_IMPACT_PROGRESS = 0.56;
+const MELEE_SWING_VISUAL_DURATION_MS = MELEE_MOTION.durationMs;
 const PONYTAIL_FOLLOW_RATE = 10;
 const PONYTAIL_SWAY_SPEED = 0.012;
 const PONYTAIL_MAX_LAG_RADIANS = Math.PI * 0.4;
@@ -281,13 +282,18 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   triggerMeleeSwingVisual(aimDirection: Vector2): void {
-    // Melee damage is resolved at input time, so begin the rendered motion at
-    // the contact keyframe and show the follow-through from that same moment.
     this.meleeSwingFacing = this.captureActionFacing(aimDirection);
-    this.meleeSwingVisualElapsedMs = (
-      MELEE_SWING_VISUAL_DURATION_MS * MELEE_SWING_IMPACT_PROGRESS
-    );
+    this.meleeSwingVisualElapsedMs = 0;
     this.applyFacingRotation();
+  }
+
+  // The simulation owns elapsed time; the same API supports a paused pose preview.
+  setMeleeSwingElapsed(elapsedMs: number | null): void {
+    this.meleeSwingVisualElapsedMs = elapsedMs;
+    if (elapsedMs === null) {
+      this.meleeSwingFacing = null;
+      this.applyFacingRotation();
+    }
   }
 
   updateVisual(deltaMs: number, isMoving = false): void {
@@ -310,14 +316,6 @@ export class Player extends Phaser.GameObjects.Container {
       if (this.shoveVisualElapsedMs >= SHOVE_VISUAL_DURATION_MS) {
         this.shoveVisualElapsedMs = null;
         this.shoveFacing = null;
-        this.applyFacingRotation();
-      }
-    }
-    if (this.meleeSwingVisualElapsedMs !== null && Number.isFinite(deltaMs) && deltaMs > 0) {
-      this.meleeSwingVisualElapsedMs += deltaMs;
-      if (this.meleeSwingVisualElapsedMs >= MELEE_SWING_VISUAL_DURATION_MS) {
-        this.meleeSwingVisualElapsedMs = null;
-        this.meleeSwingFacing = null;
         this.applyFacingRotation();
       }
     }
@@ -438,14 +436,9 @@ export class Player extends Phaser.GameObjects.Container {
     this.arms.fillCircle(
       handPose.leftHand.x,
       handPose.leftHand.y,
-      this.weaponId === 'policeBaton' ? 4.5 : 3.5,
+      3.5,
     );
     this.arms.fillCircle(handPose.rightHand.x, handPose.rightHand.y, 3.5);
-    if (this.weaponId === 'policeBaton') {
-      this.arms
-        .fillStyle(this.armColor('upper'), 1)
-        .fillCircle(handPose.leftHand.x + 0.5, handPose.leftHand.y, 3);
-    }
   }
 
   private drawRifleArms(): void {
@@ -829,12 +822,18 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   private resolveBatonPose() {
-    return resolveOneHandedMeleeActionPose(
+    const pose = resolveOneHandedMeleeActionPose(
       this.meleeSwingVisualElapsedMs,
       MELEE_SWING_VISUAL_DURATION_MS,
       this.shoveVisualElapsedMs,
       SHOVE_VISUAL_DURATION_MS,
     );
+    return resolveMeleeDisplayPose(pose, {
+      leftY: this.appearance === 'female-swat' ? -8 : -HUMANOID_VISUAL.shoulderY,
+      rightY: this.appearance === 'female-swat' ? 9 : HUMANOID_VISUAL.shoulderY,
+    }, this.meleeSwingVisualElapsedMs === null ? null
+      : this.meleeSwingVisualElapsedMs / MELEE_SWING_VISUAL_DURATION_MS,
+    this.shoveVisualElapsedMs !== null);
   }
 
   private applyFacingRotation(): void {
@@ -1030,5 +1029,8 @@ export class Player extends Phaser.GameObjects.Container {
     graphics.lineTo(elbow.x, elbow.y);
     graphics.lineTo(hand.x, hand.y);
     graphics.strokePath();
+    // Round the sleeve joint so bent elbows do not form angular spikes.
+    graphics.fillStyle(color, 1);
+    graphics.fillCircle(elbow.x, elbow.y, width / 2);
   }
 }
