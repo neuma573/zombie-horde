@@ -6,9 +6,9 @@ export class InteractionPrompt {
 
   constructor(scene: Phaser.Scene) {
     this.label = scene.add.text(0, 0, '', {
-      fontFamily: 'sans-serif', fontSize: '14px', fontStyle: 'bold',
+      fontFamily: 'sans-serif', fontSize: '12px', fontStyle: 'bold',
       color: '#fff0b3', backgroundColor: '#101820',
-      padding: { x: 10, y: 7 }, align: 'center',
+      padding: { x: 6, y: 3 }, align: 'center',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(190).setVisible(false);
   }
 

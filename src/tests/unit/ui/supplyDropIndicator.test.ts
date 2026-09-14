@@ -21,4 +21,24 @@ describe('supply drop indicator', () => {
       40,
     ).visible).toBe(false);
   });
+  it.each([
+    { x: 1, y: 300 }, { x: 799, y: 300 },
+    { x: 400, y: 1 }, { x: 400, y: 599 },
+    { x: 0, y: 0 }, { x: 800, y: 600 },
+  ])('hides for visible targets near the screen edge at %j', (position) => {
+    expect(resolveSupplyDropIndicator(position, { width: 800, height: 600 }, 40).visible)
+      .toBe(false);
+  });
+
+  it('hides while part of the target still overlaps the screen', () => {
+    expect(resolveSupplyDropIndicator(
+      { x: -20, y: 300 }, { width: 800, height: 600 }, 40, { x: 26, y: 21 },
+    ).visible).toBe(false);
+  });
+
+  it('shows once the entire target leaves the screen', () => {
+    expect(resolveSupplyDropIndicator(
+      { x: -27, y: 300 }, { width: 800, height: 600 }, 40, { x: 26, y: 21 },
+    ).visible).toBe(true);
+  });
 });

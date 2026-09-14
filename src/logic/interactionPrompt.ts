@@ -8,9 +8,9 @@ export interface InteractionPromptInput {
 
 export function resolveInteractionPrompt(input: InteractionPromptInput): string | null {
   if (!input.playing || input.mobile) return null;
-  if (input.canOpenCrate) return 'Press E · Open supply crate';
+  if (input.canOpenCrate) return 'E · Open';
   if (!input.hasEmptyWeaponSlot && input.nearbyWeaponName) {
-    return `Press E · Swap for ${input.nearbyWeaponName}`;
+    return 'E · Swap';
   }
   return null;
 }

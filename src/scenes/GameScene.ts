@@ -1623,7 +1623,7 @@ export class GameScene extends Phaser.Scene {
         : isInPickupRange
           ? this.hasEmptyWeaponSlot()
             ? 'Move onto the weapon to pick up'
-            : 'Press E to replace current'
+            : 'E · Swap'
           : 'Move closer to pick up',
     }, screenPosition);
   }
@@ -2407,8 +2407,8 @@ export class GameScene extends Phaser.Scene {
       this.supplyDropState,
       this.currentSupplyDropConfig,
     );
-    const targetScreen = cameraScreenPoint(
-      snapshot.target,
+    const crateScreen = cameraScreenPoint(
+      snapshot.cratePosition,
       {
         x: this.cameras.main.scrollX,
         y: this.cameras.main.scrollY,
@@ -2428,10 +2428,11 @@ export class GameScene extends Phaser.Scene {
     this.supplyDropVisual.update(
       snapshot,
       planeScreen,
-      targetScreen,
+      crateScreen,
       this.viewport,
       this.currentSupplyDropConfig.indicatorMargin,
       this.readSafeArea(),
+      this.cameras.main.zoom,
     );
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)

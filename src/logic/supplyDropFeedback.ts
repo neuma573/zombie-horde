@@ -14,3 +14,14 @@ export function resolveSupplyDropFeedback(
     case 'landed': return { planeLabel: null, crateLabel: 'SUPPLY CRATE\nLANDED' };
   }
 }
+
+export function resolveOffscreenSupplyDropFeedback(
+  snapshot: Pick<SupplyDropSnapshot, 'phase' | 'crateOpened' | 'crateDestroyed'>,
+  offscreen: { plane: boolean; crate: boolean },
+): { planeLabel: string | null; crateLabel: string | null } {
+  const feedback = resolveSupplyDropFeedback(snapshot);
+  return {
+    planeLabel: offscreen.plane ? feedback.planeLabel : null,
+    crateLabel: offscreen.crate ? feedback.crateLabel : null,
+  };
+}

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
 import { positionTooltip, type SafeAreaInsets } from '../logic/hud';
-import { resolveSupplyDropFeedback } from '../logic/supplyDropFeedback';
+import { resolveOffscreenSupplyDropFeedback } from '../logic/supplyDropFeedback';
 import {
   resolveSupplyDropIndicator,
   type SupplyDropSnapshot,
@@ -74,17 +74,18 @@ export class SupplyDropVisual {
   update(
     snapshot: SupplyDropSnapshot,
     planeScreen: { x: number; y: number },
-    targetScreen: { x: number; y: number },
+    crateScreen: { x: number; y: number },
     viewport: { width: number; height: number },
     indicatorMargin: number,
     safeArea: SafeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 },
+    zoom = 1,
   ): void {
     this.planeShadow
       .setVisible(snapshot.planeVisible)
       .setPosition(snapshot.planePosition.x, snapshot.planePosition.y)
       .setRotation(snapshot.planeRotation);
 
-    const crateVisible = !snapshot.crateOpened && (
+    const crateVisible = !snapshot.crateOpened && !snapshot.crateDestroyed && (
       snapshot.phase === 'falling'
       || snapshot.phase === 'landed'
     );
@@ -113,12 +114,24 @@ export class SupplyDropVisual {
 
     this.drawSmoke(snapshot);
 
+    const cos = Math.abs(Math.cos(snapshot.planeRotation));
+    const sin = Math.abs(Math.sin(snapshot.planeRotation));
     const planeIndicator = resolveSupplyDropIndicator(
       planeScreen,
       viewport,
       indicatorMargin,
+      { x: (75 * cos + 91 * sin) * 1.3 * zoom,
+        y: (75 * sin + 91 * cos) * 1.3 * zoom },
     );
-    const feedback = resolveSupplyDropFeedback(snapshot);
+    const crateIndicator = resolveSupplyDropIndicator(
+      crateScreen,
+      viewport,
+      indicatorMargin,
+      { x: 26 * this.crate.scaleX * zoom, y: 21 * this.crate.scaleY * zoom },
+    );
+    const feedback = resolveOffscreenSupplyDropFeedback(snapshot, {
+      plane: planeIndicator.visible, crate: crateIndicator.visible,
+    });
     const showPlaneIndicator = feedback.planeLabel !== null;
     const planeMarkerVisible = showPlaneIndicator && planeIndicator.visible;
     this.planeIndicatorBubble
@@ -130,11 +143,6 @@ export class SupplyDropVisual {
       .setPosition(planeIndicator.position.x, planeIndicator.position.y)
       .setRotation(0);
 
-    const crateIndicator = resolveSupplyDropIndicator(
-      targetScreen,
-      viewport,
-      indicatorMargin,
-    );
     const showCrateIndicator = (
       !snapshot.crateDestroyed
       && !snapshot.crateOpened
@@ -166,11 +174,11 @@ export class SupplyDropVisual {
       );
       label.setPosition(position.x, position.y);
     };
-    updateLabel(this.planeLabel, feedback.planeLabel,
-      planeIndicator.visible ? planeIndicator.position : planeScreen);
-    updateLabel(this.crateLabel, feedback.crateLabel,
-      crateIndicator.visible ? crateIndicator.position : { x: targetScreen.x, y: targetScreen.y + 25 },
-      crateIndicator.visible ? undefined : 'below');
+    updateLabel(this.planeLabel, planeMarkerVisible ? feedback.planeLabel : null,
+      planeIndicator.position);
+    updateLabel(this.crateLabel,
+      showCrateIndicator && crateIndicator.visible ? feedback.crateLabel : null,
+      crateIndicator.position);
   }
 
   destroy(): void {

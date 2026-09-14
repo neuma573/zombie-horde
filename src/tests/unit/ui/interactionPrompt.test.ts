@@ -7,12 +7,12 @@ const input: InteractionPromptInput = {
 };
 
 describe('interaction prompt', () => {
-  it('identifies the nearby replacement without requiring hover', () => {
-    expect(resolveInteractionPrompt(input)).toBe('Press E · Swap for Pistol');
+  it('shows a compact swap hint without requiring hover', () => {
+    expect(resolveInteractionPrompt(input)).toBe('E · Swap');
   });
   it('prioritizes opening a crate over swapping a nearby weapon', () => {
     expect(resolveInteractionPrompt({ ...input, canOpenCrate: true }))
-      .toBe('Press E · Open supply crate');
+      .toBe('E · Open');
   });
   it('hides the swap prompt when proximity already collects the weapon', () => {
     expect(resolveInteractionPrompt({ ...input, hasEmptyWeaponSlot: true })).toBeNull();
