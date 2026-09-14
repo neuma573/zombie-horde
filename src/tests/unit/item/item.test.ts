@@ -94,15 +94,56 @@ describe('supply loot', () => {
     expect(loot).toEqual([{ type: 'consumable', kind: 'pistolAmmo' }]);
   });
 
-  it('supplies the scarcer owned ammunition independently of the weapon drop', () => {
+  it('supplies both the dropped weapon and the scarcer owned ammunition', () => {
     const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(PISTOL_WEAPON), createOwnedWeapon(BURST_RIFLE_WEAPON)], activeSlot: 0 };
     inventory.slots[1]!.state.magazineAmmo = 2;
     const loot = selectSupplyLoot(2, 1, 0.3, 1, LOOT_CONFIG, inventory,
       { pistolAmmo: 20, rifleAmmo: 1, shotgunAmmo: 0 });
     expect(loot).toContainEqual({ type: 'weapon', weaponId: 'doubleBarrelShotgun' });
     expect(loot).toContainEqual({ type: 'consumable', kind: 'rifleAmmo' });
-    expect(loot).not.toContainEqual({ type: 'consumable', kind: 'shotgunAmmo' });
+    expect(loot).toContainEqual({ type: 'consumable', kind: 'shotgunAmmo' });
     expect(loot).not.toContainEqual({ type: 'consumable', kind: 'pistolAmmo' });
+  });
+
+  it.each([
+    [0, 'burstRifle', 'rifleAmmo'],
+    [SUPPLY_DROP_BALANCE.rifleDropChance, 'doubleBarrelShotgun', 'shotgunAmmo'],
+  ] as const)('includes matching ammunition for %s while a pistol is owned', (roll, weaponId, kind) => {
+    const inventory: WeaponInventoryState = {
+      slots: [createOwnedWeapon(PISTOL_WEAPON), null], activeSlot: 0,
+    };
+    const loot = selectSupplyLoot(2, 1, roll, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+
+    expect(loot).toEqual([
+      { type: 'weapon', weaponId },
+      { type: 'consumable', kind: 'pistolAmmo' },
+      { type: 'consumable', kind },
+    ]);
+  });
+
+  it('includes pistol ammunition when dropping a pistol for a rifle owner', () => {
+    const inventory: WeaponInventoryState = {
+      slots: [createOwnedWeapon(BURST_RIFLE_WEAPON), null], activeSlot: 0,
+    };
+    const loot = selectSupplyLoot(2, 1, 1, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+
+    expect(loot).toEqual([
+      { type: 'weapon', weaponId: 'pistol' },
+      { type: 'consumable', kind: 'rifleAmmo' },
+      { type: 'consumable', kind: 'pistolAmmo' },
+    ]);
+  });
+
+  it('drops one ammunition bundle when the dropped gun uses the scarcest owned type', () => {
+    const inventory: WeaponInventoryState = {
+      slots: [createOwnedWeapon(BURST_RIFLE_WEAPON), null], activeSlot: 0,
+    };
+    const loot = selectSupplyLoot(2, 1, 0, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+
+    expect(loot).toEqual([
+      { type: 'weapon', weaponId: 'burstRifle' },
+      { type: 'consumable', kind: 'rifleAmmo' },
+    ]);
   });
 
   it('counts loaded rounds and chooses the active gun when totals tie', () => {

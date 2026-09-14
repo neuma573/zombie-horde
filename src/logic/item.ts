@@ -70,14 +70,18 @@ export function selectSupplyLoot(
   );
   const includeMedical = clamp01(medicalRoll) < medicalChance;
   const alreadyOwnsPistol = inventory.slots.some((weapon) => weapon?.definition.id === 'pistol');
-  const ammunition = selectScarcestOwnedAmmo(inventory, reserves)
-    // With no firearm, supply usable ammunition for the newly dropped gun.
-    ?? (rifleSelected ? 'rifleAmmo' : shotgunSelected ? 'shotgunAmmo' : 'pistolAmmo');
+  const includeWeapon = weaponId !== 'pistol' || !alreadyOwnsPistol;
+  const droppedWeaponAmmo: AmmoType = rifleSelected
+    ? 'rifleAmmo' : shotgunSelected ? 'shotgunAmmo' : 'pistolAmmo';
+  const ammunition = selectScarcestOwnedAmmo(inventory, reserves) ?? droppedWeaponAmmo;
 
   return [
-    ...(weaponId === 'pistol' && alreadyOwnsPistol
-      ? [] : [{ type: 'weapon' as const, weaponId }]),
+    ...(includeWeapon ? [{ type: 'weapon' as const, weaponId }] : []),
     { type: 'consumable', kind: ammunition },
+    // Keep scarce owned ammunition and make every dropped firearm usable.
+    ...(includeWeapon && droppedWeaponAmmo !== ammunition
+      ? [{ type: 'consumable' as const, kind: droppedWeaponAmmo }]
+      : []),
     ...(includeMedical
       ? [{ type: 'consumable' as const, kind: 'medical' as const }]
       : []),
