@@ -413,6 +413,7 @@ export class GameScene extends Phaser.Scene {
       SPAWN_CONFIG.playerPosition.y,
       appearance,
     );
+    this.player.triggerWeaponEquip();
     this.weaponPickups = [];
     this.nextWeaponPickupId = 0;
     this.itemPickups = [];
@@ -1466,6 +1467,8 @@ export class GameScene extends Phaser.Scene {
       this.pendingMelee = null;
       this.player.setMeleeSwingElapsed(null);
       this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
+      this.player.setWeaponVisual(this.weapon.getDefinition().id);
+      this.player.triggerWeaponEquip();
     }
   }
 
@@ -1528,6 +1531,10 @@ export class GameScene extends Phaser.Scene {
 
     const position = { x: pickup.x, y: pickup.y };
     const replaced = this.weapon.pickupOwned(pickup.ownedWeapon);
+    this.pendingMelee = null;
+    this.player.setMeleeSwingElapsed(null);
+    this.player.setWeaponVisual(this.weapon.getDefinition().id);
+    this.player.triggerWeaponEquip();
     this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
     if (this.hoveredWeaponPickup === pickup) {
       this.hoveredWeaponPickup = undefined;

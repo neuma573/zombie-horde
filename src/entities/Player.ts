@@ -5,6 +5,7 @@ import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
 import { PLAYER_CONFIG } from '../config/playerConfig';
 import { MELEE_MOTION } from '../config/meleeMotionConfig';
 import { resolveMeleeDisplayPose } from '../logic/meleeDisplayPose';
+import { advanceWeaponEquip, resolveWeaponEquipPose, type EquippedWeaponPose } from '../logic/weaponEquip';
 import { decayTransientLight } from '../logic/timeBasedLighting';
 import {
   blendVisualColor,
@@ -93,6 +94,9 @@ export class Player extends Phaser.GameObjects.Container {
   private shotgunBreakAngle = 0;
   private shoveVisualElapsedMs: number | null = null;
   private meleeSwingVisualElapsedMs: number | null = null;
+  private weaponEquipElapsedMs: number | null = null;
+  private reloadVisualActive = false;
+  private reloadVisualProgress = 0;
   private aimDirection: Vector2 = { x: 1, y: 0 };
   private shoveFacing: ActionFacing | null = null;
   private meleeSwingFacing: ActionFacing | null = null;
@@ -188,6 +192,9 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   setReloadVisual(isReloading: boolean, normalizedProgress: number): void {
+    this.reloadVisualActive = isReloading;
+    this.reloadVisualProgress = normalizedProgress;
+    if (isReloading) this.weaponEquipElapsedMs = null;
     this.rifleReloadVisual = resolveRifleReloadVisual(isReloading, normalizedProgress);
     this.shotgunBreakAngle = resolveShotgunBreakAngle(
       this.weaponId === 'doubleBarrelShotgun' && isReloading,
@@ -228,6 +235,7 @@ export class Player extends Phaser.GameObjects.Container {
     this.drawRifle();
     this.drawRifleReload();
     this.drawMuzzleReflection(pose);
+    this.applyWeaponEquipVisual();
   }
 
   setWeaponVisual(weaponId: WeaponId): void {
@@ -249,6 +257,19 @@ export class Player extends Phaser.GameObjects.Container {
     this.rifleReload.setVisible(weaponId !== 'pistol');
     this.drawRifle();
     this.drawRifleReload();
+    this.triggerWeaponEquip();
+  }
+
+  triggerWeaponEquip(): void {
+    this.weaponEquipElapsedMs = 0;
+    this.weaponRecoilIntensity = 0;
+    this.setReloadVisual(false, 0);
+  }
+
+  private cancelWeaponEquip(): void {
+    if (this.weaponEquipElapsedMs === null) return;
+    this.weaponEquipElapsedMs = null;
+    this.setReloadVisual(this.reloadVisualActive, this.reloadVisualProgress);
   }
 
   triggerMuzzleReflection(triggerPonytailSway = true): void {
@@ -266,11 +287,13 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   triggerRangedShotVisual(aimDirection: Vector2): void {
+    this.cancelWeaponEquip();
     this.rangedShotFacing = this.captureActionFacing(aimDirection);
     this.applyFacingRotation();
   }
 
   triggerShoveVisual(aimDirection: Vector2): void {
+    this.cancelWeaponEquip();
     this.shoveFacing = this.captureActionFacing(aimDirection);
     this.shoveVisualElapsedMs = 0;
     this.applyFacingRotation();
@@ -282,6 +305,7 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   triggerMeleeSwingVisual(aimDirection: Vector2): void {
+    this.cancelWeaponEquip();
     this.meleeSwingFacing = this.captureActionFacing(aimDirection);
     this.meleeSwingVisualElapsedMs = 0;
     this.applyFacingRotation();
@@ -297,6 +321,11 @@ export class Player extends Phaser.GameObjects.Container {
   }
 
   updateVisual(deltaMs: number, isMoving = false): void {
+    const wasEquipping = this.weaponEquipElapsedMs !== null;
+    this.weaponEquipElapsedMs = advanceWeaponEquip(this.weaponEquipElapsedMs, deltaMs, this.weaponId);
+    if (wasEquipping && this.weaponEquipElapsedMs === null) {
+      this.setReloadVisual(this.reloadVisualActive, this.reloadVisualProgress);
+    }
     if (this.rangedShotFacing !== null) {
       this.rangedShotFacing = null;
       this.applyFacingRotation();
@@ -528,6 +557,59 @@ export class Player extends Phaser.GameObjects.Container {
     this.drawMaleAppearance();
     this.drawFemaleAppearance();
     this.drawMuzzleReflection(this.currentPose);
+    this.applyWeaponEquipVisual();
+  }
+
+  private applyWeaponEquipVisual(): void {
+    const weapon = this.weaponId === 'pistol' ? this.sidearm : this.rifle;
+    weapon.setAlpha(1);
+    this.rifleReload.setAlpha(1);
+    if (this.weaponEquipElapsedMs === null) return;
+    const shoulders = {
+      leftY: this.appearance === 'female-swat' ? -8 : -HUMANOID_VISUAL.shoulderY,
+      rightY: this.appearance === 'female-swat' ? 9 : HUMANOID_VISUAL.shoulderY,
+    };
+    let ready: EquippedWeaponPose;
+    if (this.weaponId === 'policeBaton') {
+      ready = this.resolveBatonPose();
+    } else if (this.weaponId === 'pistol') {
+      ready = { ...resolveSidearmHandPose(this.currentPose, shoulders),
+        weaponPosition: { x: this.currentPose.x, y: this.currentPose.y },
+        weaponRotation: this.currentPose.rotation };
+    } else {
+      ready = {
+        leftHand: this.rifleReloadVisual.leftHand, rightHand: this.rifleReloadVisual.rightHand,
+        leftElbow: { x: 8, y: -13 }, rightElbow: { x: -1, y: 13 },
+        weaponPosition: { x: this.currentPose.x - RIFLE_VISUAL.readyPose.x, y: this.currentPose.y },
+        weaponRotation: this.currentPose.rotation,
+      };
+    }
+    const pose = resolveWeaponEquipPose(ready, shoulders, this.weaponId, this.weaponEquipElapsedMs);
+    weapon.setPosition(pose.weaponPosition.x, pose.weaponPosition.y)
+      .setRotation(pose.weaponRotation).setAlpha(pose.alpha);
+    if (this.weaponId === 'doubleBarrelShotgun') {
+      this.drawRifleReload();
+      this.rifleReload.setAlpha(pose.alpha);
+    }
+    this.arms.clear();
+    this.rifleUnderArm.clear();
+    const graphics = this.weaponId === 'pistol' || this.weaponId === 'policeBaton'
+      ? this.arms : this.rifleUnderArm;
+    const outlineWidth = this.appearance === 'female-swat' ? 6 : 9;
+    const width = this.appearance === 'female-swat' ? 5 : 6;
+    for (const side of ['left', 'right'] as const) {
+      const elbow = pose[`${side}Elbow`];
+      const hand = pose[`${side}Hand`];
+      this.drawArmPathOn(graphics, outlineWidth, 0x05080b, elbow, hand, shoulders[`${side}Y`]);
+      this.drawArmPathOn(graphics, width, this.armColor(side === 'left' ? 'upper' : 'lower'), elbow, hand, shoulders[`${side}Y`]);
+      graphics.fillStyle(0x05080b, 1).fillCircle(hand.x, hand.y, 3.5);
+    }
+    this.drawFemaleShoulderCaps(graphics, shoulders.leftY, shoulders.rightY, outlineWidth, width);
+    if (this.weaponId === 'pistol' && pose.progress < 0.6) {
+      this.moveTo(this.sidearm, this.getIndex(this.femaleHead ?? this.head));
+    } else if (this.weaponId === 'pistol') {
+      this.bringToTop(this.sidearm);
+    }
   }
 
   private armColor(side: 'upper' | 'lower'): number {
