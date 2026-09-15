@@ -453,6 +453,7 @@ export class GameScene extends Phaser.Scene {
         this.interactionPrompt?.hide();
       },
       () => {
+        this.mobileControls?.refreshLabels();
         this.resumeSceneManagers();
         this.resetMobileInput();
       },

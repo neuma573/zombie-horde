@@ -69,13 +69,17 @@ export class MobileControls {
   setVisible(visible: boolean): void {
     this.visible = visible;
     this.graphics.setVisible(visible);
-    this.fireLabel.setText(t('FIRE'));
-    this.shoveLabel.setText(t('PUSH'));
-    this.interactionLabel.setText(t('OPEN'));
+    this.refreshLabels();
     this.fireLabel.setVisible(visible);
     this.reloadLabel.setVisible(visible);
     this.shoveLabel.setVisible(visible);
     this.interactionLabel.setVisible(visible && this.interactionVisible);
+  }
+
+  refreshLabels(): void {
+    this.fireLabel.setText(t('FIRE'));
+    this.shoveLabel.setText(t('PUSH'));
+    this.interactionLabel.setText(t('OPEN'));
   }
 
   setInteractionVisible(visible: boolean): void {
