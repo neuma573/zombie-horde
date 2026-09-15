@@ -4,6 +4,12 @@ import { weaponTooltipStats, weaponTooltipStatLines } from '../../../logic/hud';
 import { BURST_RIFLE_WEAPON, POLICE_BATON_WEAPON } from '../../../config/weaponConfig';
 
 describe('localized game text', () => {
+  it('localizes the watch label while preserving the English display', () => {
+    const key = 'LOCAL        24H';
+    expect(translate('ko', key)).toBe('현지        24시');
+    expect(translate('en', key)).toBe('LOCAL        24H');
+  });
+
   it('substitutes countdown values in the selected language order', () => {
     const key = 'PREPARE\nWAVE {wave} IN {seconds}';
     expect(translate('en', key, { wave: 2, seconds: 3 })).toBe('PREPARE\nWAVE 2 IN 3');

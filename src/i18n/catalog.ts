@@ -1,4 +1,5 @@
 export const korean = {
+  "LOCAL        24H": "현지        24시",
   "Category": "분류", "Zombie": "좀비", "Fast zombie": "빠른 좀비", "Building": "건물", "World": "월드",
   "Supply drop": "보급 투하", "Effects": "효과", "Shot": "사격", "Zombie hit": "좀비 피격", "Zombie death": "좀비 사망", "Player hit": "플레이어 피격", "Crate hit": "보급 상자 피격", "Crate destroyed": "보급 상자 파괴", "Melee contact": "근접 타격",
   "Reload animation": "재장전 모션",
