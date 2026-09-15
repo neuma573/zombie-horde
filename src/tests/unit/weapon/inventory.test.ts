@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createOwnedWeapon, createWeaponInventory, hasLoadedWeaponPickup, pickupWeapon, selectWeaponSlot, shouldAutoPickupWeapon, shouldShowFieldWeaponInfo, WEAPON_RARITIES, withWeaponRarity } from '../../../logic/weapon';
-import { BURST_RIFLE_WEAPON, PISTOL_WEAPON } from '../../../config/weaponConfig';
+import { BURST_RIFLE_WEAPON, PISTOL_WEAPON, POLICE_BATON_WEAPON } from '../../../config/weaponConfig';
 
 describe('weapon inventory', () => {
   it('starts with a pistol and adds a pickup to the empty second slot', () => {
@@ -40,6 +40,14 @@ describe('weapon inventory', () => {
     expect(shouldAutoPickupWeapon(initial, true)).toBe(true);
     expect(shouldAutoPickupWeapon(initial, false)).toBe(false);
     expect(shouldAutoPickupWeapon(full, true)).toBe(false);
+  });
+
+  it('defers automatic pickup until the melee swing finishes', () => {
+    const inventory = createWeaponInventory(POLICE_BATON_WEAPON);
+
+    expect(shouldAutoPickupWeapon(inventory, true, true)).toBe(false);
+    expect(shouldAutoPickupWeapon(inventory, true, false)).toBe(true);
+    expect(shouldAutoPickupWeapon(inventory, false, false)).toBe(false);
   });
 
   it('treats only loaded ground weapons as immediate ammunition recovery', () => {

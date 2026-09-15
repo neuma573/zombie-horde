@@ -797,7 +797,11 @@ export class GameScene extends Phaser.Scene {
     }
     this.startMobileAutoReloadIfNeeded();
     const nearbyPickup = this.nearestWeaponPickupInRange();
-    if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
+    if (shouldAutoPickupWeapon(
+      this.weapon.getInventory(),
+      nearbyPickup !== undefined,
+      this.pendingMelee !== null,
+    )) {
       this.tryPickupWeapon(nearbyPickup);
     }
     const playerMovementEnd = { x: this.player.x, y: this.player.y };
