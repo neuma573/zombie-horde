@@ -30,8 +30,10 @@ describe('pause menu wiring', () => {
     expect(pauseMenu).toContain("'RESUME'");
     expect(pauseMenu).toContain("'SETTINGS'");
     expect(pauseMenu).toContain("'MAIN MENU'");
-    expect(pauseMenu).toContain('GAME_REGISTRY_KEYS.soundEnabled');
-    expect(pauseMenu).toContain('syncSoundEnabled(this.scene.sound, next.soundEnabled)');
+    const settingsPanel = await readFile(new URL('../../systems/SettingsPanel.ts', import.meta.url), 'utf8');
+    expect(pauseMenu).toContain('new SettingsPanel(this.scene');
+    expect(settingsPanel).toContain('GAME_REGISTRY_KEYS.soundEnabled');
+    expect(settingsPanel).toContain('syncSoundEnabled(this.owner.sound, soundEnabled)');
     expect(pauseMenu).toContain('this.onPause();');
     expect(pauseMenu).toContain('this.onResume();');
   });

@@ -1,3 +1,4 @@
+import { t } from '../systems/UserSettings';
 import Phaser from 'phaser';
 
 import { WORLD_RENDER_DEPTH } from '../config/renderDepth';
@@ -166,7 +167,7 @@ export class SupplyDropVisual {
       if (message === null) return;
       label.setWordWrapWidth(Math.max(1,
         Math.min(160, viewport.width - safeArea.left - safeArea.right - 40),
-      )).setText(message);
+      )).setText(t(message));
       // Place edge labels toward the screen center, leaving room for the arrow.
       const position = positionTooltip(
         anchor, label, viewport,
