@@ -6,4 +6,6 @@ export const WORLD_RENDER_DEPTH = {
   player: 20,
   supplySmoke: 40,
   combatEffect: 50,
+  airborneSupplyCrate: 60,
+  supplyParachute: 61,
 } as const;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { PISTOL_WEAPON, BURST_RIFLE_WEAPON, DOUBLE_BARREL_SHOTGUN_WEAPON, POLICE_BATON_WEAPON } from '../../../config/weaponConfig';
+import { createOwnedWeapon, type WeaponInventoryState } from '../../../logic/weapon';
 import { ITEM_BALANCE_CONFIG } from '../../../config/itemConfig';
 import { SUPPLY_DROP_BALANCE } from '../../../config/supplyDropConfig';
 import {
@@ -22,6 +24,9 @@ const LOOT_CONFIG = {
   criticalHealthMedicalChanceBonus: ITEM_BALANCE_CONFIG.criticalHealthMedicalChanceBonus,
 };
 
+const EMPTY_INVENTORY: WeaponInventoryState = { slots: [null, null], activeSlot: 0 };
+const EMPTY_RESERVES = { pistolAmmo: 0, rifleAmmo: 0, shotgunAmmo: 0 };
+
 describe('supply loot', () => {
   it('allows a crate to release its contents only once', () => {
     const first = claimSupplyLoot(false);
@@ -31,26 +36,24 @@ describe('supply loot', () => {
     expect(repeated.shouldDrop).toBe(false);
   });
 
-  it('limits weapon drops to pistols through wave five', () => {
-    for (let wave = 1; wave <= 5; wave += 1) {
-      const loot = selectSupplyLoot(wave, 1, 0, 1, LOOT_CONFIG);
-      expect(loot[0]).toEqual({ type: 'weapon', weaponId: 'pistol' });
-      expect(loot).toContainEqual({ type: 'consumable', kind: 'pistolAmmo' });
-    }
+  it('limits weapon drops to pistols before wave two', () => {
+    const loot = selectSupplyLoot(1, 1, 0, 1, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
+    expect(loot[0]).toEqual({ type: 'weapon', weaponId: 'pistol' });
+    expect(loot).toContainEqual({ type: 'consumable', kind: 'pistolAmmo' });
   });
 
-  it('uses the configured rifle probability starting at wave six', () => {
-    const rifle = selectSupplyLoot(6, 1, 0, 1, LOOT_CONFIG);
-    const pistol = selectSupplyLoot(6, 1, 1, 1, LOOT_CONFIG);
+  it('uses the configured rifle probability starting at wave two', () => {
+    const rifle = selectSupplyLoot(2, 1, 0, 1, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
+    const pistol = selectSupplyLoot(2, 1, 1, 1, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
 
     expect(rifle[0]).toEqual({ type: 'weapon', weaponId: 'burstRifle' });
     expect(rifle).toContainEqual({ type: 'consumable', kind: 'rifleAmmo' });
     expect(pistol[0]).toEqual({ type: 'weapon', weaponId: 'pistol' });
   });
 
-  it('drops the double-barrel shotgun with matching ammunition from wave six', () => {
+  it('drops the shotgun from wave two and supplies matching ammo when no gun is owned', () => {
     const shotgunRoll = SUPPLY_DROP_BALANCE.rifleDropChance + 0.01;
-    const loot = selectSupplyLoot(6, 1, shotgunRoll, 1, LOOT_CONFIG);
+    const loot = selectSupplyLoot(2, 1, shotgunRoll, 1, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
 
     expect(loot[0]).toEqual({
       type: 'weapon',
@@ -59,10 +62,109 @@ describe('supply loot', () => {
     expect(loot).toContainEqual({ type: 'consumable', kind: 'shotgunAmmo' });
   });
 
+  it.each([
+    [SUPPLY_DROP_BALANCE.rifleDropChance - 0.0001, 'burstRifle'],
+    [SUPPLY_DROP_BALANCE.rifleDropChance, 'doubleBarrelShotgun'],
+    [SUPPLY_DROP_BALANCE.rifleDropChance + SUPPLY_DROP_BALANCE.shotgunDropChance, 'pistol'],
+  ] as const)('selects the weapon at probability boundary %s', (roll, weaponId) => {
+    const loot = selectSupplyLoot(2, 1, roll, 1, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
+    expect(loot[0]).toEqual({ type: 'weapon', weaponId });
+  });
+
+  it('includes loaded ammunition when comparing guns with different reserves', () => {
+    const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(PISTOL_WEAPON), createOwnedWeapon(BURST_RIFLE_WEAPON)], activeSlot: 0 };
+    inventory.slots[1]!.state.magazineAmmo = 0;
+    const loot = selectSupplyLoot(2, 1, 0.99, 1, LOOT_CONFIG, inventory,
+      { pistolAmmo: 0, rifleAmmo: 5, shotgunAmmo: 0 });
+    expect(loot).toEqual([{ type: 'consumable', kind: 'rifleAmmo' }]);
+  });
+
+  it('reselects ammunition from the inventory at each loot release', () => {
+    const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(PISTOL_WEAPON), createOwnedWeapon(BURST_RIFLE_WEAPON)], activeSlot: 0 };
+    const before = selectSupplyLoot(2, 1, 0.99, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+    inventory.slots[1]!.state.magazineAmmo = 0;
+    const after = selectSupplyLoot(2, 1, 0.99, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+    expect(before).toEqual([{ type: 'consumable', kind: 'pistolAmmo' }]);
+    expect(after).toEqual([{ type: 'consumable', kind: 'rifleAmmo' }]);
+  });
+
+  it('omits a pistol owned in the inactive slot without rerolling another weapon', () => {
+    const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(POLICE_BATON_WEAPON), createOwnedWeapon(PISTOL_WEAPON)], activeSlot: 0 };
+    const loot = selectSupplyLoot(2, 1, 0.99, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+    expect(loot).toEqual([{ type: 'consumable', kind: 'pistolAmmo' }]);
+  });
+
+  it('supplies both the dropped weapon and the scarcer owned ammunition', () => {
+    const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(PISTOL_WEAPON), createOwnedWeapon(BURST_RIFLE_WEAPON)], activeSlot: 0 };
+    inventory.slots[1]!.state.magazineAmmo = 2;
+    const loot = selectSupplyLoot(2, 1, 0.3, 1, LOOT_CONFIG, inventory,
+      { pistolAmmo: 20, rifleAmmo: 1, shotgunAmmo: 0 });
+    expect(loot).toContainEqual({ type: 'weapon', weaponId: 'doubleBarrelShotgun' });
+    expect(loot).toContainEqual({ type: 'consumable', kind: 'rifleAmmo' });
+    expect(loot).toContainEqual({ type: 'consumable', kind: 'shotgunAmmo' });
+    expect(loot).not.toContainEqual({ type: 'consumable', kind: 'pistolAmmo' });
+  });
+
+  it.each([
+    [0, 'burstRifle', 'rifleAmmo'],
+    [SUPPLY_DROP_BALANCE.rifleDropChance, 'doubleBarrelShotgun', 'shotgunAmmo'],
+  ] as const)('includes matching ammunition for %s while a pistol is owned', (roll, weaponId, kind) => {
+    const inventory: WeaponInventoryState = {
+      slots: [createOwnedWeapon(PISTOL_WEAPON), null], activeSlot: 0,
+    };
+    const loot = selectSupplyLoot(2, 1, roll, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+
+    expect(loot).toEqual([
+      { type: 'weapon', weaponId },
+      { type: 'consumable', kind: 'pistolAmmo' },
+      { type: 'consumable', kind },
+    ]);
+  });
+
+  it('includes pistol ammunition when dropping a pistol for a rifle owner', () => {
+    const inventory: WeaponInventoryState = {
+      slots: [createOwnedWeapon(BURST_RIFLE_WEAPON), null], activeSlot: 0,
+    };
+    const loot = selectSupplyLoot(2, 1, 1, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+
+    expect(loot).toEqual([
+      { type: 'weapon', weaponId: 'pistol' },
+      { type: 'consumable', kind: 'rifleAmmo' },
+      { type: 'consumable', kind: 'pistolAmmo' },
+    ]);
+  });
+
+  it('drops one ammunition bundle when the dropped gun uses the scarcest owned type', () => {
+    const inventory: WeaponInventoryState = {
+      slots: [createOwnedWeapon(BURST_RIFLE_WEAPON), null], activeSlot: 0,
+    };
+    const loot = selectSupplyLoot(2, 1, 0, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+
+    expect(loot).toEqual([
+      { type: 'weapon', weaponId: 'burstRifle' },
+      { type: 'consumable', kind: 'rifleAmmo' },
+    ]);
+  });
+
+  it('counts loaded rounds and chooses the active gun when totals tie', () => {
+    const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(PISTOL_WEAPON), createOwnedWeapon(DOUBLE_BARREL_SHOTGUN_WEAPON)], activeSlot: 1 };
+    inventory.slots[0]!.state.magazineAmmo = 2;
+    const loot = selectSupplyLoot(2, 1, 0.99, 1, LOOT_CONFIG, inventory, EMPTY_RESERVES);
+    expect(loot).toEqual([{ type: 'consumable', kind: 'shotgunAmmo' }]);
+  });
+
+  it('ignores empty reserves for unowned guns and melee weapons', () => {
+    const inventory: WeaponInventoryState = { slots: [createOwnedWeapon(POLICE_BATON_WEAPON), createOwnedWeapon(BURST_RIFLE_WEAPON)], activeSlot: 0 };
+    const loot = selectSupplyLoot(2, 1, 0.99, 1, LOOT_CONFIG, inventory,
+      { pistolAmmo: 0, rifleAmmo: 100, shotgunAmmo: 0 });
+    expect(loot).toContainEqual({ type: 'consumable', kind: 'rifleAmmo' });
+    expect(loot).toContainEqual({ type: 'weapon', weaponId: 'pistol' });
+  });
+
   it('boosts medical supply chance for critical health without guaranteeing a drop', () => {
-    const healthy = selectSupplyLoot(3, 1, 1, 0.8, LOOT_CONFIG);
-    const critical = selectSupplyLoot(3, 0.2, 1, 0.8, LOOT_CONFIG);
-    const missed = selectSupplyLoot(3, 0.2, 1, 1, LOOT_CONFIG);
+    const healthy = selectSupplyLoot(3, 1, 1, 0.8, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
+    const critical = selectSupplyLoot(3, 0.2, 1, 0.8, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
+    const missed = selectSupplyLoot(3, 0.2, 1, 1, LOOT_CONFIG, EMPTY_INVENTORY, EMPTY_RESERVES);
 
     expect(healthy).not.toContainEqual({ type: 'consumable', kind: 'medical' });
     expect(critical).toContainEqual({ type: 'consumable', kind: 'medical' });
@@ -150,24 +252,34 @@ describe('item effects', () => {
     expect(addClamped(80, ITEM_BALANCE_CONFIG.medicalHealingAmount, 100)).toBe(100);
   });
 
-  it('collects medical pickups only when the full healing amount can be used', () => {
-    const healingAmount = ITEM_BALANCE_CONFIG.medicalHealingAmount;
+  it('collects medical pickups whenever health is below the maximum', () => {
+    expect(canCollectConsumable('medical', 100, 100)).toBe(false);
+    expect(canCollectConsumable('medical', 99, 100)).toBe(true);
+    expect(canCollectConsumable('medical', 66, 100)).toBe(true);
+    expect(canCollectConsumable('medical', 65, 100)).toBe(true);
+    expect(canCollectConsumable('pistolAmmo', 100, 100)).toBe(true);
+  });
 
-    expect(canCollectConsumable('medical', 100, 100, healingAmount)).toBe(false);
-    expect(canCollectConsumable('medical', 99, 100, healingAmount)).toBe(false);
-    expect(canCollectConsumable('medical', 65, 100, healingAmount)).toBe(true);
-    expect(canCollectConsumable('pistolAmmo', 100, 100, healingAmount)).toBe(true);
+  it('heals one missing health point and leaves subsequent medical pickups uncollected', () => {
+    const healingAmount = ITEM_BALANCE_CONFIG.medicalHealingAmount;
+    let health = 99;
+
+    expect(canCollectConsumable('medical', health, 100)).toBe(true);
+    health = addClamped(health, healingAmount, 100);
+
+    expect(health).toBe(100);
+    expect(canCollectConsumable('medical', health, 100)).toBe(false);
   });
 
   it('rechecks medical eligibility after each heal', () => {
     const healingAmount = ITEM_BALANCE_CONFIG.medicalHealingAmount;
     let health = 30;
 
-    expect(canCollectConsumable('medical', health, 100, healingAmount)).toBe(true);
+    expect(canCollectConsumable('medical', health, 100)).toBe(true);
     health = addClamped(health, healingAmount, 100);
-    expect(canCollectConsumable('medical', health, 100, healingAmount)).toBe(true);
+    expect(canCollectConsumable('medical', health, 100)).toBe(true);
     health = addClamped(health, healingAmount, 100);
-    expect(canCollectConsumable('medical', health, 100, healingAmount)).toBe(false);
+    expect(canCollectConsumable('medical', health, 100)).toBe(false);
   });
 
   it('counts only ammunition pickups usable by the current inventory', () => {

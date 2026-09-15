@@ -298,6 +298,7 @@ export function resolveSupplyDropIndicator(
   targetScreen: Position,
   viewport: { width: number; height: number },
   margin: number,
+  halfSize: Position = { x: 0, y: 0 },
 ): SupplyDropIndicator {
   const width = Math.max(0, finite(viewport.width));
   const height = Math.max(0, finite(viewport.height));
@@ -309,10 +310,10 @@ export function resolveSupplyDropIndicator(
   const x = finite(targetScreen.x);
   const y = finite(targetScreen.y);
   const visible = (
-    x < safeMargin
-    || x > width - safeMargin
-    || y < safeMargin
-    || y > height - safeMargin
+    x + Math.max(0, finite(halfSize.x)) < 0
+    || x - Math.max(0, finite(halfSize.x)) > width
+    || y + Math.max(0, finite(halfSize.y)) < 0
+    || y - Math.max(0, finite(halfSize.y)) > height
   );
   const center = { x: width / 2, y: height / 2 };
 

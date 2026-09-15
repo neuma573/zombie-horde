@@ -1,6 +1,6 @@
 import type { RectangleObstacle } from './obstacleCollision';
 import type { Position } from './movement';
-import type { AmmoType, WeaponId } from './weapon';
+import type { AmmoType, WeaponId, WeaponInventoryState } from './weapon';
 
 export type ConsumableItemKind = 'pistolAmmo' | 'rifleAmmo' | 'shotgunAmmo' | 'medical';
 export type SupplyLoot = {
@@ -48,6 +48,8 @@ export function selectSupplyLoot(
   weaponRoll: number,
   medicalRoll: number,
   config: SupplyLootConfig,
+  inventory: Readonly<WeaponInventoryState>,
+  reserves: Readonly<Record<AmmoType, number>>,
 ): SupplyLoot[] {
   const rifleAvailable = waveNumber >= config.rifleUnlockWave;
   const rifleSelected = rifleAvailable && clamp01(weaponRoll) < config.rifleDropChance;
@@ -67,21 +69,48 @@ export function selectSupplyLoot(
         : 0),
   );
   const includeMedical = clamp01(medicalRoll) < medicalChance;
+  const alreadyOwnsPistol = inventory.slots.some((weapon) => weapon?.definition.id === 'pistol');
+  const includeWeapon = weaponId !== 'pistol' || !alreadyOwnsPistol;
+  const droppedWeaponAmmo: AmmoType = rifleSelected
+    ? 'rifleAmmo' : shotgunSelected ? 'shotgunAmmo' : 'pistolAmmo';
+  const ammunition = selectScarcestOwnedAmmo(inventory, reserves) ?? droppedWeaponAmmo;
 
   return [
-    { type: 'weapon', weaponId },
-    {
-      type: 'consumable',
-      kind: rifleSelected
-        ? 'rifleAmmo'
-        : shotgunSelected
-          ? 'shotgunAmmo'
-          : 'pistolAmmo',
-    },
+    ...(includeWeapon ? [{ type: 'weapon' as const, weaponId }] : []),
+    { type: 'consumable', kind: ammunition },
+    // Keep scarce owned ammunition and make every dropped firearm usable.
+    ...(includeWeapon && droppedWeaponAmmo !== ammunition
+      ? [{ type: 'consumable' as const, kind: droppedWeaponAmmo }]
+      : []),
     ...(includeMedical
       ? [{ type: 'consumable' as const, kind: 'medical' as const }]
       : []),
   ];
+}
+
+export function selectScarcestOwnedAmmo(
+  inventory: Readonly<WeaponInventoryState>,
+  reserves: Readonly<Record<AmmoType, number>>,
+): AmmoType | null {
+  const totals = new Map<AmmoType, number>();
+  // Preserve active-slot priority for equal totals; shared reserves count only once.
+  for (const slot of [inventory.activeSlot, 1 - inventory.activeSlot]) {
+    const weapon = inventory.slots[slot];
+    const ammoType = weapon?.definition.ammoType;
+    if (!weapon || !ammoType || weapon.definition.attackType !== 'ranged') continue;
+    totals.set(ammoType,
+      (totals.get(ammoType) ?? Math.max(0, reserves[ammoType]))
+        + Math.max(0, weapon.state.magazineAmmo));
+  }
+  let selected: AmmoType | null = null;
+  let lowest = Infinity;
+  for (const [ammoType, total] of totals) {
+    if (total < lowest) {
+      selected = ammoType;
+      lowest = total;
+    }
+  }
+  return selected;
 }
 
 export function spreadSupplyLootPositions(
@@ -194,11 +223,9 @@ export function canCollectConsumable(
   kind: ConsumableItemKind,
   currentHealth: number,
   maximumHealth: number,
-  medicalHealingAmount: number,
 ): boolean {
   return kind !== 'medical'
-    || Math.max(0, currentHealth) + Math.max(0, medicalHealingAmount)
-      <= Math.max(0, maximumHealth);
+    || Math.max(0, currentHealth) < Math.max(0, maximumHealth);
 }
 
 export function hasUsableAmmoPickup(

@@ -1,3 +1,4 @@
+import { advanceMeleeSwing } from '../logic/meleeSwing';
 import Phaser from 'phaser';
 
 import { MOBILE_AIM_ASSIST_CONFIG } from '../config/aimAssistConfig';
@@ -41,6 +42,8 @@ import { CombatEffects } from '../effects/CombatEffects';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import { SupplyDropVisual } from '../effects/SupplyDropVisual';
+import { InteractionPrompt } from '../effects/InteractionPrompt';
+import { resolveInteractionPrompt } from '../logic/interactionPrompt';
 import { WeaponAudio } from '../effects/WeaponAudio';
 import { syncSoundEnabled } from '../effects/audioSettings';
 import { preloadGameAssets } from '../effects/gameAssetPreloader';
@@ -249,6 +252,7 @@ export class GameScene extends Phaser.Scene {
   private playerInput: PlayerInputSnapshot = createPlayerInputState();
   private readonly playerActions = new PlayerActionQueue();
   private stamina: StaminaState = createStaminaState(SHOVE_CONFIG.staminaMax);
+  private pendingMelee: { elapsedMs: number; aimDirection: Vector2 } | null = null;
   private pendingShove: {
     windup: ShoveWindupState;
     aimDirection: Vector2;
@@ -315,6 +319,7 @@ export class GameScene extends Phaser.Scene {
   private worldBackdrop?: WorldBackdrop;
   private timeBasedLighting?: TimeBasedLighting;
   private supplyDropVisual?: SupplyDropVisual;
+  private interactionPrompt?: InteractionPrompt;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
   constructor() {
@@ -344,6 +349,7 @@ export class GameScene extends Phaser.Scene {
     this.playerInput = createPlayerInputState();
     this.stamina = createStaminaState(SHOVE_CONFIG.staminaMax);
     this.pendingShove = null;
+    this.pendingMelee = null;
     this.viewDirection = { ...this.playerInput.manualAimDirection };
     this.finalAimDirection = { ...this.playerInput.manualAimDirection };
     this.aimSource = 'none';
@@ -407,6 +413,7 @@ export class GameScene extends Phaser.Scene {
       SPAWN_CONFIG.playerPosition.y,
       appearance,
     );
+    this.player.triggerWeaponEquip();
     this.weaponPickups = [];
     this.nextWeaponPickupId = 0;
     this.itemPickups = [];
@@ -442,6 +449,7 @@ export class GameScene extends Phaser.Scene {
         this.gameplayKeyStateGuard.suppressHeldUntilKeyUp(this.gameplayKeys());
         this.clearActiveMobilePointers();
         this.pauseSceneManagers();
+        this.interactionPrompt?.hide();
       },
       () => {
         this.resumeSceneManagers();
@@ -459,6 +467,7 @@ export class GameScene extends Phaser.Scene {
       this.mobileControls,
     );
     this.supplyDropVisual = new SupplyDropVisual(this);
+    this.interactionPrompt = new InteractionPrompt(this);
     this.uiCamera = this.cameras.add(
       0,
       0,
@@ -541,6 +550,8 @@ export class GameScene extends Phaser.Scene {
       this.pauseMenu = undefined;
       this.supplyDropVisual?.destroy();
       this.supplyDropVisual = undefined;
+      this.interactionPrompt?.destroy();
+      this.interactionPrompt = undefined;
       this.weaponPickups.forEach((pickup) => pickup.destroy());
       this.weaponPickups = [];
       this.itemPickups.forEach((pickup) => pickup.destroy());
@@ -731,34 +742,49 @@ export class GameScene extends Phaser.Scene {
     ]));
     let contactDied = false;
     let damageEventCount = 0;
-    if (shoveImpact) {
-      const preImpact = this.advanceActorsThroughBurstShots(
-        shoveImpact.preImpactMs,
-        audioDelayMs,
-        movementObstacles,
+    const impacts: Array<{ offset: number; apply: () => void }> = [];
+    if (shoveImpact) impacts.push({
+      offset: shoveImpact.preImpactMs,
+      apply: () => this.applyShoveImpact(shoveImpact.aimDirection),
+    });
+    if (this.pendingMelee && this.weapon.getDefinition().attackType !== 'melee') {
+      this.pendingMelee = null;
+      this.player.setMeleeSwingElapsed(null);
+    }
+    if (this.pendingMelee) {
+      const direction = this.pendingMelee.aimDirection;
+      const swing = advanceMeleeSwing(this.pendingMelee.elapsedMs, deltaMs);
+      this.pendingMelee = swing.elapsedMs === null ? null : {
+        elapsedMs: swing.elapsedMs, aimDirection: direction,
+      };
+      this.player.setMeleeSwingElapsed(swing.elapsedMs);
+      if (swing.impactOffsetMs !== null) impacts.push({
+        offset: swing.impactOffsetMs,
+        apply: () => this.applyMeleeImpact(direction),
+      });
+    }
+    // Advance actors to each contact before resolving hits at their current positions.
+    let advancedMs = 0;
+    for (const impact of impacts.sort((a, b) => a.offset - b.offset)) {
+      const segment = this.advanceActorsThroughBurstShots(
+        impact.offset - advancedMs, audioDelayMs + advancedMs, movementObstacles,
       );
-      contactDied = preImpact.died;
-      damageEventCount += preImpact.damageEventCount;
-      if (!contactDied) {
-        this.refreshStationaryMouseAim();
-        this.refreshAimAssist();
-        this.applyShoveImpact(shoveImpact.aimDirection);
-        const postImpact = this.advanceActorsThroughBurstShots(
-          shoveImpact.postImpactMs,
-          audioDelayMs + shoveImpact.preImpactMs,
-          movementObstacles,
-        );
-        contactDied = postImpact.died;
-        damageEventCount += postImpact.damageEventCount;
-      }
-    } else {
-      const simulation = this.advanceActorsThroughBurstShots(
-        deltaMs,
-        audioDelayMs,
-        movementObstacles,
+      advancedMs = impact.offset;
+      contactDied = segment.died;
+      damageEventCount += segment.damageEventCount;
+      if (contactDied) break;
+      impact.apply();
+    }
+    if (!contactDied) {
+      const segment = this.advanceActorsThroughBurstShots(
+        deltaMs - advancedMs, audioDelayMs + advancedMs, movementObstacles,
       );
-      contactDied = simulation.died;
-      damageEventCount = simulation.damageEventCount;
+      contactDied = segment.died;
+      damageEventCount += segment.damageEventCount;
+    }
+    if (contactDied) {
+      this.pendingMelee = null;
+      this.player.setMeleeSwingElapsed(null);
     }
     if (
       reloadingWeaponId !== null
@@ -771,7 +797,11 @@ export class GameScene extends Phaser.Scene {
     }
     this.startMobileAutoReloadIfNeeded();
     const nearbyPickup = this.nearestWeaponPickupInRange();
-    if (shouldAutoPickupWeapon(this.weapon.getInventory(), nearbyPickup !== undefined)) {
+    if (shouldAutoPickupWeapon(
+      this.weapon.getInventory(),
+      nearbyPickup !== undefined,
+      this.pendingMelee !== null,
+    )) {
       this.tryPickupWeapon(nearbyPickup);
     }
     const playerMovementEnd = { x: this.player.x, y: this.player.y };
@@ -1036,6 +1066,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resolveMeleeAttack(aimDirection: Vector2): void {
+    if (this.pendingMelee || this.pendingShove) return;
     const definition = this.weapon.getDefinition();
     const staminaCost = Math.max(0, definition.config.staminaCost ?? 0);
     if (this.stamina.current < staminaCost || !this.weapon.fire()) {
@@ -1045,6 +1076,14 @@ export class GameScene extends Phaser.Scene {
 
     this.stamina = { current: this.stamina.current - staminaCost };
     this.player.triggerMeleeSwingVisual(aimDirection);
+    this.pendingMelee = { elapsedMs: 0, aimDirection: { ...aimDirection } };
+    this.updateHud();
+  }
+
+  private applyMeleeImpact(aimDirection: Vector2): void {
+    const definition = this.weapon.getDefinition();
+    if (definition.attackType !== 'melee') return;
+    this.effects?.playMeleeContact(this.player, aimDirection);
     const hits = resolveMeleeHits(
       this.player,
       aimDirection,
@@ -1099,7 +1138,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resolveShoveRequest(aimDirection: Vector2): void {
-    if (!isPlaying(this.sessionState)) return;
+    if (!isPlaying(this.sessionState) || this.pendingMelee) return;
     const windup = startShoveWindup(this.pendingShove?.windup ?? null);
     if (!windup.started) return;
 
@@ -1429,7 +1468,11 @@ export class GameScene extends Phaser.Scene {
     const previousSlot = this.weapon.getInventory().activeSlot;
     this.weapon.selectSlot(slot);
     if (this.weapon.getInventory().activeSlot !== previousSlot) {
+      this.pendingMelee = null;
+      this.player.setMeleeSwingElapsed(null);
       this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
+      this.player.setWeaponVisual(this.weapon.getDefinition().id);
+      this.player.triggerWeaponEquip();
     }
   }
 
@@ -1492,6 +1535,10 @@ export class GameScene extends Phaser.Scene {
 
     const position = { x: pickup.x, y: pickup.y };
     const replaced = this.weapon.pickupOwned(pickup.ownedWeapon);
+    this.pendingMelee = null;
+    this.player.setMeleeSwingElapsed(null);
+    this.player.setWeaponVisual(this.weapon.getDefinition().id);
+    this.player.triggerWeaponEquip();
     this.weaponAudio?.playEquip(this.weapon.getDefinition().id);
     if (this.hoveredWeaponPickup === pickup) {
       this.hoveredWeaponPickup = undefined;
@@ -1580,7 +1627,7 @@ export class GameScene extends Phaser.Scene {
         : isInPickupRange
           ? this.hasEmptyWeaponSlot()
             ? 'Move onto the weapon to pick up'
-            : 'Press E to replace current'
+            : 'E · Swap'
           : 'Move closer to pick up',
     }, screenPosition);
   }
@@ -1788,6 +1835,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private syncCameraLayers(): void {
+    // Run after movement, recoil and camera updates, without restarting the flash fade.
+    const muzzlePosition = this.player.getMuzzlePosition();
+    this.effects?.updateMuzzlePosition(muzzlePosition);
+    this.timeBasedLighting?.updateMuzzleFlashPose(
+      cameraScreenPoint(
+        muzzlePosition,
+        { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
+        this.viewport,
+        this.cameras.main.zoom,
+      ),
+      this.player.getMuzzleDirection(),
+      this.cameras.main.zoom,
+    );
     if (!this.uiCamera) return;
 
     const fixedObjects: Phaser.GameObjects.GameObject[] = [];
@@ -2053,6 +2113,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateHud(deltaMs = 0): void {
+    this.interactionPrompt?.update(
+      resolveInteractionPrompt({
+        playing: isPlaying(this.sessionState) && !this.pauseMenu?.isOpen(),
+        mobile: this.mobileControlsEnabled,
+        canOpenCrate: this.canOpenSupplyCrate(),
+        hasEmptyWeaponSlot: this.hasEmptyWeaponSlot(),
+        nearbyWeaponName: this.nearestWeaponPickupInRange()?.definition.name ?? null,
+      }),
+      cameraScreenPoint(this.player, {
+        x: this.cameras.main.scrollX, y: this.cameras.main.scrollY,
+      }, this.viewport, this.cameras.main.zoom),
+      this.viewport,
+      this.readSafeArea(),
+    );
     const weapon = this.weapon.getState();
     const inventory = this.weapon.getInventory();
     const reload = this.weapon.getReloadProgress();
@@ -2337,8 +2411,8 @@ export class GameScene extends Phaser.Scene {
       this.supplyDropState,
       this.currentSupplyDropConfig,
     );
-    const targetScreen = cameraScreenPoint(
-      snapshot.target,
+    const crateScreen = cameraScreenPoint(
+      snapshot.cratePosition,
       {
         x: this.cameras.main.scrollX,
         y: this.cameras.main.scrollY,
@@ -2358,9 +2432,11 @@ export class GameScene extends Phaser.Scene {
     this.supplyDropVisual.update(
       snapshot,
       planeScreen,
-      targetScreen,
+      crateScreen,
       this.viewport,
       this.currentSupplyDropConfig.indicatorMargin,
+      this.readSafeArea(),
+      this.cameras.main.zoom,
     );
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
@@ -2459,6 +2535,8 @@ export class GameScene extends Phaser.Scene {
           ITEM_BALANCE_CONFIG.criticalHealthMedicalChanceBonus
         ),
       },
+      this.weapon.getInventory(),
+      this.weapon.getAmmoReserves(),
     );
     const positions = spreadSupplyLootPositions(
       loot.length,
@@ -2514,7 +2592,6 @@ export class GameScene extends Phaser.Scene {
         pickup.kind,
         this.player.health,
         PLAYER_CONFIG.health,
-        ITEM_BALANCE_CONFIG.medicalHealingAmount,
       )) {
         continue;
       }

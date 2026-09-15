@@ -201,8 +201,9 @@ export function selectWeaponSlot(
 export function shouldAutoPickupWeapon(
   state: WeaponInventoryState,
   isInPickupRange: boolean,
+  isMeleeSwingActive = false,
 ): boolean {
-  return isInPickupRange && state.slots.some((slot) => slot === null);
+  return !isMeleeSwingActive && isInPickupRange && state.slots.some((slot) => slot === null);
 }
 
 export function hasLoadedWeaponPickup(

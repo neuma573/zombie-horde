@@ -19,6 +19,7 @@ import {
 
 export class CombatEffects {
   private readonly active = new Set<Phaser.GameObjects.GameObject>();
+  private readonly muzzleFlashes = new Set<Phaser.GameObjects.Arc>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -45,7 +46,26 @@ export class CombatEffects {
       0xfff1a8,
       0.95,
     ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
+    this.muzzleFlashes.add(muzzle);
+    muzzle.once('destroy', () => this.muzzleFlashes.delete(muzzle));
     this.fadeAndDestroy(muzzle, 70, { scale: 1.8 });
+  }
+
+  updateMuzzlePosition(position: { x: number; y: number }): void {
+    for (const muzzle of this.muzzleFlashes) {
+      muzzle.setPosition(position.x, position.y);
+    }
+  }
+
+  playMeleeContact(position: { x: number; y: number }, direction: { x: number; y: number }): void {
+    if (!this.enabled) return;
+    const angle = Math.atan2(direction.y, direction.x);
+    const trail = this.scene.add.graphics().setDepth(WORLD_RENDER_DEPTH.combatEffect);
+    trail.lineStyle(3, 0xc5d7df, 0.28);
+    trail.beginPath();
+    trail.arc(position.x, position.y, 47, angle - 0.55, angle + 0.55);
+    trail.strokePath();
+    this.fadeAndDestroy(trail, 65);
   }
 
   playZombieHit(event: ImpactEffectEvent): void {
