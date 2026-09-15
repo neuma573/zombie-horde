@@ -1,8 +1,9 @@
+import { t, userSettings } from '../systems/UserSettings';
 import Phaser from 'phaser';
+import { SettingsPanel } from '../systems/SettingsPanel';
 
 import {
   CHARACTER_CLASS_OPTIONS,
-  DEFAULT_GAME_SETTINGS,
   GAME_REGISTRY_KEYS,
   type CharacterClassOption,
   type CharacterClassId,
@@ -13,7 +14,6 @@ import {
   createMainMenuLayout,
   createMenuActionLayout,
   selectCharacterClass,
-  toggleSound,
 } from '../logic/menu';
 import { syncSoundEnabled } from '../effects/audioSettings';
 import {
@@ -46,7 +46,6 @@ export class MainMenuScene extends Phaser.Scene {
   private selectedClassId: CharacterClassId | null = null;
   private ui?: Phaser.GameObjects.Container;
   private gameStartPending = false;
-  private settingsClosePending = false;
   private resizeObserver?: ResizeObserver;
   private resizeFrame?: number;
 
@@ -62,9 +61,12 @@ export class MainMenuScene extends Phaser.Scene {
     this.view = 'main';
     this.selectedClassId = null;
     this.gameStartPending = false;
-    this.settingsClosePending = false;
     document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
+    if (debugUrl.searchParams.get('debug') === 'assets') {
+      void this.startAssetDebug();
+      return;
+    }
     if (debugUrl.searchParams.has('zombieAppearanceDebug')) {
       void this.startZombieAppearanceDebug(debugUrl);
       return;
@@ -77,7 +79,7 @@ export class MainMenuScene extends Phaser.Scene {
     if (!this.registry.has(GAME_REGISTRY_KEYS.soundEnabled)) {
       this.registry.set(
         GAME_REGISTRY_KEYS.soundEnabled,
-        DEFAULT_GAME_SETTINGS.soundEnabled,
+        userSettings.soundEnabled,
       );
     }
     syncSoundEnabled(
@@ -152,9 +154,7 @@ export class MainMenuScene extends Phaser.Scene {
     const top = safe.top + 24;
     const bottom = Math.max(top, this.scale.height - safe.bottom - 24);
     const width = Math.max(0, right - left);
-    const height = Math.max(0, bottom - top);
     const centerX = left + width / 2;
-    const centerY = top + height / 2;
 
     this.ui = this.add.container(0, 0).setDepth(10);
     const background = this.add.rectangle(
@@ -167,8 +167,8 @@ export class MainMenuScene extends Phaser.Scene {
     this.ui.add(background);
 
     if (this.view === 'settings') {
-      this.renderMain(centerX, left, right, top, bottom);
-      this.renderSettingsModal(centerX, centerY, left, right, top, bottom);
+      this.addMainBackdrop();
+      this.renderSettingsModal(left, right, top, bottom);
       return;
     }
     if (this.view === 'classSelect') {
@@ -191,7 +191,7 @@ export class MainMenuScene extends Phaser.Scene {
     logo.setDisplaySize(layout.logoWidth, layout.logoWidth / 3);
     this.ui?.add(logo);
 
-    this.addButton(centerX, layout.primaryActionY, 'SURVIVAL MODE', () => {
+    this.addButton(centerX, layout.primaryActionY, t('SURVIVAL MODE'), () => {
       this.view = 'classSelect';
       this.render();
     }, layout.actionWidth, true, 'primary');
@@ -245,105 +245,14 @@ export class MainMenuScene extends Phaser.Scene {
     this.ui?.add(shade);
   }
 
-  private renderSettingsModal(
-    centerX: number,
-    centerY: number,
-    left: number,
-    right: number,
-    top: number,
-    bottom: number,
-  ): void {
-    const modalStartIndex = this.ui?.list.length ?? 0;
-    let modalObjects: Phaser.GameObjects.GameObject[] = [];
-    let soundEnabled = this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false;
-    const availableWidth = Math.max(0, right - left);
-    const availableHeight = Math.max(0, bottom - top);
-    const modalWidth = Math.min(420, availableWidth);
-    const modalHeight = Math.min(310, availableHeight);
-    const modalY = Math.max(
-      top + modalHeight / 2,
-      Math.min(bottom - modalHeight / 2, centerY),
-    );
-
-    const scrim = this.add.rectangle(
-      this.scale.width / 2,
-      this.scale.height / 2,
-      this.scale.width,
-      this.scale.height,
-      0x020304,
-      0.42,
-    ).setInteractive();
+  private renderSettingsModal(left: number, right: number, top: number, bottom: number): void {
+    const scrim = this.add.rectangle(this.scale.width / 2, this.scale.height / 2,
+      this.scale.width, this.scale.height, 0x020304, 0.65).setInteractive();
     this.ui?.add(scrim);
-
-    const panel = this.add.rectangle(
-      centerX,
-      modalY,
-      modalWidth,
-      modalHeight,
-      0x1d1a17,
-      0.84,
-    ).setStrokeStyle(1, 0x8f9597, 0.9);
-    this.ui?.add(panel);
-    const accent = this.add.rectangle(
-      centerX - modalWidth / 2 + 3,
-      modalY,
-      5,
-      modalHeight - 2,
-      COLORS.danger,
-    );
-    this.ui?.add(accent);
-
-    const title = this.addText(
-      centerX,
-      modalY - modalHeight * 0.32,
-      'SETTINGS',
-      28,
-      true,
-    );
-    title.setLetterSpacing(3);
-    let soundButton: Phaser.GameObjects.Text | undefined;
-    soundButton = this.addButton(
-      centerX,
-      modalY - 12,
-      soundEnabled ? 'SOUND: ON' : 'SOUND: MUTED',
-      () => {
-        const next = toggleSound({ soundEnabled });
-        soundEnabled = next.soundEnabled;
-        this.registry.set(GAME_REGISTRY_KEYS.soundEnabled, next.soundEnabled);
-        syncSoundEnabled(this.sound, next.soundEnabled);
-        soundButton?.setText(next.soundEnabled ? 'SOUND: ON' : 'SOUND: MUTED');
-      },
-    );
-    const closeModal = (): void => {
-      if (this.settingsClosePending) return;
-      this.settingsClosePending = true;
-      this.tweens.add({
-        targets: modalObjects,
-        alpha: 0,
-        duration: 180,
-        ease: 'Sine.In',
-        onComplete: () => {
-          this.settingsClosePending = false;
-          this.view = 'main';
-          this.render();
-        },
-      });
-    };
-    this.addButton(
-      centerX,
-      modalY + modalHeight * 0.3,
-      'CLOSE',
-      closeModal,
-      160,
-    );
-
-    modalObjects = this.ui?.list.slice(modalStartIndex) ?? [];
-    this.tweens.add({
-      targets: modalObjects,
-      alpha: { from: 0, to: 1 },
-      duration: 220,
-      ease: 'Sine.Out',
-    });
+    this.ui?.add(new SettingsPanel(this, { left, right, top, bottom }, () => {
+      this.view = 'main';
+      this.render();
+    }).container);
   }
 
   private renderClassSelect(
@@ -355,11 +264,11 @@ export class MainMenuScene extends Phaser.Scene {
     const width = right - left;
     const centerX = left + width / 2;
     const isMobileLayout = width < 620;
-    this.addText(centerX, top + 20, 'SELECT CLASS', 30, true);
+    this.addText(centerX, top + 20, t('SELECT CLASS'), 30, true);
     this.addText(
       centerX,
       top + 56,
-      'CHOOSE YOUR SURVIVOR',
+      t('CHOOSE YOUR SURVIVOR'),
       13,
       false,
       COLORS.muted,
@@ -384,14 +293,14 @@ export class MainMenuScene extends Phaser.Scene {
       !this.gameStartPending,
     );
 
-    this.addButton(actionLayout.back.x, actionY, 'BACK', () => {
+    this.addButton(actionLayout.back.x, actionY, t('BACK'), () => {
       this.view = 'main';
       this.render();
     }, actionLayout.back.width, !this.gameStartPending);
     this.addButton(
       actionLayout.deploy.x,
       actionY,
-      this.gameStartPending ? 'LOADING...' : 'DEPLOY',
+      this.gameStartPending ? t('LOADING...') : t('DEPLOY'),
       () => this.startGame(),
       actionLayout.deploy.width,
       this.selectedClassId !== null && !this.gameStartPending,
@@ -564,7 +473,7 @@ export class MainMenuScene extends Phaser.Scene {
     const name = this.addText(
       nameX,
       nameY,
-      option.name,
+      t(option.name),
       Math.min(isMobileLayout ? 22 : 52, Math.max(16, width * 0.055)),
       true,
     );
@@ -574,7 +483,7 @@ export class MainMenuScene extends Phaser.Scene {
     const role = this.addText(
       nameX,
       nameY + (isMobileLayout ? 25 : 30),
-      `${index === 0 ? '01' : '02'} // ${option.roleLabel}`,
+      `${index === 0 ? '01' : '02'} // ${t(option.roleLabel)}`,
       isMobileLayout ? 10 : 12,
       false,
       COLORS.muted,
@@ -591,7 +500,7 @@ export class MainMenuScene extends Phaser.Scene {
         isMobileLayout
           ? clampClassStatusY(preferredStatusY, nameY, actionY)
           : preferredStatusY,
-        'READY',
+        t('READY'),
         11,
         true,
         index === 0 ? '#76caff' : '#ff9ac9',
@@ -697,6 +606,12 @@ export class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.ui?.add(object);
     return object;
+  }
+
+  private async startAssetDebug(): Promise<void> {
+    const { AssetDebugScene } = await import('./AssetDebugScene');
+    if (!this.scene.manager.keys.AssetDebugScene) this.scene.add('AssetDebugScene', AssetDebugScene, false);
+    this.scene.start('AssetDebugScene');
   }
 
   private async startAppearanceDebug(debugUrl: URL): Promise<void> {

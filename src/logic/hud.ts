@@ -1,3 +1,4 @@
+import { translate, type Locale } from '../i18n/catalog';
 import type { SessionPhase } from './session';
 import type { WavePhase } from './wave';
 import type { WeaponDefinition, WeaponId, WeaponRarity } from './weapon';
@@ -112,6 +113,7 @@ export type WeaponPickupViewModel = {
 
 export function weaponTooltipStats(
   definition: WeaponDefinition,
+  locale: Locale = 'en',
 ): WeaponTooltipStats {
   if (definition.attackType === 'melee') {
     return {
@@ -124,8 +126,8 @@ export function weaponTooltipStats(
   return {
     attackType: 'ranged',
     fireRateText: definition.config.burstSize === 3
-      ? `3-RND / ${definition.config.fireIntervalMs}ms`
-      : `SEMI / ${definition.config.fireIntervalMs}ms`,
+      ? translate(locale, '3-RND / {ms}ms', { ms: definition.config.fireIntervalMs })
+      : translate(locale, 'SEMI / {ms}ms', { ms: definition.config.fireIntervalMs }),
     recoil: definition.recoil,
     magazineSize: definition.config.magazineSize,
   };
@@ -133,15 +135,16 @@ export function weaponTooltipStats(
 
 export function weaponTooltipStatLines(
   viewModel: WeaponTooltipStats,
+  locale: Locale = 'en',
 ): string[] {
   return viewModel.attackType === 'melee'
     ? [
-      `SWING INTERVAL ${viewModel.swingIntervalMs}ms`,
-      `STAMINA COST ${viewModel.staminaCost}`,
+      translate(locale, 'SWING INTERVAL {ms}ms', { ms: viewModel.swingIntervalMs }),
+      translate(locale, 'STAMINA COST {cost}', { cost: viewModel.staminaCost }),
     ]
     : [
-      `FIRE RATE ${viewModel.fireRateText}   RECOIL ${viewModel.recoil}`,
-      `MAGAZINE ${viewModel.magazineSize}`,
+      translate(locale, 'FIRE RATE {rate}   RECOIL {recoil}', { rate: viewModel.fireRateText, recoil: viewModel.recoil }),
+      translate(locale, 'MAGAZINE {count}', { count: viewModel.magazineSize }),
     ];
 }
 
@@ -423,18 +426,18 @@ export function fitClockRenderScale(watchWidth: number): number {
   );
 }
 
-export function createHudViewModel(state: HudState): HudViewModel {
+export function createHudViewModel(state: HudState, locale: Locale = 'en'): HudViewModel {
   const nextWaveNumber = state.waveNumber + 1;
   const countdownSeconds = Math.max(0, Math.ceil(state.waveTimerMs / 1_000));
   const waveBannerText = state.sessionPhase === 'playing' && state.wavePhase === 'waiting'
     ? state.waveNumber === 0
-      ? `PREPARE\nWAVE ${nextWaveNumber} IN ${countdownSeconds}`
-      : `WAVE ${state.waveNumber} CLEAR\nNEXT WAVE IN ${countdownSeconds}`
+      ? translate(locale, 'PREPARE\nWAVE {wave} IN {seconds}', { wave: nextWaveNumber, seconds: countdownSeconds })
+      : translate(locale, 'WAVE {wave} CLEAR\nNEXT WAVE IN {seconds}', { wave: state.waveNumber, seconds: countdownSeconds })
     : null;
 
   return {
-    statusText: `KILLS ${state.killCount}`,
-    waveTagText: state.waveNumber > 0 ? `#Wave${state.waveNumber}` : '#Wave--',
+    statusText: translate(locale, 'KILLS {count}', { count: state.killCount }),
+    waveTagText: state.waveNumber > 0 ? translate(locale, '#Wave{wave}', { wave: state.waveNumber }) : translate(locale, '#Wave--'),
     healthRatio: normalizedGaugeRatio(state.health, state.maxHealth),
     staminaRatio: normalizedGaugeRatio(state.stamina, state.maxStamina),
     ammoText: state.weaponId === 'policeBaton' ? '' : `+${state.reserveAmmo}`,
@@ -445,7 +448,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
     shotSequence: state.shotSequence,
     lastShotWeaponId: state.lastShotWeaponId,
     timeText: state.gameTimeText,
-    gameOverText: 'GAME OVER\nEnter or tap to restart',
+    gameOverText: translate(locale, 'GAME OVER\nEnter or tap to restart'),
     showGameOver: state.sessionPhase === 'gameOver',
     reloadProgress: state.isReloading && state.sessionPhase === 'playing'
       ? Math.min(1, Math.max(0, state.reloadProgress))
@@ -454,7 +457,7 @@ export function createHudViewModel(state: HudState): HudViewModel {
       && !state.isReloading
       && state.magazineAmmo === 0
       && state.reserveAmmo > 0
-      ? 'RELOAD'
+      ? translate(locale, 'RELOAD')
       : null,
     waveNumber: state.waveNumber,
     waveBannerText,

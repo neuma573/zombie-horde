@@ -1,3 +1,4 @@
+import { t, userSettings } from '../systems/UserSettings';
 import { advanceMeleeSwing } from '../logic/meleeSwing';
 import Phaser from 'phaser';
 
@@ -1619,16 +1620,16 @@ export class GameScene extends Phaser.Scene {
       name: pickup.definition.name,
       description: pickup.definition.description,
       rarity: pickup.definition.rarity,
-      ...weaponTooltipStats(pickup.definition),
+      ...weaponTooltipStats(pickup.definition, userSettings.locale),
       interactionText: this.mobileControlsEnabled
         ? this.hasEmptyWeaponSlot()
-          ? 'Move onto the weapon to pick up'
-          : 'Tap the weapon to replace current'
+          ? t('Move onto the weapon to pick up')
+          : t('Tap the weapon to replace current')
         : isInPickupRange
           ? this.hasEmptyWeaponSlot()
-            ? 'Move onto the weapon to pick up'
-            : 'E · Swap'
-          : 'Move closer to pick up',
+            ? t('Move onto the weapon to pick up')
+            : t('E · Swap')
+          : t('Move closer to pick up'),
     }, screenPosition);
   }
 
@@ -2159,10 +2160,10 @@ export class GameScene extends Phaser.Scene {
         name: owned.definition.name,
         description: owned.definition.description,
         rarity: owned.definition.rarity,
-        ...weaponTooltipStats(owned.definition),
+        ...weaponTooltipStats(owned.definition, userSettings.locale),
       }) : null),
       activeWeaponSlot: inventory.activeSlot,
-    });
+    }, userSettings.locale);
     this.hud?.update(viewModel, deltaMs);
   }
 

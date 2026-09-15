@@ -11,6 +11,8 @@ import shotgunAmmoUrl from '../assets/weapons/ammo-12-gauge-hud.svg';
 import mainMenuBackgroundUrl from '../assets/mainmenu.webp';
 import mainMenuMobileBackgroundUrl from '../assets/mainmenu-mobile.webp';
 import mainMenuLogoUrl from '../assets/logo.webp';
+import americaFlagUrl from '../assets/america.svg';
+import koreaFlagUrl from '../assets/korea.svg';
 import { CHARACTER_CLASS_OPTIONS } from '../config/menuConfig';
 import { WEAPON_AUDIO_ASSETS } from '../config/weaponAudioConfig';
 
@@ -22,6 +24,8 @@ export const MAIN_MENU_MOBILE_BACKGROUND_TEXTURE_KEY = 'main-menu-mobile-backgro
 export const MAIN_MENU_LOGO_TEXTURE_KEY = 'main-menu-logo';
 
 export const GAME_IMAGE_ASSETS = {
+  'flag-en': americaFlagUrl,
+  'flag-ko': koreaFlagUrl,
   [MAIN_MENU_BACKGROUND_TEXTURE_KEY]: mainMenuBackgroundUrl,
   [MAIN_MENU_MOBILE_BACKGROUND_TEXTURE_KEY]: mainMenuMobileBackgroundUrl,
   [MAIN_MENU_LOGO_TEXTURE_KEY]: mainMenuLogoUrl,

@@ -1,3 +1,4 @@
+import { t } from '../systems/UserSettings';
 import Phaser from 'phaser';
 import { positionTooltip, type SafeAreaInsets } from '../logic/hud';
 
@@ -22,7 +23,7 @@ export class InteractionPrompt {
     if (message === null) return;
     this.label.setWordWrapWidth(Math.max(1,
       Math.min(280, viewport.width - safeArea.left - safeArea.right - 44),
-    )).setText(message);
+    )).setText(t(message));
     const position = positionTooltip(
       { x: playerScreen.x, y: playerScreen.y - 32 },
       this.label, viewport, 'above', safeArea,
