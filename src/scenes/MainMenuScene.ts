@@ -195,6 +195,9 @@ export class MainMenuScene extends Phaser.Scene {
       this.view = 'classSelect';
       this.render();
     }, layout.actionWidth, true, 'primary');
+    this.addButton(centerX, layout.primaryActionY + layout.actionGap, 'THE LAST STAND', () => {
+      void this.startExploration();
+    }, layout.actionWidth, !this.gameStartPending);
     this.addSettingsAction(right - 23, top + 23);
   }
 
@@ -606,6 +609,29 @@ export class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.ui?.add(object);
     return object;
+  }
+
+  private async startExploration(): Promise<void> {
+    if (this.gameStartPending) return;
+    this.gameStartPending = true;
+    try {
+      const { ExplorationScene } = await import('./ExplorationScene');
+      if (!this.scene.isActive() || this.view !== 'main') return;
+      if (!this.scene.manager.keys.ExplorationScene) {
+        this.scene.add('ExplorationScene', ExplorationScene, false);
+      }
+      this.input.enabled = false;
+      await new Promise<void>(resolve => {
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, resolve);
+        this.cameras.main.fadeOut(500, 0, 0, 0);
+      });
+      this.input.enabled = true;
+      this.scene.start('ExplorationScene');
+    } catch (error) {
+      console.error('Failed to load exploration.', error);
+    } finally {
+      this.gameStartPending = false;
+    }
   }
 
   private async startAssetDebug(): Promise<void> {
