@@ -98,7 +98,7 @@ export const korean = {
   "OFF": "꺼짐",
   "Q/E direction  M movement  A auto aim  SPACE muzzle  R recoil": "Q/E 방향  M 이동  A 자동 조준  SPACE 총구 화염  R 반동",
   "1 min zoom  2 default zoom  3 max zoom  ESC menu": "1 최소 확대  2 기본 확대  3 최대 확대  ESC 메뉴",
-  "male-swat                              female-swat": "남성 특수부대                              여성 특수부대",
+  "male-swat                              female-swat": "male-swat                              female-swat",
   "Return to catalog": "목록으로 돌아가기",
   "Weapon": "무기",
   "Direction": "방향",

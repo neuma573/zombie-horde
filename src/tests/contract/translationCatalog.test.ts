@@ -4,6 +4,12 @@ import { WEAPON_DEFINITIONS } from '../../config/weaponConfig';
 import { CHARACTER_CLASS_OPTIONS } from '../../config/menuConfig';
 
 describe('translation catalog', () => {
+  it.each(['en', 'ko'] as const)('preserves appearance identifiers in the %s debug legend', (locale) => {
+    const legend = 'male-swat                              female-swat';
+    expect(korean).toHaveProperty(legend);
+    expect(translate(locale, legend)).toBe(legend);
+  });
+
   it.each(Object.entries(korean))('preserves substitution fields in %s', (english, translated) => {
     const fields = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
     expect(translated.trim()).not.toBe('');
