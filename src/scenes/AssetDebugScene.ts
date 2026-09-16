@@ -42,6 +42,7 @@ export class AssetDebugScene extends Phaser.Scene {
   private backdrop?: WorldBackdrop;
   private supply?: SupplyDropVisual;
   private effects?: CombatEffects;
+  private audio?: HTMLAudioElement;
   private supplyElapsed = 0;
   private reloading = false;
   private previewObjects: Phaser.GameObjects.GameObject[] = [];
@@ -96,6 +97,7 @@ export class AssetDebugScene extends Phaser.Scene {
         preview: () => {
           this.player = new Player(this, this.scale.width / 2, this.previewY(), appearance).setScale(2);
           this.player.setWeaponVisual(this.weaponId);
+          this.effects = new CombatEffects(this);
         },
       });
     }
@@ -183,42 +185,68 @@ export class AssetDebugScene extends Phaser.Scene {
 
   private selectEntry(entry: Entry): void {
     this.selected = entry;
+    this.refreshPreview();
+  }
+
+  private renderDetails(entry: Entry): void {
     this.details?.replaceChildren();
     const title = document.createElement('h2'); title.textContent = entry.name; title.style.margin = '8px 0';
     const description = document.createElement('p'); description.style.whiteSpace = 'pre-line'; description.textContent = entry.description?.() ?? entry.id;
     this.details?.append(title, description);
     if (entry.url) {
       if (entry.category === 'Sounds') {
-        const audio = document.createElement('audio'); audio.controls = true; audio.preload = 'none'; audio.src = entry.url; this.details?.append(audio);
+        const audio = document.createElement('audio'); audio.controls = true; audio.preload = 'none'; audio.src = entry.url; this.audio = audio; this.details?.append(audio);
       } else {
         const img = document.createElement('img'); img.src = entry.url; img.alt = entry.name; img.style.cssText = 'max-width:100%;max-height:22vh;object-fit:contain;background:repeating-conic-gradient(#444 0% 25%,#777 0% 50%) 0/20px 20px'; this.details?.append(img);
       }
     }
-    this.refreshPreview();
-    if (this.player || this.zombie) this.addMotionControls();
   }
 
   private addMotionControls(): void {
     const controls = document.createElement('div'); controls.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap';
     const direction = this.select(['0','45','90','135','180','225','270','315'], String(this.angle), (value) => { this.angle = Number(value); });
     direction.setAttribute('aria-label', 'Direction');
-    const speed = this.select(['0.1','0.25','0.5','1'], String(this.speed), (value) => { this.speed = Number(value); }, (value) => `${value}×`);
-    speed.setAttribute('aria-label', 'Playback speed');
-    controls.append(this.button('Play / Pause', () => { this.playing = !this.playing; }),
-      this.button('Movement', () => { this.moving = !this.moving; }), direction, speed);
+    controls.append(direction);
     if (this.player) {
+      const speed = this.select(['0.1','0.25','0.5','1'], String(this.speed), (value) => { this.speed = Number(value); }, (value) => `${value}×`);
+      speed.setAttribute('aria-label', 'Playback speed');
+      controls.append(this.button('Play / Pause', () => { this.playing = !this.playing; }),
+        this.button('Movement', () => { this.moving = !this.moving; }), speed);
+      const muzzleFlash = this.button('Muzzle flash', () => this.playMuzzleFlash());
+      muzzleFlash.disabled = this.weaponId === 'policeBaton';
       const weapon = this.select(Object.keys(WEAPON_DEFINITIONS), this.weaponId, (value) => {
         this.weaponId = value as WeaponId; this.player?.setWeaponVisual(this.weaponId);
+        muzzleFlash.disabled = this.weaponId === 'policeBaton';
       }, (value) => WEAPON_DEFINITIONS[value as WeaponId].name);
       weapon.setAttribute('aria-label', 'Weapon');
-      const slider = document.createElement('input'); slider.type = 'range'; slider.min = '0'; slider.max = String(MELEE_MOTION.durationMs); slider.value = '0';
+      const slider = document.createElement('input'); slider.type = 'range'; slider.min = '0'; slider.max = String(MELEE_MOTION.durationMs); slider.value = String(this.elapsed);
       slider.setAttribute('aria-label', 'Attack motion time');
       slider.oninput = () => { this.playing = false; this.elapsed = Number(slider.value); };
-      controls.append(weapon, slider, this.button('Muzzle flash', () => this.player?.triggerMuzzleReflection()),
+      controls.append(weapon, slider, muzzleFlash,
         this.button('Recoil', () => this.player?.triggerWeaponRecoil(7)),
         this.button('Reload animation', () => { this.reloading = !this.reloading; }));
     }
     this.details?.append(controls);
+  }
+
+  private previewMuzzlePosition(player: Player): { x: number; y: number } {
+    const muzzle = player.getMuzzlePosition();
+    // Player returns an unscaled world position; previews use a 2× model.
+    return {
+      x: player.x + (muzzle.x - player.x) * player.scaleX,
+      y: player.y + (muzzle.y - player.y) * player.scaleY,
+    };
+  }
+
+  private playMuzzleFlash(): void {
+    if (!this.player || this.weaponId === 'policeBaton') return;
+    const origin = this.previewMuzzlePosition(this.player);
+    const direction = this.player.getMuzzleDirection();
+    this.effects?.playShot({
+      origin,
+      endPoint: { x: origin.x + direction.x * 100, y: origin.y + direction.y * 100 },
+    });
+    this.player.triggerMuzzleReflection();
   }
 
   private button(label: string, action: () => void): HTMLButtonElement {
@@ -235,6 +263,11 @@ export class AssetDebugScene extends Phaser.Scene {
   private previewY(): number { return this.scale.height * 0.78; }
 
   private clearPreview(): void {
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.currentTime = 0;
+      this.audio = undefined;
+    }
     this.supply?.destroy(); this.supply = undefined;
     this.effects?.destroy(); this.effects = undefined;
     this.backdrop?.destroy(); this.backdrop = undefined;
@@ -246,7 +279,9 @@ export class AssetDebugScene extends Phaser.Scene {
     this.clearPreview();
     this.cameras.main.setViewport(0, 0, this.scale.width, this.scale.height).setZoom(1).setScroll(0, 0);
     const before = new Set(this.children.list);
+    if (this.selected) this.renderDetails(this.selected);
     this.selected?.preview?.();
+    if (this.player || this.zombie) this.addMotionControls();
     this.previewObjects = this.children.list.filter((object) => !before.has(object));
   }
 
@@ -257,6 +292,7 @@ export class AssetDebugScene extends Phaser.Scene {
     if (this.weaponId === 'policeBaton') this.player?.setMeleeSwingElapsed(this.elapsed);
     this.player?.setReloadVisual(this.reloading, this.elapsed / MELEE_MOTION.durationMs);
     this.player?.updateVisual(delta, this.moving);
+    if (this.player) this.effects?.updateMuzzlePosition(this.previewMuzzlePosition(this.player));
     this.zombie?.setRotation(Phaser.Math.DegToRad(this.angle));
     this.zombie?.updateAttackVisual();
     this.item?.advanceVisual(delta);
