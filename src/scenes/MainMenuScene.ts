@@ -63,6 +63,10 @@ export class MainMenuScene extends Phaser.Scene {
     this.gameStartPending = false;
     document.getElementById('boot-loading')?.remove();
     const debugUrl = new URL(window.location.href);
+    if (debugUrl.searchParams.get('debug') === 'assets') {
+      void this.startAssetDebug();
+      return;
+    }
     if (debugUrl.searchParams.has('zombieAppearanceDebug')) {
       void this.startZombieAppearanceDebug(debugUrl);
       return;
@@ -602,6 +606,12 @@ export class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.ui?.add(object);
     return object;
+  }
+
+  private async startAssetDebug(): Promise<void> {
+    const { AssetDebugScene } = await import('./AssetDebugScene');
+    if (!this.scene.manager.keys.AssetDebugScene) this.scene.add('AssetDebugScene', AssetDebugScene, false);
+    this.scene.start('AssetDebugScene');
   }
 
   private async startAppearanceDebug(debugUrl: URL): Promise<void> {
