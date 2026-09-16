@@ -1,3 +1,4 @@
+import { t } from '../systems/UserSettings';
 import Phaser from 'phaser';
 
 import type { MobileControlLayout } from '../logic/mobileInput';
@@ -17,7 +18,7 @@ export class MobileControls {
 
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(200).setScrollFactor(0);
-    this.fireLabel = scene.add.text(0, 0, 'FIRE', {
+    this.fireLabel = scene.add.text(0, 0, t('FIRE'), {
       color: '#ffffff',
       fontFamily: 'sans-serif',
       fontSize: '15px',
@@ -33,11 +34,11 @@ export class MobileControls {
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5).setDepth(201).setScrollFactor(0);
-    this.shoveLabel = scene.add.text(0, 0, 'PUSH', {
+    this.shoveLabel = scene.add.text(0, 0, t('PUSH'), {
       color: '#ffffff', fontFamily: 'sans-serif', fontSize: '10px', fontStyle: 'bold',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(201).setScrollFactor(0);
-    this.interactionLabel = scene.add.text(0, 0, 'OPEN', {
+    this.interactionLabel = scene.add.text(0, 0, t('OPEN'), {
       color: '#ffffff',
       fontFamily: 'sans-serif',
       fontSize: '11px',
@@ -68,10 +69,17 @@ export class MobileControls {
   setVisible(visible: boolean): void {
     this.visible = visible;
     this.graphics.setVisible(visible);
+    this.refreshLabels();
     this.fireLabel.setVisible(visible);
     this.reloadLabel.setVisible(visible);
     this.shoveLabel.setVisible(visible);
     this.interactionLabel.setVisible(visible && this.interactionVisible);
+  }
+
+  refreshLabels(): void {
+    this.fireLabel.setText(t('FIRE'));
+    this.shoveLabel.setText(t('PUSH'));
+    this.interactionLabel.setText(t('OPEN'));
   }
 
   setInteractionVisible(visible: boolean): void {

@@ -1,3 +1,4 @@
+import { t } from '../systems/UserSettings';
 import Phaser from 'phaser';
 
 import { CombatEffects } from '../effects/CombatEffects';
@@ -42,12 +43,12 @@ export class ZombieAppearanceDebugScene extends Phaser.Scene {
       panelHeight,
       0x252c2d,
     );
-    this.add.text(18, 14, 'ZOMBIE APPEARANCE DEBUG', {
+    this.add.text(18, 14, t('ZOMBIE APPEARANCE DEBUG'), {
       color: '#f3f5f6',
       fontFamily: 'monospace',
       fontSize: '16px',
     });
-    this.add.text(18, 39, '8 directions · player scale · moving overlap · light/dark ground', {
+    this.add.text(18, 39, t('8 directions · player scale · moving overlap · light/dark ground'), {
       color: '#aeb9bd',
       fontFamily: 'monospace',
       fontSize: '12px',

@@ -1,3 +1,4 @@
+import { t } from '../systems/UserSettings';
 import Phaser from 'phaser';
 
 import { CAMERA_ZOOM_CONFIG } from '../config/cameraConfig';
@@ -115,17 +116,17 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
     const panel = document.createElement('div');
     panel.style.cssText = 'position:fixed;bottom:16px;left:16px;right:16px;z-index:1000;padding:12px;background:#111e;color:white;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font:14px sans-serif';
     const play = document.createElement('button');
-    play.textContent = '재생 / 정지';
+    play.textContent = t('Play / Pause');
     play.onclick = () => { this.motionPlaying = !this.motionPlaying; };
     const slider = document.createElement('input');
     slider.type = 'range'; slider.min = '0'; slider.max = String(MELEE_MOTION.durationMs); slider.step = '1';
-    slider.setAttribute('aria-label', '공격 모션 시간');
+    slider.setAttribute('aria-label', t('Attack motion time'));
     slider.style.flex = '1';
     slider.oninput = () => { this.motionPlaying = false; this.motionElapsedMs = Number(slider.value); };
     const speed = document.createElement('select');
-    speed.setAttribute('aria-label', '재생 속도');
+    speed.setAttribute('aria-label', t('Playback speed'));
     for (const value of [0.1, 0.25, 0.5, 1]) {
-      const option = document.createElement('option'); option.value = String(value); option.textContent = `${value}배속`; speed.append(option);
+      const option = document.createElement('option'); option.value = String(value); option.textContent = t('{speed}×', { speed: value }); speed.append(option);
     }
     speed.value = '1'; speed.onchange = () => { this.motionSpeed = Number(speed.value); };
     this.motionReadout = document.createElement('output');
@@ -211,11 +212,11 @@ export class PlayerAppearanceDebugScene extends Phaser.Scene {
 
   private updateStatus(): void {
     this.statusText.setText([
-      `PLAYER APPEARANCE DEBUG  angle ${DEBUG_ANGLES[this.angleIndex]}°`,
-      `state ${this.moving ? 'MOVING' : 'IDLE'}  auto aim ${this.automaticAim ? 'ON' : 'OFF'}  zoom ${this.cameras.main.zoom.toFixed(2)}`,
-      'Q/E direction  M movement  A auto aim  SPACE muzzle  R recoil',
-      '1 min zoom  2 default zoom  3 max zoom  ESC menu',
-      'male-swat                              female-swat',
+      t('PLAYER APPEARANCE DEBUG  angle {angle}°', { angle: DEBUG_ANGLES[this.angleIndex] }),
+      t('state {state}  auto aim {auto}  zoom {zoom}', { state: this.moving ? t('MOVING') : t('IDLE'), auto: this.automaticAim ? t('ON') : t('OFF'), zoom: this.cameras.main.zoom.toFixed(2) }),
+      t('Q/E direction  M movement  A auto aim  SPACE muzzle  R recoil'),
+      t('1 min zoom  2 default zoom  3 max zoom  ESC menu'),
+      t('male-swat                              female-swat'),
     ]);
   }
 }

@@ -1,8 +1,7 @@
+import { t } from './UserSettings';
+import { SettingsPanel } from './SettingsPanel';
 import Phaser from 'phaser';
 
-import { GAME_REGISTRY_KEYS } from '../config/menuConfig';
-import { syncSoundEnabled } from '../effects/audioSettings';
-import { toggleSound } from '../logic/menu';
 import {
   clampPauseActionWidth,
   createPauseMenuActionLayout,
@@ -192,7 +191,10 @@ export class PauseMenu {
     this.overlay.add(blocker);
 
     if (this.view === 'settings') {
-      this.renderSettings(centerX, top, bottom, primaryActionWidth);
+      this.overlay.add(new SettingsPanel(this.scene, { left, right, top, bottom }, () => {
+        this.view = 'main';
+        this.renderOverlay();
+      }).container);
       return;
     }
 
@@ -200,9 +202,9 @@ export class PauseMenu {
     this.addText(
       centerX,
       actionLayout.titleY,
-      'PAUSED',
+      t('PAUSED'),
       fitPauseTextFontSize(
-        'PAUSED',
+        t('PAUSED'),
         primaryActionWidth,
         actionLayout.titleFontSize,
       ),
@@ -212,8 +214,8 @@ export class PauseMenu {
       this.addText(
         centerX,
         actionLayout.subtitleY,
-        'ZOMBIE HORDE',
-        fitPauseTextFontSize('ZOMBIE HORDE', primaryActionWidth, 13),
+        t('ZOMBIE HORDE'),
+        fitPauseTextFontSize(t('ZOMBIE HORDE'), primaryActionWidth, 13),
         false,
         COLORS.muted,
       );
@@ -221,64 +223,25 @@ export class PauseMenu {
     this.addButton(
       centerX,
       actionLayout.actionYs[0],
-      'RESUME',
+      t('RESUME'),
       () => this.hide(),
       primaryActionWidth,
       actionLayout.buttonHeight,
       actionLayout.buttonFontSize,
     );
-    this.addButton(centerX, actionLayout.actionYs[1], 'SETTINGS', () => {
+    this.addButton(centerX, actionLayout.actionYs[1], t('SETTINGS'), () => {
       this.view = 'settings';
       this.renderOverlay();
     }, primaryActionWidth, actionLayout.buttonHeight, actionLayout.buttonFontSize);
     this.addButton(
       centerX,
       actionLayout.actionYs[2],
-      'MAIN MENU',
+      t('MAIN MENU'),
       this.onMainMenu,
       primaryActionWidth,
       actionLayout.buttonHeight,
       actionLayout.buttonFontSize,
     );
-  }
-
-  private renderSettings(
-    centerX: number,
-    top: number,
-    bottom: number,
-    primaryActionWidth: number,
-  ): void {
-    const soundEnabled = this.scene.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false;
-    const actionLayout = createPauseMenuActionLayout(top, bottom, 2);
-    this.addText(
-      centerX,
-      actionLayout.titleY,
-      'SETTINGS',
-      fitPauseTextFontSize(
-        'SETTINGS',
-        primaryActionWidth,
-        Math.min(32, actionLayout.titleFontSize),
-      ),
-      true,
-    );
-    this.addButton(
-      centerX,
-      actionLayout.actionYs[0],
-      soundEnabled ? 'SOUND: ON' : 'SOUND: MUTED',
-      () => {
-        const next = toggleSound({ soundEnabled });
-        this.scene.registry.set(GAME_REGISTRY_KEYS.soundEnabled, next.soundEnabled);
-        syncSoundEnabled(this.scene.sound, next.soundEnabled);
-        this.renderOverlay();
-      },
-      primaryActionWidth,
-      actionLayout.buttonHeight,
-      actionLayout.buttonFontSize,
-    );
-    this.addButton(centerX, actionLayout.actionYs[1], 'BACK', () => {
-      this.view = 'main';
-      this.renderOverlay();
-    }, Math.min(160, primaryActionWidth), actionLayout.buttonHeight, actionLayout.buttonFontSize);
   }
 
   private addButton(

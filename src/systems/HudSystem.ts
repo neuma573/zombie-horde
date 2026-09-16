@@ -1,3 +1,4 @@
+import { t, userSettings } from '../systems/UserSettings';
 import Phaser from 'phaser';
 
 import {
@@ -123,7 +124,7 @@ export class HudSystem {
     }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
     this.statusBarGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
-    this.timeMetaText = scene.add.text(0, 0, 'LOCAL        24H', {
+    this.timeMetaText = scene.add.text(0, 0, t('LOCAL        24H'), {
       color: '#20251c',
       fontFamily: 'monospace',
       fontSize: '8px',
@@ -135,7 +136,7 @@ export class HudSystem {
       fontSize: '24px',
     }).setDepth(100).setOrigin(0.5).setScrollFactor(0).setVisible(false);
     this.reloadGraphics = scene.add.graphics().setDepth(110).setScrollFactor(0).setVisible(false);
-    this.reloadText = scene.add.text(0, 0, 'RELOADING', {
+    this.reloadText = scene.add.text(0, 0, t('RELOADING'), {
       color: '#e8e8e8',
       fontFamily: 'sans-serif',
       fontSize: '12px',
@@ -149,7 +150,7 @@ export class HudSystem {
       fontSize: '18px',
       fontStyle: 'bold',
     }).setDepth(105).setOrigin(0.5).setScrollFactor(0).setVisible(false);
-    this.waveTagText = scene.add.text(0, 0, '#Wave--', {
+    this.waveTagText = scene.add.text(0, 0, t('#Wave--'), {
       color: '#7f8985',
       fontFamily: 'monospace',
       fontSize: '12px',
@@ -216,6 +217,8 @@ export class HudSystem {
   }
 
   update(viewModel: HudViewModel, deltaMs = 0): void {
+    this.timeMetaText.setText(t('LOCAL        24H'));
+    if (viewModel.waveNumber > 0) this.waveAnnouncementText.setText(t('WAVE {wave}', { wave: viewModel.waveNumber }));
     if (this.current?.statusText !== viewModel.statusText) {
       this.statusText.setText(viewModel.statusText);
       this.fitStatusText();
@@ -364,9 +367,9 @@ export class HudSystem {
     this.pickupText.setWordWrapWidth(tooltipWidths.textWrapWidth);
     const rarity = viewModel.rarity.toUpperCase();
     this.pickupText.setText([
-      `${viewModel.name}  ·  ${rarity}`,
-      viewModel.description,
-      ...weaponTooltipStatLines(viewModel),
+      `${t(viewModel.name)}  ·  ${t(rarity)}`,
+      t(viewModel.description),
+      ...weaponTooltipStatLines(viewModel, userSettings.locale),
       viewModel.interactionText,
     ]);
     const bounds = this.pickupText.getBounds();
@@ -405,7 +408,7 @@ export class HudSystem {
   private playWaveAnnouncement(waveNumber: number): void {
     this.waveAnnouncementTween?.stop();
     this.waveAnnouncementText
-      .setText(`WAVE ${waveNumber}`)
+      .setText(t('WAVE {wave}', { wave: waveNumber }))
       .setAlpha(1)
       .setScale(0.92)
       .setVisible(true);
@@ -832,7 +835,7 @@ export class HudSystem {
     }
 
     const normalized = Math.min(1, Math.max(0, progress));
-    this.reloadText.setText('RELOADING');
+    this.reloadText.setText(t('RELOADING'));
     this.reloadGraphics
       .fillStyle(0x111111, 0.78)
       .fillRect(x, y, width, height)
@@ -914,7 +917,7 @@ export class HudSystem {
           recoil: weapon.recoil,
           magazineSize: weapon.magazineSize,
         }),
-      interactionText: `WEAPON SLOT ${this.hoveredWeaponSlot + 1}`,
+      interactionText: t('WEAPON SLOT {slot}', { slot: this.hoveredWeaponSlot + 1 }),
     }, { x: icon.x, y: icon.y + 24 }, 'below');
   }
 }
