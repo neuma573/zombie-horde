@@ -286,24 +286,25 @@ export class AssetDebugScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
-    const delta = this.playing ? deltaMs * this.speed : 0;
-    this.elapsed = (this.elapsed + delta) % MELEE_MOTION.durationMs;
+    // Playback controls belong to the player; other previews always run in real time.
+    const playerDelta = this.playing ? deltaMs * this.speed : 0;
+    this.elapsed = (this.elapsed + playerDelta) % MELEE_MOTION.durationMs;
     this.player?.setRotation(Phaser.Math.DegToRad(this.angle));
     if (this.weaponId === 'policeBaton') this.player?.setMeleeSwingElapsed(this.elapsed);
     this.player?.setReloadVisual(this.reloading, this.elapsed / MELEE_MOTION.durationMs);
-    this.player?.updateVisual(delta, this.moving);
+    this.player?.updateVisual(playerDelta, this.moving);
     if (this.player) this.effects?.updateMuzzlePosition(this.previewMuzzlePosition(this.player));
     this.zombie?.setRotation(Phaser.Math.DegToRad(this.angle));
     this.zombie?.updateAttackVisual();
-    this.item?.advanceVisual(delta);
+    this.item?.advanceVisual(deltaMs);
     if (this.supply) {
-      this.supplyElapsed = (this.supplyElapsed + delta) % 14000;
+      this.supplyElapsed = (this.supplyElapsed + deltaMs) % 14000;
       const position = { x: this.scale.width / 2, y: this.previewY() };
       const config = { ...SUPPLY_DROP_CONFIG, target: position, fallHeight: Math.min(100, this.scale.height * 0.15), planeTravel: { x: this.scale.width * 0.7, y: 0 } };
       const snapshot = resolveSupplyDropSnapshot({ elapsedMs: this.supplyElapsed, crateHealth: config.crateHealth, crateOpened: false }, config);
       this.supply.update(snapshot, snapshot.planePosition, snapshot.cratePosition, { width: this.scale.width, height: this.scale.height }, 30);
     }
     // Keep the pickup preview alive while animating its production glow.
-    if (this.weaponPickup?.advanceLifetime(delta)) this.refreshPreview();
+    if (this.weaponPickup?.advanceLifetime(deltaMs)) this.refreshPreview();
   }
 }
