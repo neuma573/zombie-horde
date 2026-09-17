@@ -72,6 +72,8 @@ export class ExplorationSystem {
     const location = this.state.locations.find(({ id }) => id === locationId);
     if (!location) return 'UNKNOWN LOCATION';
     if (location.searched) return 'SEARCHED';
+    // Resolve allocations together through confirmPlan; direct searches must not invalidate them.
+    if (this.state.plannedLocationIds.length > 0 || this.state.repairHours > 0) return 'PLAN ACTIVE';
     return location.searchHours > this.state.remainingHours ? 'NOT ENOUGH TIME' : null;
   }
 

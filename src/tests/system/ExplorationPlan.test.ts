@@ -61,6 +61,51 @@ describe('day exploration plan', () => {
     expect(system.getState().remainingHours).toBe(2);
     expect(system.toggleLocation('pharmacy')).toBe(false);
   });
+  it('rejects direct searches when all hours are reserved and preserves plan confirmation', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.toggleLocation('gas');
+    system.setRepairHours(9);
+    const before = system.getState();
+
+    expect(system.canSearch('pharmacy')).toBe(false);
+    expect(system.search('pharmacy')).toEqual({ ok: false, reason: 'PLAN ACTIVE' });
+    expect(system.getState()).toEqual(before);
+    expect(system.getUnallocatedHours()).toBe(0);
+    expect(system.confirmPlan()).toMatchObject({ locationIds: ['gas'], hoursSpent: 12, repaired: 45 });
+    expect(system.getState().remainingHours).toBe(0);
+  });
+
+  it('keeps planned locations unsearched until the plan is confirmed', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.toggleLocation('gas');
+    const before = system.getState();
+
+    expect(system.search('gas')).toEqual({ ok: false, reason: 'PLAN ACTIVE' });
+    expect(system.getState()).toEqual(before);
+    expect(system.confirmPlan()).toMatchObject({ locationIds: ['gas'], hoursSpent: 3 });
+  });
+
+  it('allows direct searches again after releasing every planned location', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.toggleLocation('gas');
+    expect(system.search('pharmacy')).toEqual({ ok: false, reason: 'PLAN ACTIVE' });
+
+    system.toggleLocation('gas');
+    expect(system.canSearch('pharmacy')).toBe(true);
+    expect(system.search('pharmacy')).toMatchObject({ ok: true, remainingHours: 10 });
+  });
+
+  it('blocks direct searches during repair-only plans until their hours are released', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.setRepairHours(1);
+    const before = system.getState();
+
+    expect(system.search('pharmacy')).toEqual({ ok: false, reason: 'PLAN ACTIVE' });
+    expect(system.getState()).toEqual(before);
+    system.setRepairHours(0);
+    expect(system.search('pharmacy')).toMatchObject({ ok: true, remainingHours: 10 });
+  });
+
   it('rejects empty plans and invalid repair hours', () => {
     const system = new ExplorationSystem();
     expect(system.confirmPlan()).toBeNull();
