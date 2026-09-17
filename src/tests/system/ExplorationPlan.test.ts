@@ -106,6 +106,35 @@ describe('day exploration plan', () => {
     expect(system.search('pharmacy')).toMatchObject({ ok: true, remainingHours: 10 });
   });
 
+  it('offers planning locations after repair allocation despite blocked direct searches', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.setRepairHours(1);
+    expect(system.canSearch('pharmacy')).toBe(false);
+    expect(system.hasPlannableLocations()).toBe(true);
+    expect(system.toggleLocation('pharmacy')).toBe(true);
+  });
+
+  it('offers only unsearched unplanned locations within the free planning budget', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.search('pharmacy');
+    system.toggleLocation('gas');
+    system.setRepairHours(6);
+    expect(system.hasPlannableLocations()).toBe(false);
+    system.setRepairHours(5);
+    expect(system.hasPlannableLocations()).toBe(true);
+    system.toggleLocation('house-a');
+    expect(system.hasPlannableLocations()).toBe(false);
+    system.confirmPlan();
+    expect(system.hasPlannableLocations()).toBe(false);
+  });
+
+  it('does not offer a location already included in the plan', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    for (const id of ['gas', 'pharmacy', 'house-a', 'house-b']) system.toggleLocation(id);
+    expect(system.getUnallocatedHours()).toBe(3);
+    expect(system.hasPlannableLocations()).toBe(false);
+  });
+
   it('rejects empty plans and invalid repair hours', () => {
     const system = new ExplorationSystem();
     expect(system.confirmPlan()).toBeNull();

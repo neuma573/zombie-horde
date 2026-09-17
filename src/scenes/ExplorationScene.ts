@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getArmoryUiScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
 import pistolUrl from '../assets/weapons/pistol-armory.png';
@@ -88,7 +89,7 @@ export class ExplorationScene extends Phaser.Scene {
     const availableHeight = Math.max(1, this.scale.height - inset('top') - inset('bottom'));
     const portrait = availableHeight > availableWidth;
     const scale = this.armoryOpen
-      ? Math.min(1, availableWidth / 360)
+      ? getArmoryUiScale(availableWidth, availableHeight)
       : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
     const width = availableWidth / scale;
     const height = availableHeight / scale;
@@ -305,7 +306,7 @@ export class ExplorationScene extends Phaser.Scene {
   }
 
   private instruction(box: Box): void {
-    const message = this.exploration.hasSearchableLocations()
+    const message = this.exploration.hasPlannableLocations()
       ? 'Tap a building to mark or unmark it.' : 'No searchable locations remain today.';
     this.text(box.x + box.width / 2, box.y + box.height / 2 - 14, t(message), 15, MUTED, true)
       .setOrigin(0.5).setWordWrapWidth(box.width - 30).setAlign('center');

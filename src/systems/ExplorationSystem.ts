@@ -79,6 +79,13 @@ export class ExplorationSystem {
 
   canSearch(locationId: string): boolean { return this.getSearchBlock(locationId) === null; }
 
+  hasPlannableLocations(): boolean {
+    if (this.state.confirmed) return false;
+    const available = this.getUnallocatedHours();
+    return this.state.locations.some(location => !location.searched &&
+      !this.state.plannedLocationIds.includes(location.id) && location.searchHours <= available);
+  }
+
   hasSearchableLocations(): boolean {
     return this.state.locations.some(({ id }) => this.canSearch(id));
   }
