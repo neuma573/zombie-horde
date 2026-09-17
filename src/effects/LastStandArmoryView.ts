@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { usesArmorySideControls } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from './ScrollPanel';
 import { LastStandArmory } from '../systems/LastStandArmory';
@@ -23,7 +24,7 @@ export function renderLastStandArmory(scene: Phaser.Scene, parent: Phaser.GameOb
   text(x + 20, y + 16, t('ARMORY'), 25);
   text(x + width - 20, y + 20, t('DAY {day}', { day }), 18).setOrigin(1, 0);
   text(x + 20, y + 51, t('Choose up to two weapons for defense.'), 13).setWordWrapWidth(width - 40);
-  const landscapePhone = width > height * 1.5 && height < 560;
+  const landscapePhone = usesArmorySideControls(width, height);
   const slotHeight = landscapePhone ? Math.min(88, (height - 172) / 2) : width < 600 ? 106 : 126;
   const controlsWidth = landscapePhone ? 210 : width - 40;
   const controlsX = landscapePhone ? x + width - 20 - controlsWidth : x + 20;

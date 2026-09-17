@@ -195,9 +195,9 @@ export class MainMenuScene extends Phaser.Scene {
       this.view = 'classSelect';
       this.render();
     }, layout.actionWidth, true, 'primary');
-    this.addButton(centerX, layout.primaryActionY + layout.actionGap, 'THE LAST STAND', () => {
+    this.addButton(centerX, layout.primaryActionY + layout.actionGap, t('THE LAST STAND'), () => {
       void this.startExploration();
-    }, layout.actionWidth, !this.gameStartPending);
+    }, layout.actionWidth, !this.gameStartPending, 'primary');
     this.addSettingsAction(right - 23, top + 23);
   }
 
@@ -522,7 +522,7 @@ export class MainMenuScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     const isMenuAction = variant !== 'default';
     if (isMenuAction) {
-      return this.addMainMenuAction(x, y, label, onPress, width);
+      return this.addMainMenuAction(x, y, label, onPress, width, enabled);
     }
     const background = this.add.rectangle(
       x,
@@ -552,6 +552,7 @@ export class MainMenuScene extends Phaser.Scene {
     label: string,
     onPress: () => void,
     width: number,
+    enabled: boolean,
   ): Phaser.GameObjects.Text {
     const height = 54;
     const cut = 13;
@@ -572,7 +573,9 @@ export class MainMenuScene extends Phaser.Scene {
     panel.strokePath();
     this.ui?.add(panel);
 
-    const hitArea = this.add.zone(x, y, width, height)
+    const hitArea = this.add.zone(x, y, width, height);
+    if (!enabled) panel.setAlpha(0.65);
+    if (enabled) hitArea
       .setInteractive({ useHandCursor: true })
       .on('pointerover', () => panel.setAlpha(0.82))
       .on('pointerout', () => panel.setAlpha(1))

@@ -18,6 +18,13 @@ describe('armory UI scale', () => {
     expect(320 / scale).toBeGreaterThanOrEqual(360);
   });
 
+  it.each([[400, 360], [500, 400], [600, 500], [360, 360]])(
+    'reserves vertical layout space on a %i by %i near-square screen', (width, height) => {
+      const scale = getArmoryUiScale(width, height);
+      expect(height / scale).toBeGreaterThanOrEqual(600);
+    },
+  );
+
   it('preserves normal phone and desktop control sizes', () => {
     expect(getArmoryUiScale(390, 844)).toBe(1);
     expect(getArmoryUiScale(1280, 800)).toBe(1);
