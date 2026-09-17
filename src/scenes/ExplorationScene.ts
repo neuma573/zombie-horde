@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getCompactResultLayout, getExplorationMapZoom, usesExplorationPages } from '../logic/explorationLayout';
+import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, usesExplorationPages } from '../logic/explorationLayout';
 import { getArmoryUiScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
@@ -174,12 +174,11 @@ export class ExplorationScene extends Phaser.Scene {
   private renderPlanningPages(board: Box, state: ExplorationState): void {
     const x = board.x + 12;
     const width = board.width - 24;
-    const sideTabs = board.height < 285 && width >= 450;
+    const layout = getPlanningPageLayout(board.width, board.height);
+    const { sideTabs } = layout;
     this.text(x, board.y + 8, t('HAZARD'), 20, INK, true);
     this.text(sideTabs ? x : x + width, board.y + (sideTabs ? 34 : 10), t('DAY {day}', { day: state.day }), 16, RED, true).setOrigin(sideTabs ? 0 : 1, 0);
-    const body = sideTabs
-      ? { x: x + 112, y: board.y + 12, width: width - 112, height: board.height - 24 }
-      : { x, y: board.y + 40, width, height: board.height - 88 };
+    const body = { ...layout.body, x: board.x + layout.body.x, y: board.y + layout.body.y };
     if (this.planningPage === 'map') this.renderMap(body, state.locations);
     else if (this.planningPage === 'site') {
       const selected = state.locations.find(location => location.id === this.selectedId);
@@ -187,13 +186,13 @@ export class ExplorationScene extends Phaser.Scene {
       else this.instruction(body);
     } else {
       if (!sideTabs) this.renderTimeBudget({ ...body, height: 44 }, state);
-      this.renderPlan({ ...body, y: body.y + (sideTabs ? 0 : 48), height: 149 }, state);
+      this.renderPlan({ ...body, y: board.y + layout.planY, height: 149 }, state);
     }
     const pages = [['map', 'Map'], ['site', 'Site'], ['plan', 'Plan']] as const;
     pages.forEach(([page, label], index) => {
-      this.button(sideTabs ? x : x + index * (width + 6) / 3,
-        sideTabs ? board.y + 60 + index * 40 : board.y + board.height - 40,
-        sideTabs ? 100 : (width - 12) / 3, t(label), () => { this.planningPage = page; this.render(); }, this.planningPage !== page);
+      const tab = layout.tabs[index];
+      this.button(board.x + tab.x, board.y + tab.y, tab.width, t(label),
+        () => { this.planningPage = page; this.render(); }, this.planningPage !== page);
     });
   }
 

@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { getCompactResultLayout, getExplorationMapZoom, paginateDiaryLines, usesExplorationPages } from '../../../logic/explorationLayout';
+import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, paginateDiaryLines, usesExplorationPages } from '../../../logic/explorationLayout';
 import { PinchViewport } from '../../../logic/pinchViewport';
 
 describe('exploration layout', () => {
+  it.each([[448, 256], [468, 256], [288, 296], [448, 284], [448, 285]])(
+    'keeps the confirmation separate from tabs on a %i by %i board', (width, height) => {
+      const layout = getPlanningPageLayout(width, height);
+      const confirm = { x: layout.body.x, y: layout.planY + 113, width: layout.body.width, height: 36 };
+      expect(confirm.y + confirm.height).toBeLessThanOrEqual(height);
+      for (const tab of layout.tabs) {
+        const overlaps = confirm.x < tab.x + tab.width && confirm.x + confirm.width > tab.x &&
+          confirm.y < tab.y + tab.height && confirm.y + confirm.height > tab.y;
+        expect(overlaps).toBe(false);
+        expect(tab.y + tab.height).toBeLessThanOrEqual(height);
+      }
+    },
+  );
+
   it('paginates every diary line without dropping paragraph breaks', () => {
     const lines = ['First', 'paragraph', '', 'Second', 'paragraph'];
     expect(paginateDiaryLines(lines, 60, 20)).toEqual(['First\nparagraph\n', 'Second\nparagraph']);

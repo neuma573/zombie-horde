@@ -634,6 +634,7 @@ export class MainMenuScene extends Phaser.Scene {
       console.error('Failed to load exploration.', error);
     } finally {
       this.gameStartPending = false;
+      if (this.scene.isActive()) this.render();
     }
   }
 
