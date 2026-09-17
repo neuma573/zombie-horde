@@ -33,6 +33,8 @@ export const korean = {
   "HOURS LEFT": "시간 남음", "SEARCHING": "탐색 시간",
   "SUPPLIES FOUND": "획득한 자원",
   "Select a building to search.": "탐색할 건물을 선택하세요.",
+  "HAZARD": "해저드",
+  "KENTUCKY": "켄터키",
   "HAZARD, KENTUCKY": "켄터키 주, 해저드",
   "Search time: {remaining} / {total} h": "남은 탐색 시간: {remaining} / {total}시간",
   "Food": "식량", "Ammo": "탄약", "Fuel": "연료",

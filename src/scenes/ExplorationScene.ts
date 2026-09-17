@@ -120,8 +120,8 @@ export class ExplorationScene extends Phaser.Scene {
     const state = this.transitionMap ?? this.exploration.getState();
     const pad = portrait ? 16 : 24;
     const headerHeight = compact ? 112 : 128;
-    this.text(board.x + pad, board.y + 12, this.result ? t('SEARCH COMPLETE') : 'HAZARD', portrait ? (this.result ? 18 : 24) : compact ? 26 : 34, INK, true);
-    this.text(board.x + pad + 2, board.y + (compact ? 43 : 53), this.result ? t('DAY COMPLETE') : 'KENTUCKY', 11, MUTED);
+    this.text(board.x + pad, board.y + 12, this.result ? t('SEARCH COMPLETE') : t('HAZARD'), portrait ? (this.result ? 18 : 24) : compact ? 26 : 34, INK, true);
+    this.text(board.x + pad + 2, board.y + (compact ? 43 : 53), this.result ? t('DAY COMPLETE') : t('KENTUCKY'), 11, MUTED);
     this.text(board.x + board.width - pad, board.y + 14, t('DAY {day}', { day: state.day }), 20, RED, true).setOrigin(1, 0);
     if (!this.result) this.renderTimeBudget({ x: board.x + pad, y: board.y + (compact ? 61 : 77), width: board.width - pad * 2, height: 44 }, state);
     this.line(board.x + pad, board.y + headerHeight, board.x + board.width - pad, board.y + headerHeight - 1);
