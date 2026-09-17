@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { getExplorationMapZoom, usesExplorationPages } from '../logic/explorationLayout';
 import { getArmoryUiScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
@@ -43,6 +44,7 @@ export class ExplorationScene extends Phaser.Scene {
   private diaryOpen = true;
   private animateDiary = true;
   private result: DayResult | null = null;
+  private planningPage: 'map' | 'site' | 'plan' = 'map';
 
   constructor() { super('ExplorationScene'); }
 
@@ -67,6 +69,7 @@ export class ExplorationScene extends Phaser.Scene {
     this.turnResult = false;
     this.diaryOpen = true;
     this.result = null;
+    this.planningPage = 'map';
     this.animateDiary = true;
     this.cameras.main.setBackgroundColor('#000000');
     this.scale.on(Phaser.Scale.Events.RESIZE, this.render, this);
@@ -88,9 +91,10 @@ export class ExplorationScene extends Phaser.Scene {
     const availableWidth = Math.max(1, this.scale.width - inset('left') - inset('right'));
     const availableHeight = Math.max(1, this.scale.height - inset('top') - inset('bottom'));
     const portrait = availableHeight > availableWidth;
+    const paged = !this.diaryOpen && !this.armoryOpen && !this.result && usesExplorationPages(availableWidth, availableHeight);
     const scale = this.armoryOpen
       ? getArmoryUiScale(availableWidth, availableHeight)
-      : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
+      : paged ? 1 : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
     const width = availableWidth / scale;
     const height = availableHeight / scale;
     this.ui = this.add.container(inset('left'), inset('top')).setScale(scale);
@@ -118,6 +122,11 @@ export class ExplorationScene extends Phaser.Scene {
     }
     this.paper(board);
     const state = this.transitionMap ?? this.exploration.getState();
+    if (paged) {
+      this.renderPlanningPages(board, state);
+      this.renderNight(width, height);
+      return;
+    }
     const pad = portrait ? 16 : 24;
     const headerHeight = compact ? 112 : 128;
     this.text(board.x + pad, board.y + 12, this.result ? t('SEARCH COMPLETE') : t('HAZARD'), portrait ? (this.result ? 18 : 24) : compact ? 26 : 34, INK, true);
@@ -156,6 +165,32 @@ export class ExplorationScene extends Phaser.Scene {
 
     this.renderPlan({ x: board.x + pad, y: footerY, width: board.width - pad * 2, height: 140 }, state);
     this.renderNight(width, height);
+  }
+
+  private renderPlanningPages(board: Box, state: ExplorationState): void {
+    const x = board.x + 12;
+    const width = board.width - 24;
+    const sideTabs = board.height < 285 && width >= 450;
+    this.text(x, board.y + 8, t('HAZARD'), 20, INK, true);
+    this.text(sideTabs ? x : x + width, board.y + (sideTabs ? 34 : 10), t('DAY {day}', { day: state.day }), 16, RED, true).setOrigin(sideTabs ? 0 : 1, 0);
+    const body = sideTabs
+      ? { x: x + 112, y: board.y + 12, width: width - 112, height: board.height - 24 }
+      : { x, y: board.y + 40, width, height: board.height - 88 };
+    if (this.planningPage === 'map') this.renderMap(body, state.locations);
+    else if (this.planningPage === 'site') {
+      const selected = state.locations.find(location => location.id === this.selectedId);
+      if (selected) this.locationNote(body, selected, true);
+      else this.instruction(body);
+    } else {
+      if (!sideTabs) this.renderTimeBudget({ ...body, height: 44 }, state);
+      this.renderPlan({ ...body, y: body.y + (sideTabs ? 0 : 48), height: 149 }, state);
+    }
+    const pages = [['map', 'Map'], ['site', 'Site'], ['plan', 'Plan']] as const;
+    pages.forEach(([page, label], index) => {
+      this.button(sideTabs ? x : x + index * (width + 6) / 3,
+        sideTabs ? board.y + 60 + index * 40 : board.y + board.height - 40,
+        sideTabs ? 100 : (width - 12) / 3, t(label), () => { this.planningPage = page; this.render(); }, this.planningPage !== page);
+    });
   }
 
   private renderPlan(box: Box, state: ExplorationState): void {
@@ -204,6 +239,7 @@ export class ExplorationScene extends Phaser.Scene {
     const mapScale = Math.max(1, viewport.width / 800, viewport.height / 620);
     const box = { x: 0, y: 0, width: 800 * mapScale, height: 620 * mapScale };
     const parent = this.ui!;
+    this.mapOffset.zoom ??= getExplorationMapZoom(viewport.width, viewport.height, box.width, box.height);
     const panel = new ScrollPanel(this, parent, viewport, box.width, box.height, this.mapOffset);
     this.ui = panel.content;
     this.ui!.add(this.add.image(box.x, box.y, MAP_KEY).setOrigin(0).setDisplaySize(box.width, box.height));

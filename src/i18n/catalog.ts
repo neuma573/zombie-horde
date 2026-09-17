@@ -1,4 +1,7 @@
 export const korean = {
+  "Map": "지도",
+  "Site": "장소",
+  "Plan": "계획",
   "THE LAST STAND": "라스트 스탠드",
   "Last Stand defense is not available yet.": "라스트 스탠드 방어 모드는 준비 중입니다.",
   "Day {day} · Start defense": "Day {day} 방어 시작",
