@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getExplorationMapZoom, usesExplorationPages } from '../logic/explorationLayout';
+import { getCompactResultLayout, getExplorationMapZoom, usesExplorationPages } from '../logic/explorationLayout';
 import { getArmoryUiScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
@@ -91,7 +91,7 @@ export class ExplorationScene extends Phaser.Scene {
     const availableWidth = Math.max(1, this.scale.width - inset('left') - inset('right'));
     const availableHeight = Math.max(1, this.scale.height - inset('top') - inset('bottom'));
     const portrait = availableHeight > availableWidth;
-    const paged = !this.diaryOpen && !this.armoryOpen && !this.result && usesExplorationPages(availableWidth, availableHeight);
+    const paged = !this.armoryOpen && usesExplorationPages(availableWidth, availableHeight);
     const scale = this.armoryOpen
       ? getArmoryUiScale(availableWidth, availableHeight)
       : paged ? 1 : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
@@ -123,7 +123,11 @@ export class ExplorationScene extends Phaser.Scene {
     this.paper(board);
     const state = this.transitionMap ?? this.exploration.getState();
     if (paged) {
-      this.renderPlanningPages(board, state);
+      if (this.result) {
+        this.renderCompactResult(board, state);
+        if (this.turnResult) turnExplorationPage(this, this.ui!, board);
+        this.turnResult = false;
+      } else this.renderPlanningPages(board, state);
       this.renderNight(width, height);
       return;
     }
@@ -356,6 +360,32 @@ export class ExplorationScene extends Phaser.Scene {
       const x = box.x + column * (index + 0.5);
       this.text(x, box.y + (compact ? 3 : 12), t(RESOURCE_LABELS[key]), 11, MUTED, true).setOrigin(0.5, 0);
       this.text(x, box.y + (compact ? 18 : 34), `${state.resources[key]}`, compact ? 20 : 29, INK, true).setOrigin(0.5, 0);
+    });
+  }
+
+  private renderCompactResult(board: Box, state: ExplorationState): void {
+    const result = this.result!;
+    const { summary, table, button } = getCompactResultLayout(board.width, board.height);
+    this.text(board.x + 12, board.y + 8, t('SEARCH COMPLETE'), 20, INK, true);
+    [
+      t('Sites searched: {count} · Barricade +{repair}%', { count: result.locationIds.length, repair: result.repaired }),
+      t('Time spent: {hours} h', { hours: result.hoursSpent }),
+      t('Barricade: {current}% · Unused: {hours} h', { current: state.barricade, hours: state.remainingHours }),
+    ].forEach((label, index) => this.text(board.x + summary.x, board.y + summary.y + index * 22, label, 12, MUTED)
+      .setWordWrapWidth(summary.width));
+    const x = board.x + table.x;
+    const y = board.y + table.y;
+    this.text(x + table.width * 0.6, y, t('Found'), 12, MUTED).setOrigin(0.5, 0);
+    this.text(x + table.width * 0.9, y, t('Total'), 12, MUTED).setOrigin(0.5, 0);
+    RESOURCE_KEYS.forEach((key, index) => {
+      const rowY = y + 22 + index * 27;
+      this.text(x, rowY, t(RESOURCE_LABELS[key]), 15, INK, true);
+      this.text(x + table.width * 0.6, rowY, `+${result.loot[key]}`, 17, RED, true).setOrigin(0.5, 0);
+      this.text(x + table.width * 0.9, rowY, `${state.resources[key]}`, 17, INK, true).setOrigin(0.5, 0);
+    });
+    this.button(board.x + button.x, board.y + button.y, button.width, t('NEXT: ARMORY'), () => {
+      this.armoryOpen = true;
+      this.render();
     });
   }
 

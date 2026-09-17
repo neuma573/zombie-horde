@@ -9,3 +9,19 @@ export function getExplorationMapZoom(width: number, height: number, contentWidt
   // This is only the initial zoom: players can still zoom out to the full map.
   return Math.max(44 / 86, width / contentWidth, height / contentHeight);
 }
+
+export function paginateDiaryLines(lines: readonly string[], height: number, lineHeight: number): string[] {
+  const count = Math.max(1, Math.floor(height / lineHeight));
+  const pages: string[] = [];
+  for (let start = 0; start < lines.length; start += count) pages.push(lines.slice(start, start + count).join('\n'));
+  return pages.length ? pages : [''];
+}
+
+export function getCompactResultLayout(width: number, height: number) {
+  const side = height < 280 && width >= 450;
+  return {
+    summary: { x: 12, y: 40, width: side ? width * 0.48 - 24 : width - 24 },
+    table: { x: side ? width * 0.48 : 12, y: side ? 36 : 112, width: side ? width * 0.52 - 12 : width - 24 },
+    button: { x: 12, y: height - 40, width: width - 24, height: 36 },
+  };
+}

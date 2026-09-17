@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { t } from '../systems/UserSettings';
 import type { MessageKey } from '../i18n/catalog';
+import { paginateDiaryLines } from '../logic/explorationLayout';
 
 const HAND = '"Chalkboard SE", "Comic Sans MS", cursive';
 
@@ -11,7 +12,7 @@ const INTRO_PARAGRAPHS = [
   'I found a local map and marked a few places worth checking. I cannot stay here. I need supplies, then I need to keep moving.',
 ] as const satisfies readonly MessageKey[];
 
-/** A single introductory page. Opening it never changes exploration state. */
+/** Introductory writing paginates at a readable size without changing exploration state. */
 export class ExplorationDiary {
   readonly container: Phaser.GameObjects.Container;
 
@@ -63,9 +64,24 @@ export class ExplorationDiary {
     body.setWordWrapWidth(pageWidth - pad * 2, true).setLineSpacing(compact ? 5 : 9);
     const closeY = top + pageHeight - 64;
     const bodyBottom = closeY - 24;
-    // Fit both translations on narrow phones without clipping the closing lines.
-    while (body.y + body.height > bodyBottom && parseInt(String(body.style.fontSize)) > 14) {
-      body.setFontSize(parseInt(String(body.style.fontSize)) - 1);
+    const pages = paginateDiaryLines(body.getWrappedText(), bodyBottom - body.y,
+      body.getTextMetrics().fontSize + body.lineSpacing);
+    let page = 0;
+    body.setWordWrapWidth(0).setText(pages[page]);
+    if (pages.length > 1) {
+      const indicator = text(left + pad + 48, closeY + 42, '', 12).setOrigin(0.5, 0);
+      const refresh = () => { body.setText(pages[page]); indicator.setText(`${page + 1} / ${pages.length}`); };
+      [-1, 1].forEach((direction, index) => {
+        const x = left + pad + index * 52;
+        text(x + 22, closeY + 18, direction < 0 ? '←' : '→', 24).setOrigin(0.5);
+        this.container.add(scene.add.zone(x + 22, closeY + 18, 44, 44)
+          .setInteractive({ useHandCursor: true }).on('pointerup', () => {
+            if (animating) return;
+            page = Math.max(0, Math.min(pages.length - 1, page + direction));
+            refresh();
+          }));
+      });
+      refresh();
     }
     const closeX = left + pageWidth - pad - 23;
     const mark = scene.add.graphics().lineStyle(2.5, 0x303321);

@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { getExplorationMapZoom, usesExplorationPages } from '../../../logic/explorationLayout';
+import { getCompactResultLayout, getExplorationMapZoom, paginateDiaryLines, usesExplorationPages } from '../../../logic/explorationLayout';
 import { PinchViewport } from '../../../logic/pinchViewport';
 
 describe('exploration layout', () => {
+  it('paginates every diary line without dropping paragraph breaks', () => {
+    const lines = ['First', 'paragraph', '', 'Second', 'paragraph'];
+    expect(paginateDiaryLines(lines, 60, 20)).toEqual(['First\nparagraph\n', 'Second\nparagraph']);
+    expect(paginateDiaryLines(lines, 60, 20).join('\n')).toBe(lines.join('\n'));
+  });
+
+  it('keeps all diary lines on a page when they fit exactly', () => {
+    expect(paginateDiaryLines(['One', 'Two'], 40, 20)).toEqual(['One\nTwo']);
+  });
+
+  it.each([[288, 296], [608, 296], [536, 186]])('separates result rows from the full-size action on a %i by %i board', (width, height) => {
+    const layout = getCompactResultLayout(width, height);
+    expect(layout.table.y + 22 + 2 * 27 + 22).toBeLessThanOrEqual(layout.button.y);
+    expect(layout.button.height).toBe(36);
+    expect(layout.button.y + layout.button.height).toBeLessThanOrEqual(height);
+    expect(layout.table.x + layout.table.width).toBeLessThanOrEqual(width);
+  });
+
   it.each([[320, 360], [640, 360], [320, 568]])('uses full-size planning pages at %i by %i', (width, height) => {
     expect(usesExplorationPages(width, height)).toBe(true);
   });

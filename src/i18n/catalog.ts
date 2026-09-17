@@ -1,4 +1,6 @@
 export const korean = {
+  "Found": "획득",
+  "Total": "합계",
   "Map": "지도",
   "Site": "장소",
   "Plan": "계획",
