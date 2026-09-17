@@ -13,7 +13,10 @@ export function getPlanningPageLayout(width: number, height: number) {
   return {
     sideTabs,
     body,
-    planY: body.y + (sideTabs ? 0 : 48),
+    budget: { ...body, height: 44 },
+    planY: body.y + 48,
+    compactPlan: body.height < 48 + 149,
+    planHeight: body.height < 48 + 149 ? 114 : 149,
     tabs: [0, 1, 2].map(index => ({
       x: sideTabs ? 12 : 12 + index * (width - 18) / 3,
       y: sideTabs ? 60 + index * 40 : height - 40,

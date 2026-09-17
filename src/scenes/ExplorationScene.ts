@@ -185,8 +185,8 @@ export class ExplorationScene extends Phaser.Scene {
       if (selected) this.locationNote(body, selected, true);
       else this.instruction(body);
     } else {
-      if (!sideTabs) this.renderTimeBudget({ ...body, height: 44 }, state);
-      this.renderPlan({ ...body, y: board.y + layout.planY, height: 149 }, state);
+      this.renderTimeBudget({ ...layout.budget, x: board.x + layout.budget.x, y: board.y + layout.budget.y }, state);
+      this.renderPlan({ ...body, y: board.y + layout.planY, height: layout.planHeight }, state, layout.compactPlan);
     }
     const pages = [['map', 'Map'], ['site', 'Site'], ['plan', 'Plan']] as const;
     pages.forEach(([page, label], index) => {
@@ -196,16 +196,17 @@ export class ExplorationScene extends Phaser.Scene {
     });
   }
 
-  private renderPlan(box: Box, state: ExplorationState): void {
+  private renderPlan(box: Box, state: ExplorationState, compact = false): void {
     this.line(box.x, box.y, box.x + box.width, box.y);
     const projected = state.confirmed ? state.barricade : Math.min(100, state.barricade + state.repairHours * REPAIR_PERCENT_PER_PERSON_HOUR);
-    this.text(box.x, box.y + 7, t('Barricade: {current}% → {next}%', { current: state.barricade, next: projected }), 14, INK, true);
-    this.text(box.x, box.y + 28, t('Repair · 1 person · 5% / h'), 12, MUTED);
-    this.button(box.x, box.y + 49, 40, '−', () => { this.exploration.setRepairHours(state.repairHours - 1); this.render(); }, !state.confirmed && state.repairHours > 0);
-    this.text(box.x + 50, box.y + 58, t('{hours} h repair', { hours: state.repairHours }), 13, INK);
-    this.button(box.x + box.width - 40, box.y + 49, 40, '+', () => { this.exploration.setRepairHours(state.repairHours + 1); this.render(); }, !state.confirmed && this.exploration.getUnallocatedHours() > 0 && projected < 100);
-    this.text(box.x, box.y + 91, t('Plan: {count} sites · {hours} h left', { count: state.plannedLocationIds.length, hours: this.exploration.getUnallocatedHours() }), 12, MUTED);
-    this.button(box.x, box.y + 113, box.width, t(state.confirmed ? 'DAY COMPLETE' : 'CONFIRM DAY PLAN'), () => {
+    this.text(box.x, box.y + (compact ? 0 : 7), t('Barricade: {current}% → {next}%', { current: state.barricade, next: projected }), 14, INK, true);
+    if (!compact) this.text(box.x, box.y + 28, t('Repair · 1 person · 5% / h'), 12, MUTED);
+    const repairY = box.y + (compact ? 22 : 49);
+    this.button(box.x, repairY, 40, '−', () => { this.exploration.setRepairHours(state.repairHours - 1); this.render(); }, !state.confirmed && state.repairHours > 0);
+    this.text(box.x + 50, repairY + 9, t('{hours} h repair', { hours: state.repairHours }), 13, INK);
+    this.button(box.x + box.width - 40, repairY, 40, '+', () => { this.exploration.setRepairHours(state.repairHours + 1); this.render(); }, !state.confirmed && this.exploration.getUnallocatedHours() > 0 && projected < 100);
+    this.text(box.x, box.y + (compact ? 60 : 91), t('Plan: {count} sites · {hours} h left', { count: state.plannedLocationIds.length, hours: this.exploration.getUnallocatedHours() }), 12, MUTED);
+    this.button(box.x, box.y + (compact ? 78 : 113), box.width, t(state.confirmed ? 'DAY COMPLETE' : 'CONFIRM DAY PLAN'), () => {
       const map = this.exploration.getState();
       const result = this.exploration.confirmPlan();
       if (!result) return;

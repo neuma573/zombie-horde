@@ -3,6 +3,19 @@ import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, p
 import { PinchViewport } from '../../../logic/pinchViewport';
 
 describe('exploration layout', () => {
+  it.each([[448, 256], [536, 186], [288, 296], [448, 284], [448, 285]])(
+    'reserves a visible budget above usable plan controls on a %i by %i board', (width, height) => {
+      const layout = getPlanningPageLayout(width, height);
+      expect(layout.budget.height).toBeGreaterThanOrEqual(44);
+      expect(layout.budget.width).toBeGreaterThanOrEqual(264);
+      expect(layout.budget.y + layout.budget.height).toBeLessThanOrEqual(layout.planY);
+      expect(layout.planY + layout.planHeight).toBeLessThanOrEqual(height - 12);
+      for (const tab of layout.tabs) {
+        expect(tab.x + tab.width <= layout.budget.x || tab.y >= layout.planY + layout.planHeight).toBe(true);
+      }
+    },
+  );
+
   it.each([[448, 256], [468, 256], [288, 296], [448, 284], [448, 285]])(
     'keeps the confirmation separate from tabs on a %i by %i board', (width, height) => {
       const layout = getPlanningPageLayout(width, height);

@@ -6,7 +6,7 @@ export const korean = {
   "Plan": "계획",
   "THE LAST STAND": "라스트 스탠드",
   "Last Stand defense is not available yet.": "라스트 스탠드 방어 모드는 준비 중입니다.",
-  "Day {day} · Start defense": "Day {day} 방어 시작",
+  "Day {day} · Start defense": "{day}일째 · 방어 시작",
   "ARMORY": "무기고",
   "NEXT: ARMORY": "다음 · 무기고",
   "Choose up to two weapons for defense.": "방어에 사용할 무기를 최대 두 개 선택하세요.",
