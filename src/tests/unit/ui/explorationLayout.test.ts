@@ -1,0 +1,70 @@
+import { describe, expect, it } from 'vitest';
+import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, paginateDiaryLines, usesExplorationPages } from '../../../logic/explorationLayout';
+import { PinchViewport } from '../../../logic/pinchViewport';
+
+describe('exploration layout', () => {
+  it.each([[448, 256], [536, 186], [288, 296], [448, 284], [448, 285]])(
+    'reserves a visible budget above usable plan controls on a %i by %i board', (width, height) => {
+      const layout = getPlanningPageLayout(width, height);
+      expect(layout.budget.height).toBeGreaterThanOrEqual(44);
+      expect(layout.budget.width).toBeGreaterThanOrEqual(264);
+      expect(layout.budget.y + layout.budget.height).toBeLessThanOrEqual(layout.planY);
+      expect(layout.planY + layout.planHeight).toBeLessThanOrEqual(height - 12);
+      for (const tab of layout.tabs) {
+        expect(tab.x + tab.width <= layout.budget.x || tab.y >= layout.planY + layout.planHeight).toBe(true);
+      }
+    },
+  );
+
+  it.each([[448, 256], [468, 256], [288, 296], [448, 284], [448, 285]])(
+    'keeps the confirmation separate from tabs on a %i by %i board', (width, height) => {
+      const layout = getPlanningPageLayout(width, height);
+      const confirm = { x: layout.body.x, y: layout.planY + 113, width: layout.body.width, height: 36 };
+      expect(confirm.y + confirm.height).toBeLessThanOrEqual(height);
+      for (const tab of layout.tabs) {
+        const overlaps = confirm.x < tab.x + tab.width && confirm.x + confirm.width > tab.x &&
+          confirm.y < tab.y + tab.height && confirm.y + confirm.height > tab.y;
+        expect(overlaps).toBe(false);
+        expect(tab.y + tab.height).toBeLessThanOrEqual(height);
+      }
+    },
+  );
+
+  it('paginates every diary line without dropping paragraph breaks', () => {
+    const lines = ['First', 'paragraph', '', 'Second', 'paragraph'];
+    expect(paginateDiaryLines(lines, 60, 20)).toEqual(['First\nparagraph\n', 'Second\nparagraph']);
+    expect(paginateDiaryLines(lines, 60, 20).join('\n')).toBe(lines.join('\n'));
+  });
+
+  it('keeps all diary lines on a page when they fit exactly', () => {
+    expect(paginateDiaryLines(['One', 'Two'], 40, 20)).toEqual(['One\nTwo']);
+  });
+
+  it.each([[288, 296], [608, 296], [536, 186]])('separates result rows from the full-size action on a %i by %i board', (width, height) => {
+    const layout = getCompactResultLayout(width, height);
+    expect(layout.table.y + 22 + 2 * 27 + 22).toBeLessThanOrEqual(layout.button.y);
+    expect(layout.button.height).toBe(36);
+    expect(layout.button.y + layout.button.height).toBeLessThanOrEqual(height);
+    expect(layout.table.x + layout.table.width).toBeLessThanOrEqual(width);
+  });
+
+  it.each([[320, 360], [640, 360], [320, 568]])('uses full-size planning pages at %i by %i', (width, height) => {
+    expect(usesExplorationPages(width, height)).toBe(true);
+  });
+
+  it.each([[390, 844], [1280, 800]])('keeps the overview at %i by %i', (width, height) => {
+    expect(usesExplorationPages(width, height)).toBe(false);
+  });
+
+  it.each([[539, 150], [264, 208]])('starts a %i by %i map with tappable buildings', (width, height) => {
+    const zoom = getExplorationMapZoom(width, height, 800, 620);
+    const view = new PinchViewport(width, height, 800, 620, { x: 0, y: 0, zoom });
+    expect(86 * view.zoom).toBeGreaterThanOrEqual(44);
+    expect(800 * view.zoom).toBeGreaterThanOrEqual(width);
+    expect(620 * view.zoom).toBeGreaterThanOrEqual(height);
+    view.pinch({ x: 0, y: 0 }, { x: 0, y: 0 }, 0.01);
+    expect(view.zoom).toBe(view.minZoom);
+    expect(800 * view.zoom).toBeLessThanOrEqual(width);
+    expect(620 * view.zoom).toBeLessThanOrEqual(height);
+  });
+});

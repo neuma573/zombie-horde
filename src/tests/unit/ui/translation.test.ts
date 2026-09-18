@@ -4,6 +4,12 @@ import { weaponTooltipStats, weaponTooltipStatLines } from '../../../logic/hud';
 import { BURST_RIFLE_WEAPON, POLICE_BATON_WEAPON } from '../../../config/weaponConfig';
 
 describe('localized game text', () => {
+  it('localizes the full armory defense action including its day', () => {
+    const key = 'Day {day} · Start defense';
+    expect(translate('ko', key, { day: 1 })).toBe('1일째 · 방어 시작');
+    expect(translate('en', key, { day: 1 })).toBe('Day 1 · Start defense');
+  });
+
   it('localizes the watch label while preserving the English display', () => {
     const key = 'LOCAL        24H';
     expect(translate('ko', key)).toBe('현지        24시');

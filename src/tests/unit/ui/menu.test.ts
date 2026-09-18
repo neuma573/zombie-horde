@@ -36,6 +36,12 @@ describe('main menu state', () => {
     expect(layout.logoWidth).toBeLessThan(796 * 0.56);
   });
 
+  it('keeps the full second action inside a short landscape safe area', () => {
+    const layout = createMainMenuLayout(24, 820, 24, 226);
+    expect(layout.primaryActionY + layout.actionGap + 27).toBeLessThanOrEqual(226);
+    expect(layout.primaryActionY - 27).toBeGreaterThanOrEqual(24);
+  });
+
   it('toggles sound without mutating the existing global setting', () => {
     const settings = { ...DEFAULT_GAME_SETTINGS };
     const muted = toggleSound(settings);

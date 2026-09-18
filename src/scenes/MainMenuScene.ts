@@ -195,6 +195,9 @@ export class MainMenuScene extends Phaser.Scene {
       this.view = 'classSelect';
       this.render();
     }, layout.actionWidth, true, 'primary');
+    this.addButton(centerX, layout.primaryActionY + layout.actionGap, t('THE LAST STAND'), () => {
+      void this.startExploration();
+    }, layout.actionWidth, !this.gameStartPending, 'primary');
     this.addSettingsAction(right - 23, top + 23);
   }
 
@@ -519,7 +522,7 @@ export class MainMenuScene extends Phaser.Scene {
   ): Phaser.GameObjects.Text {
     const isMenuAction = variant !== 'default';
     if (isMenuAction) {
-      return this.addMainMenuAction(x, y, label, onPress, width);
+      return this.addMainMenuAction(x, y, label, onPress, width, enabled);
     }
     const background = this.add.rectangle(
       x,
@@ -549,6 +552,7 @@ export class MainMenuScene extends Phaser.Scene {
     label: string,
     onPress: () => void,
     width: number,
+    enabled: boolean,
   ): Phaser.GameObjects.Text {
     const height = 54;
     const cut = 13;
@@ -569,7 +573,9 @@ export class MainMenuScene extends Phaser.Scene {
     panel.strokePath();
     this.ui?.add(panel);
 
-    const hitArea = this.add.zone(x, y, width, height)
+    const hitArea = this.add.zone(x, y, width, height);
+    if (!enabled) panel.setAlpha(0.65);
+    if (enabled) hitArea
       .setInteractive({ useHandCursor: true })
       .on('pointerover', () => panel.setAlpha(0.82))
       .on('pointerout', () => panel.setAlpha(1))
@@ -606,6 +612,30 @@ export class MainMenuScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.ui?.add(object);
     return object;
+  }
+
+  private async startExploration(): Promise<void> {
+    if (this.gameStartPending) return;
+    this.gameStartPending = true;
+    try {
+      const { ExplorationScene } = await import('./ExplorationScene');
+      if (!this.scene.isActive() || this.view !== 'main') return;
+      if (!this.scene.manager.keys.ExplorationScene) {
+        this.scene.add('ExplorationScene', ExplorationScene, false);
+      }
+      this.input.enabled = false;
+      await new Promise<void>(resolve => {
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, resolve);
+        this.cameras.main.fadeOut(500, 0, 0, 0);
+      });
+      this.input.enabled = true;
+      this.scene.start('ExplorationScene');
+    } catch (error) {
+      console.error('Failed to load exploration.', error);
+    } finally {
+      this.gameStartPending = false;
+      if (this.scene.isActive()) this.render();
+    }
   }
 
   private async startAssetDebug(): Promise<void> {
