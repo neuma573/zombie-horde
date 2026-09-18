@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, usesExplorationPages } from '../logic/explorationLayout';
-import { getArmoryUiScale } from '../logic/armoryLayout';
+import { getArmoryViewportScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
 import pistolUrl from '../assets/weapons/pistol-armory.png';
@@ -93,7 +93,7 @@ export class ExplorationScene extends Phaser.Scene {
     const portrait = availableHeight > availableWidth;
     const paged = !this.armoryOpen && usesExplorationPages(availableWidth, availableHeight);
     const scale = this.armoryOpen
-      ? getArmoryUiScale(availableWidth, availableHeight)
+      ? getArmoryViewportScale(availableWidth, availableHeight)
       : paged ? 1 : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
     const width = availableWidth / scale;
     const height = availableHeight / scale;
@@ -111,8 +111,8 @@ export class ExplorationScene extends Phaser.Scene {
     const boardHeight = Math.min(820, height - 64);
     const board: Box = { x: (width - boardWidth) / 2, y: (height - boardHeight) / 2 + 12, width: boardWidth, height: boardHeight };
     const compact = board.height < 620;
-    this.text(board.x, board.y - 30, '← ' + t('MAIN MENU'), 12, '#b9b9a6')
-      .setInteractive({ useHandCursor: true }).on('pointerup', () => this.scene.start('MainMenuScene'));
+    const mainMenu = this.text(board.x, board.y - 30, '← ' + t('MAIN MENU'), 12, '#b9b9a6');
+    this.onTap(mainMenu, () => this.scene.start('MainMenuScene'));
     if (this.armoryOpen) {
       renderLastStandArmory(this, this.ui!, board, this.armory, PISTOL_KEY, this.exploration.getState().day, () => this.render(), () => {
         this.showDefenseNotice(board);
@@ -460,8 +460,15 @@ export class ExplorationScene extends Phaser.Scene {
   private button(x: number, y: number, width: number, label: string, action: () => void, enabled = true): void {
     const background = this.add.rectangle(x, y, width, 36, enabled ? 0x982c24 : 0xc6c6b4)
       .setOrigin(0).setStrokeStyle(1, enabled ? 0x742019 : 0xa3a593);
-    if (enabled) background.setInteractive({ useHandCursor: true }).on('pointerup', action);
+    if (enabled) this.onTap(background, action);
     this.ui!.add(background);
     this.text(x + width / 2, y + 18, label, 15, enabled ? '#f1edda' : '#7a7e70', true).setOrigin(0.5);
+  }
+
+  private onTap(target: Phaser.GameObjects.Text | Phaser.GameObjects.Rectangle, action: () => void): void {
+    target.setInteractive({ useHandCursor: true }).on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      // A map drag released over a control must not confirm the plan or leave the scene.
+      if (pointer.getDistance() <= 8 && target.getBounds().contains(pointer.downX, pointer.downY)) action();
+    });
   }
 }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { usesArmorySideControls } from '../logic/armoryLayout';
+import { getArmoryControlsLayout } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from './ScrollPanel';
 import { LastStandArmory } from '../systems/LastStandArmory';
@@ -24,17 +24,12 @@ export function renderLastStandArmory(scene: Phaser.Scene, parent: Phaser.GameOb
   text(x + 20, y + 16, t('ARMORY'), 25);
   text(x + width - 20, y + 20, t('DAY {day}', { day }), 18).setOrigin(1, 0);
   text(x + 20, y + 51, t('Choose up to two weapons for defense.'), 13).setWordWrapWidth(width - 40);
-  const landscapePhone = usesArmorySideControls(width, height);
-  const slotHeight = landscapePhone ? Math.min(88, (height - 172) / 2) : width < 600 ? 106 : 126;
-  const controlsWidth = landscapePhone ? 210 : width - 40;
-  const controlsX = landscapePhone ? x + width - 20 - controlsWidth : x + 20;
-  const buttonY = y + height - 60;
-  const slotY = landscapePhone ? y + 88 : buttonY - 14 - slotHeight;
-  const viewport = {
-    x: x + 20, y: y + 88,
-    width: landscapePhone ? controlsX - x - 36 : width - 40,
-    height: landscapePhone ? height - 108 : slotY - y - 104,
-  };
+  const layout = getArmoryControlsLayout(width, height);
+  const { side: landscapePhone, compact, slotHeight, controlsWidth } = layout;
+  const controlsX = x + layout.controlsX;
+  const buttonY = y + layout.buttonY;
+  const slotY = y + layout.slotY;
+  const viewport = { ...layout.viewport, x: x + layout.viewport.x, y: y + layout.viewport.y };
   rect(viewport.x, viewport.y, viewport.width, viewport.height, 0x241c15).setStrokeStyle(5, 0x241c15);
   // Only the display rack uses desktop coordinates. Slots and controls stay in screen UI.
   const rack = { x: 0, y: 0, width: 1120, height: 520 };
@@ -43,7 +38,7 @@ export function renderLastStandArmory(scene: Phaser.Scene, parent: Phaser.GameOb
   if (offset.zoom === undefined) {
     offset.zoom = width >= 800 && !landscapePhone
       ? Math.min(1, viewport.width / rack.width, viewport.height / rack.height)
-      : 1;
+      : Math.min(1, viewport.height / 124);
   }
   const panel = new ScrollPanel(scene, root, viewport, rack.width, rack.height, offset);
   parent = panel.content;
@@ -89,8 +84,10 @@ export function renderLastStandArmory(scene: Phaser.Scene, parent: Phaser.GameOb
     if (id || selectedWeapon) onTap(slot, () => {
       if (armory.clickSlot(index as 0 | 1)) refresh();
     });
-    text(sx + 10, sy + (slotHeight < 65 ? slotHeight / 2 : 9), t('WEAPON SLOT {slot}', { slot: index + 1 }), slotHeight < 65 ? 11 : 12, '#cbb98f').setOrigin(0, slotHeight < 65 ? 0.5 : 0);
-    if (id && slotHeight < 65) {
+    text(sx + 10, sy + (compact ? 5 : slotHeight < 65 ? slotHeight / 2 : 9), t('WEAPON SLOT {slot}', { slot: index + 1 }), compact ? 12 : slotHeight < 65 ? 11 : 12, '#cbb98f').setOrigin(0, !compact && slotHeight < 65 ? 0.5 : 0);
+    if (compact) {
+      text(sx + 10, sy + 25, id ? '✓ ' + t('EQUIPPED') : '+ ' + t('EMPTY'), 12, id ? '#d4dca8' : '#cbb98f');
+    } else if (id && slotHeight < 65) {
       text(sx + slotWidth - 10, sy + slotHeight / 2, '✓ ' + t('EQUIPPED'), 11, '#d4dca8').setOrigin(1, 0.5);
     } else if (id) {
       add(scene.add.image(landscapePhone ? sx + 42 : sx + slotWidth / 2, sy + slotHeight * 0.48, pistolTexture).setDisplaySize(slotHeight * 0.52, slotHeight * 0.52));
