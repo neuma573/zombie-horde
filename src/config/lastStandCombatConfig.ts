@@ -32,8 +32,8 @@ export const DEFENSE_CAMERA_CONFIG = { initial: 0.75, min: 0.5 } as const;
 
 export const LAST_STAND_TIME_CONFIG = {
   ...GAME_TIME_CONFIG,
-  realMillisecondsPerGameHour: GAME_TIME_CONFIG.realMillisecondsPerGameHour / 2,
-  realMillisecondsPerGameDay: GAME_TIME_CONFIG.realMillisecondsPerGameDay / 2,
+  realMillisecondsPerGameHour: GAME_TIME_CONFIG.realMillisecondsPerGameHour / 4,
+  realMillisecondsPerGameDay: GAME_TIME_CONFIG.realMillisecondsPerGameDay / 4,
   startMinuteOfDay: LAST_STAND_COMBAT_CONFIG.startHour * 60,
 };
 

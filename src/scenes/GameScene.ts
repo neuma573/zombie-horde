@@ -50,6 +50,7 @@ import { Zombie } from '../entities/Zombie';
 import { AimAssistVisual } from '../effects/AimAssistVisual';
 import { CombatEffects } from '../effects/CombatEffects';
 import { WorldBackdrop } from '../effects/WorldBackdrop';
+import { NightDebriefView } from '../effects/NightDebriefView';
 import { TimeBasedLighting } from '../effects/TimeBasedLighting';
 import { SupplyDropVisual } from '../effects/SupplyDropVisual';
 import { InteractionPrompt } from '../effects/InteractionPrompt';
@@ -328,6 +329,7 @@ export class GameScene extends Phaser.Scene {
   private nightStart?: LastStandCombatStart;
   private defenseView?: DefenseMapView;
   private defeatView?: DefenseDefeatView;
+  private nightDebrief?: NightDebriefView;
   private defenseSpawn?: DefenseSpawnSystem;
 
   constructor(key = 'GameScene', private readonly defenseLayout?: CityDefenseConfig) {
@@ -587,6 +589,8 @@ export class GameScene extends Phaser.Scene {
       this.defenseView = undefined;
       this.defeatView?.destroy();
       this.defeatView = undefined;
+      this.nightDebrief?.destroy();
+      this.nightDebrief = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
       this.timeBasedLighting?.destroy();
@@ -711,6 +715,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       if (this.night?.getPhase() === 'VICTORY') {
+        this.finishNight();
         this.sessionState = transitionToGameOver(this.sessionState).state;
         this.weaponAudio?.cancelReload();
         this.pauseMenu?.setMobileVisible(false);
@@ -2119,12 +2124,32 @@ export class GameScene extends Phaser.Scene {
 
   private restartSession(): void {
     if (this.night?.getPhase() === 'DEFEAT') return;
-    if (this.night?.getPhase() === 'VICTORY') {
-      const victory = { day: this.nightStart!.day, barricade: this.night.getSectors()[0].integrity };
-      this.scene.stop();
-      this.scene.wake('ExplorationScene', victory);
+    if (this.night?.getPhase() === 'VICTORY') return;
+    this.scene.restart(this.nightStart);
+  }
+
+  private finishNight(): void {
+    this.mobileControls?.setVisible(false);
+    for (const zombie of this.zombies) {
+      this.damage.apply(zombie, zombie.health);
+      this.effects?.playZombieDeath({
+        position: { x: zombie.x, y: zombie.y }, radius: zombie.hitRadius,
+        direction: { x: 0, y: 1 }, rotation: zombie.rotation,
+        variantKey: zombie.id, appearance: zombie.appearance,
+      });
+      zombie.destroy();
     }
-    else this.scene.restart(this.nightStart);
+    this.zombies = [];
+    this.zombieKnockbacks.clear();
+    this.zombieNavigation.clear();
+    this.time.delayedCall(500, () => {
+      this.nightDebrief = new NightDebriefView(this, this.nightStart!.day, this.killCount, () => {
+        const victory = { day: this.nightStart!.day, barricade: this.night!.getSectors()[0].integrity };
+        this.scene.stop();
+        this.scene.wake('ExplorationScene', victory);
+      });
+      this.syncCameraLayers();
+    });
   }
 
   private playDefenseDeath(): void {
@@ -2281,10 +2306,7 @@ export class GameScene extends Phaser.Scene {
       viewModel.waveBannerText = null;
       viewModel.waveTagText = this.night.getSectors().some(sector => sector.phase === 'BREACHED')
         ? t('BREACHED') : t('{city} · DAY {day}', { city: this.defenseLayout!.cityId.toUpperCase(), day: this.nightStart!.day });
-      viewModel.gameOverText = this.night.getPhase() === 'VICTORY'
-        ? t('DAWN · DAY {day}\nEnter or tap to explore', { day: this.nightStart!.day + 1 })
-        : '';
-      if (this.night.getPhase() === 'DEFEAT') viewModel.showGameOver = false;
+      viewModel.showGameOver = false;
     }
     this.hud?.update(viewModel, deltaMs);
   }
@@ -2303,7 +2325,7 @@ export class GameScene extends Phaser.Scene {
       safeArea,
       mobileControls: this.mobileControlsEnabled,
     }, pauseVisible);
-    if (this.night?.getPhase() === 'DEFEAT') this.mobileControls?.setVisible(false);
+    if (this.night && !isPlaying(this.sessionState)) this.mobileControls?.setVisible(false);
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled
@@ -2571,7 +2593,7 @@ export class GameScene extends Phaser.Scene {
       this.readSafeArea(),
       this.cameras.main.zoom,
     );
-    if (this.night?.getPhase() === 'DEFEAT') this.mobileControls?.setVisible(false);
+    if (this.night && !isPlaying(this.sessionState)) this.mobileControls?.setVisible(false);
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled

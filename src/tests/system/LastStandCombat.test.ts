@@ -25,13 +25,13 @@ describe('LastStandCombat', () => {
     expect(formatGameTime(system.getTime())).toBe('23:00');
     expect(system.getSectors()[0].integrity).toBe(80);
   });
-  it('runs the night clock twice as fast as Horde without changing Horde time', () => {
+  it('runs the night clock four times as fast as Horde without changing Horde time', () => {
     const system = combat();
     const hordeTime = advanceGameTime(createGameTimeState(GAME_TIME_CONFIG), 30000, GAME_TIME_CONFIG);
     system.advanceTime(30000, true);
     expect(hordeTime.minuteOfDay - GAME_TIME_CONFIG.startMinuteOfDay).toBe(30);
-    expect(formatGameTime(system.getTime())).toBe('00:00');
-    expect(system.durationMs).toBe(180000);
+    expect(formatGameTime(system.getTime())).toBe('01:00');
+    expect(system.durationMs).toBe(90000);
   });
   it('rejects missing daytime integrity instead of resetting a barricade', () => {
     expect(() => new LastStandCombat(HAZARD_DEFENSE_CONFIG, {})).toThrow('Missing integrity');
