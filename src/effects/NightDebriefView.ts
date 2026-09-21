@@ -9,7 +9,7 @@ export class NightDebriefView {
   private ready = false;
 
   constructor(private readonly scene: Phaser.Scene, day: number, kills: number, private readonly onContinue: () => void) {
-    this.root = scene.add.container(0, 0).setDepth(210).setScrollFactor(0);
+    this.root = scene.add.container(0, 0).setDepth(300).setScrollFactor(0);
     this.shade = scene.add.rectangle(0, 0, 1, 1, 0x090d10).setOrigin(0).setAlpha(0).setInteractive();
     this.panel = scene.add.container(0, 0).setAlpha(0);
     this.root.add([this.shade, this.panel]);
@@ -29,8 +29,17 @@ export class NightDebriefView {
       text(110, 42, t('None'), 20, '#eee9da'),
       button, text(0, 113, t('CONTINUE TO MORNING'), 16, '#eee9da'),
     ]);
+    const readyPresses = new Set<number>();
+    button.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      readyPresses.delete(pointer.id);
+      if (this.ready) readyPresses.add(pointer.id);
+    });
     button.on('pointerup', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.getDistance() <= 8 && button.getBounds().contains(pointer.downX, pointer.downY)) this.confirm();
+      const beganReady = readyPresses.delete(pointer.id);
+      if (beganReady && pointer.getDistance() <= 8 && button.getBounds().contains(pointer.downX, pointer.downY)) this.confirm();
+    });
+    button.on('pointerupoutside', (pointer: Phaser.Input.Pointer) => {
+      readyPresses.delete(pointer.id);
     });
     scene.input.keyboard?.on('keydown-ENTER', this.confirm, this);
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.resize, this);
