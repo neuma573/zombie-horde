@@ -1,3 +1,6 @@
+/** A stable detail scale for site selection, independent of the player's current zoom. */
+export const EXPLORATION_MAP_SELECTION_ZOOM = 1.25;
+
 /** Short screens use pages instead of shrinking the planning controls. */
 export function usesExplorationPages(width: number, height: number): boolean {
   const portrait = height > width;
@@ -29,7 +32,7 @@ export function getPlanningPageLayout(width: number, height: number) {
 export function getExplorationMapZoom(width: number, height: number, contentWidth: number, contentHeight: number): number {
   // Keep the 86px building targets at least 44px across on first entry.
   // This is only the initial zoom: players can still zoom out to the full map.
-  return Math.max(44 / 86, width / contentWidth, height / contentHeight);
+  return Math.max(44 / 86, width / contentWidth, height / contentHeight) * 1.15;
 }
 
 export function paginateDiaryLines(lines: readonly string[], height: number, lineHeight: number): string[] {

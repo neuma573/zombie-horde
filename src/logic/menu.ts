@@ -71,7 +71,10 @@ export function createMainMenuLayout(
   const width = Math.max(0, right - left);
   const height = Math.max(0, bottom - top);
   const portrait = height > width;
-  const actionGap = Math.max(54, Math.min(68, height * 0.085));
+  const actionGap = Math.max(
+    MAIN_ACTION_HEIGHT + MENU_ACTION_GAP,
+    Math.min(68, height * 0.085),
+  );
   const logoY = top + height * (portrait ? 0.24 : 0.27);
   const primaryActionY = Math.min(
     bottom - actionGap - MAIN_ACTION_HEIGHT / 2,

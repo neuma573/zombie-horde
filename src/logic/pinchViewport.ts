@@ -33,7 +33,12 @@ export class PinchViewport {
   pinch(previousCenter: Point, center: Point, ratio: number): void {
     if (!Number.isFinite(ratio) || ratio <= 0) return;
     const anchor = this.contentPoint(previousCenter);
-    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * ratio));
+    this.placeContentPoint(anchor, center, this.zoom * ratio);
+  }
+
+  /** Place a known content point without accumulating drift when bounds clamp a transition. */
+  placeContentPoint(anchor: Point, center: Point, zoom: number): void {
+    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, zoom));
     this.updateBounds();
     this.scroll.x = Math.max(0, Math.min(this.scroll.maxX,
       anchor.x * this.zoom - center.x + Math.max(0, (this.width - this.contentWidth * this.zoom) / 2)));

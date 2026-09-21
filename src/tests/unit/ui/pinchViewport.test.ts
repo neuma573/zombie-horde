@@ -2,6 +2,38 @@ import { describe, expect, it } from 'vitest';
 import { PinchViewport } from '../../../logic/pinchViewport';
 
 describe('PinchViewport', () => {
+  it.each([0.6, 1.6])('centers the selected content point at a fixed zoom from %s', zoom => {
+    const view = new PinchViewport(300, 200, 800, 620, { x: 20, y: 40, zoom });
+    view.placeContentPoint({ x: 400, y: 270 }, { x: 150, y: 100 }, 1.25);
+
+    expect(view.zoom).toBeCloseTo(1.25);
+    expect(view.contentPoint({ x: 150, y: 100 }).x).toBeCloseTo(400);
+    expect(view.contentPoint({ x: 150, y: 100 }).y).toBeCloseTo(270);
+  });
+
+  it('keeps the map in bounds when centering a site near its edge', () => {
+    const view = new PinchViewport(300, 200, 800, 620, { x: 0, y: 0 });
+    view.placeContentPoint({ x: 20, y: 600 }, { x: 150, y: 100 }, 1.25);
+
+    expect(view.left).toBeCloseTo(0);
+    expect(view.top + 620 * view.zoom).toBeCloseTo(200);
+    expect(view.left + 20 * view.zoom).toBeGreaterThanOrEqual(0);
+    expect(view.top + 600 * view.zoom).toBeLessThanOrEqual(200);
+  });
+
+  it('reaches the same focus after intermediate frames clamp against a map edge', () => {
+    const direct = new PinchViewport(300, 200, 800, 620, { x: 0, y: 0 });
+    const animated = new PinchViewport(300, 200, 800, 620, { x: 0, y: 0 });
+    const point = { x: 400, y: 270 };
+    animated.placeContentPoint(point, { x: 300, y: 200 }, 0.4);
+    animated.placeContentPoint(point, { x: 240, y: 160 }, 0.8);
+    for (const view of [direct, animated]) view.placeContentPoint(point, { x: 150, y: 100 }, 1.25);
+
+    expect(animated.left).toBeCloseTo(direct.left);
+    expect(animated.top).toBeCloseTo(direct.top);
+    expect(animated.zoom).toBeCloseTo(direct.zoom);
+  });
+
   it('starts with the entire content visible without stretching', () => {
     const view = new PinchViewport(300, 200, 800, 620, { x: 0, y: 0 });
     expect(view.zoom * 800).toBeLessThanOrEqual(300);

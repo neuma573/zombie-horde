@@ -8,10 +8,15 @@ type Touch = { point: Point; start: Point; time: number };
 export class ScrollPanel {
   readonly content: Phaser.GameObjects.Container;
   private targets: { box: Box; action: () => void }[] = [];
+  private view: PinchViewport;
+  private sync: () => void;
+  private zoomTween?: Phaser.Tweens.Tween;
 
-  constructor(scene: Phaser.Scene, parent: Phaser.GameObjects.Container, box: Box,
-    width: number, height: number, state: ViewportState, fit: 'contain' | 'cover' = 'contain') {
+  constructor(private readonly scene: Phaser.Scene, parent: Phaser.GameObjects.Container, box: Box,
+    width: number, height: number, state: ViewportState, fit: 'contain' | 'cover' = 'contain',
+    options: { dragCursor?: boolean; onNavigate?: () => void; zoomEnabled?: boolean } = {}) {
     const view = new PinchViewport(box.width, box.height, width, height, state, fit);
+    this.view = view;
     this.content = scene.add.container(box.x, box.y);
     parent.add(this.content);
     const matrix = parent.getWorldTransformMatrix();
@@ -21,7 +26,8 @@ export class ScrollPanel {
       box.width * matrix.scaleX, box.height * matrix.scaleY);
     const mask = maskGraphics.createGeometryMask();
     this.content.setMask(mask);
-    const input = scene.add.zone(box.x, box.y, box.width, box.height).setOrigin(0).setInteractive();
+    const input = scene.add.zone(box.x, box.y, box.width, box.height).setOrigin(0)
+      .setInteractive(options.dragCursor ? { cursor: 'grab' } : undefined);
     parent.add(input);
     const touches = new Map<number, Touch>();
     let gesture = false;
@@ -33,12 +39,14 @@ export class ScrollPanel {
       const [a, b] = [...touches.values()].map(touch => touch.point);
       return { center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, distance: Math.hypot(a.x - b.x, a.y - b.y) };
     };
-    const sync = () => {
+    const sync = this.sync = () => {
       this.content.setPosition(box.x + view.left, box.y + view.top).setScale(view.zoom);
       state.x = view.scroll.x; state.y = view.scroll.y; state.zoom = view.zoom;
     };
+    const navigate = () => { this.zoomTween?.remove(); options.onNavigate?.(); };
     input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (touches.size >= 2) return;
+      this.zoomTween?.remove();
       if (!touches.size) gesture = false;
       const position = point(pointer);
       touches.set(pointer.id, { point: position, start: position, time: scene.time.now });
@@ -51,14 +59,17 @@ export class ScrollPanel {
       const position = point(pointer);
       if (position.x === touch.point.x && position.y === touch.point.y) return;
       if (touches.size === 2) {
+        navigate();
         const before = pair();
         touch.point = position;
         const after = pair();
-        view.pinch(before.center, after.center, before.distance > 0 ? after.distance / before.distance : 1);
+        view.pinch(before.center, after.center,
+          options.zoomEnabled !== false && before.distance > 0 ? after.distance / before.distance : 1);
       } else {
         if (!gesture && Math.hypot((position.x - touch.start.x) * matrix.scaleX,
           (position.y - touch.start.y) * matrix.scaleY) < 8) return;
         gesture = true;
+        navigate();
         view.scroll.move(position.x - touch.point.x, position.y - touch.point.y, Math.max(1, scene.time.now - touch.time));
         touch.point = position;
       }
@@ -87,6 +98,13 @@ export class ScrollPanel {
     };
     input.on('wheel', (pointer: Phaser.Input.Pointer, _dx: number, dy: number) => {
       if (touches.size) return;
+      navigate();
+      if (options.zoomEnabled === false) {
+        view.scroll.move(0, -dy, 1);
+        view.scroll.stop();
+        sync();
+        return;
+      }
       const center = point(pointer);
       view.pinch(center, center, Math.exp(-dy * 0.002));
       sync();
@@ -98,6 +116,7 @@ export class ScrollPanel {
     scene.game.canvas.addEventListener('touchcancel', cancel);
     scene.events.on(Phaser.Scenes.Events.UPDATE, update);
     this.content.once('destroy', () => {
+      this.zoomTween?.remove();
       scene.input.off('pointermove', move);
       scene.input.off('pointerup', release);
       scene.input.off('pointerupoutside', cancel);
@@ -110,4 +129,26 @@ export class ScrollPanel {
   }
 
   onTap(box: Box, action: () => void): void { this.targets.push({ box, action }); }
+
+  /** Pan the target into focus while zooming; direct manipulation cancels the transition. */
+  zoomTo(point: Point, zoom: number, center = false): void {
+    this.zoomTween?.remove();
+    const view = this.view;
+    view.scroll.stop();
+    const anchor = { x: view.left + point.x * view.zoom, y: view.top + point.y * view.zoom };
+    const destination = center ? { x: view.width / 2, y: view.height / 2 } : anchor;
+    const startZoom = view.zoom;
+    const targetZoom = Phaser.Math.Clamp(zoom, view.minZoom, view.maxZoom);
+    const value = { progress: 0 };
+    this.zoomTween = this.scene.tweens.add({ targets: value,
+      progress: 1, duration: 700, ease: 'Sine.InOut',
+      onUpdate: () => {
+        view.placeContentPoint(point, {
+          x: Phaser.Math.Linear(anchor.x, destination.x, value.progress),
+          y: Phaser.Math.Linear(anchor.y, destination.y, value.progress),
+        }, Phaser.Math.Linear(startZoom, targetZoom, value.progress));
+        this.sync();
+      },
+    });
+  }
 }

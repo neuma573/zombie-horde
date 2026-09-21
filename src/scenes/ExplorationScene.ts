@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, usesExplorationPages } from '../logic/explorationLayout';
+import { EXPLORATION_MAP_SELECTION_ZOOM, getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, usesExplorationPages } from '../logic/explorationLayout';
 import { getArmoryViewportScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
@@ -11,7 +11,7 @@ import { EXPLORATION_HOURS, REPAIR_PERCENT_PER_PERSON_HOUR } from '../config/exp
 import { turnExplorationPage } from '../effects/ExplorationPageTurn';
 import { drawExplorationSelection } from '../effects/ExplorationSelection';
 import { ExplorationDiary } from '../effects/ExplorationDiary';
-import { resourceExpectation } from '../logic/exploration';
+import { renderExplorationConfirmation } from '../effects/ExplorationConfirmation';
 import { ExplorationSystem } from '../systems/ExplorationSystem';
 import { t } from '../systems/UserSettings';
 import { RESOURCE_KEYS, type ExplorationState, type SearchLocation, type DayResult } from '../types/exploration';
@@ -34,6 +34,8 @@ export class ExplorationScene extends Phaser.Scene {
   private armory = new LastStandArmory();
   private armoryOpen = false;
   private mapOffset: ViewportState = { x: 0, y: 0 };
+  private mapOverviewZoom?: number;
+  private pendingMapFocus?: { x: number; y: number; zoom: number; center: boolean };
   private armoryOffset: ViewportState = { x: 0, y: 0 };
   private nightStartedAt: number | null = null;
   private turnResult = false;
@@ -45,6 +47,7 @@ export class ExplorationScene extends Phaser.Scene {
   private animateDiary = true;
   private result: DayResult | null = null;
   private planningPage: 'map' | 'site' | 'plan' = 'map';
+  private confirmationOpen = false;
 
   constructor() { super('ExplorationScene'); }
 
@@ -60,6 +63,8 @@ export class ExplorationScene extends Phaser.Scene {
     this.armory = new LastStandArmory();
     this.armoryOpen = false;
     this.mapOffset = { x: 0, y: 0 };
+    this.mapOverviewZoom = undefined;
+    this.pendingMapFocus = undefined;
     this.armoryOffset = { x: 0, y: 0 };
     this.nightStartedAt = null;
     this.selectionStartedAt.clear();
@@ -70,6 +75,7 @@ export class ExplorationScene extends Phaser.Scene {
     this.diaryOpen = true;
     this.result = null;
     this.planningPage = 'map';
+    this.confirmationOpen = false;
     this.animateDiary = true;
     this.cameras.main.setBackgroundColor('#000000');
     this.scale.on(Phaser.Scale.Events.RESIZE, this.render, this);
@@ -129,6 +135,7 @@ export class ExplorationScene extends Phaser.Scene {
         this.turnResult = false;
       } else this.renderPlanningPages(board, state);
       this.renderNight(width, height);
+      this.renderConfirmation(width, height, state);
       return;
     }
     const pad = portrait ? 16 : 24;
@@ -169,6 +176,7 @@ export class ExplorationScene extends Phaser.Scene {
 
     this.renderPlan({ x: board.x + pad, y: footerY, width: board.width - pad * 2, height: 140 }, state);
     this.renderNight(width, height);
+    this.renderConfirmation(width, height, state);
   }
 
   private renderPlanningPages(board: Box, state: ExplorationState): void {
@@ -205,25 +213,40 @@ export class ExplorationScene extends Phaser.Scene {
     this.button(box.x, repairY, 40, '−', () => { this.exploration.setRepairHours(state.repairHours - 1); this.render(); }, !state.confirmed && state.repairHours > 0);
     this.text(box.x + 50, repairY + 9, t('{hours} h repair', { hours: state.repairHours }), 13, INK);
     this.button(box.x + box.width - 40, repairY, 40, '+', () => { this.exploration.setRepairHours(state.repairHours + 1); this.render(); }, !state.confirmed && this.exploration.getUnallocatedHours() > 0 && projected < 100);
-    this.text(box.x, box.y + (compact ? 60 : 91), t('Plan: {count} sites · {hours} h left', { count: state.plannedLocationIds.length, hours: this.exploration.getUnallocatedHours() }), 12, MUTED);
+    this.text(box.x, box.y + (compact ? 60 : 91), t('Plan: {count} sites · Rest {hours} h', { count: state.plannedLocationIds.length, hours: this.exploration.getUnallocatedHours() }), 12, MUTED);
     this.button(box.x, box.y + (compact ? 78 : 113), box.width, t(state.confirmed ? 'DAY COMPLETE' : 'CONFIRM DAY PLAN'), () => {
-      const map = this.exploration.getState();
-      const result = this.exploration.confirmPlan();
-      if (!result) return;
-      // Resolve once, but keep the map visible while daylight fades.
-      this.transitionMap = map;
-      this.nightStartedAt = this.time.now;
-      this.input.enabled = false;
+      this.confirmationOpen = true;
       this.render();
-      this.transitionTimer = this.time.delayedCall(NIGHT_FADE_MS, () => {
-        this.transitionMap = null;
-        this.result = result;
-        this.turnResult = true;
-        this.render();
-        this.input.enabled = true;
-        this.transitionTimer = undefined;
-      });
     }, !state.confirmed && (state.plannedLocationIds.length > 0 || state.repairHours > 0));
+  }
+
+  private renderConfirmation(width: number, height: number, state: ExplorationState): void {
+    if (!this.confirmationOpen) return;
+    renderExplorationConfirmation(this, this.ui!, width, height, state, () => {
+      this.confirmationOpen = false;
+      this.render();
+    }, () => this.confirmDayPlan());
+  }
+
+  private confirmDayPlan(): void {
+    if (!this.confirmationOpen) return;
+    this.confirmationOpen = false;
+    const map = this.exploration.getState();
+    const result = this.exploration.confirmPlan();
+    if (!result) { this.render(); return; }
+    // Resolve once, but keep the map visible while daylight fades.
+    this.transitionMap = map;
+    this.nightStartedAt = this.time.now;
+    this.input.enabled = false;
+    this.render();
+    this.transitionTimer = this.time.delayedCall(NIGHT_FADE_MS, () => {
+      this.transitionMap = null;
+      this.result = result;
+      this.turnResult = true;
+      this.render();
+      this.input.enabled = true;
+      this.transitionTimer = undefined;
+    });
   }
 
   private paper(box: Box): void {
@@ -239,20 +262,28 @@ export class ExplorationScene extends Phaser.Scene {
     this.ui!.add(grain);
   }
 
-  private renderMap(viewport: Box, locations: SearchLocation[]): void {
+  private renderMap(area: Box, locations: SearchLocation[]): void {
+    const viewport = { ...area, height: area.height - 24 };
     const mapScale = Math.max(1, viewport.width / 800, viewport.height / 620);
     const box = { x: 0, y: 0, width: 800 * mapScale, height: 620 * mapScale };
     const parent = this.ui!;
-    this.mapOffset.zoom ??= getExplorationMapZoom(viewport.width, viewport.height, box.width, box.height);
-    const panel = new ScrollPanel(this, parent, viewport, box.width, box.height, this.mapOffset);
+    if (this.mapOffset.zoom === undefined) {
+      const zoom = getExplorationMapZoom(viewport.width, viewport.height, box.width, box.height);
+      this.mapOffset = { zoom, x: (box.width * zoom - viewport.width) / 2,
+        y: (box.height * zoom - viewport.height) / 2 };
+    }
+    const panel = new ScrollPanel(this, parent, viewport, box.width, box.height, this.mapOffset, 'contain', {
+      dragCursor: true, onNavigate: () => { this.mapOverviewZoom = undefined; },
+    });
     this.ui = panel.content;
+    const plannedIds = this.exploration.getState().plannedLocationIds;
     this.ui!.add(this.add.image(box.x, box.y, MAP_KEY).setOrigin(0).setDisplaySize(box.width, box.height));
     const buildingWidth = Phaser.Math.Clamp(box.width * 0.105, 34, 72);
     const buildingHeight = Phaser.Math.Clamp(box.height * 0.115, 30, 60);
     locations.forEach(location => {
       const x = box.x + location.x * box.width;
       const y = box.y + location.y * box.height;
-      const selected = this.exploration.getState().plannedLocationIds.includes(location.id);
+      const selected = plannedIds.includes(location.id);
       const color = location.searched ? 0x94958a : 0x33372e;
       const building = this.add.graphics();
       building.fillStyle(0xe7e5d5, 0.95);
@@ -286,6 +317,13 @@ export class ExplorationScene extends Phaser.Scene {
           if (this.exploration.toggleLocation(location.id)) {
             if (selected) this.selectionStartedAt.delete(location.id);
             else this.selectionStartedAt.set(location.id, this.time.now);
+            const currentZoom = this.mapOffset.zoom!;
+            const overview = this.mapOverviewZoom ?? (selected
+              ? getExplorationMapZoom(viewport.width, viewport.height, box.width, box.height)
+              : currentZoom);
+            this.pendingMapFocus = { x: location.x, y: location.y, center: !selected,
+              zoom: selected ? overview : EXPLORATION_MAP_SELECTION_ZOOM };
+            this.mapOverviewZoom = overview;
           } else {
             const state = this.transitionMap ?? this.exploration.getState();
             const message = state.confirmed ? t('DAY COMPLETE') : location.searched ? t('SEARCHED') :
@@ -295,6 +333,15 @@ export class ExplorationScene extends Phaser.Scene {
           this.render();
         });
     });
+    if (this.pendingMapFocus) {
+      const focus = this.pendingMapFocus;
+      this.pendingMapFocus = undefined;
+      panel.zoomTo({ x: focus.x * box.width, y: focus.y * box.height }, focus.zoom, focus.center);
+    }
+    this.ui = parent;
+    this.text(area.x + area.width / 2, area.y + area.height - 18,
+      t('Drag the map to explore'), 11, MUTED)
+      .setOrigin(0.5, 0);
     if (this.feedback && this.time.now < this.feedback.until) {
       this.ui = parent;
       const warning = this.text(viewport.x + viewport.width / 2, viewport.y + 8,
@@ -319,7 +366,7 @@ export class ExplorationScene extends Phaser.Scene {
       this.rect(box.x + hour * (cell + gap), box.y + 20, cell, 9,
         hour < search ? 0x982c24 : hour < search + state.repairHours ? 0x637747 : 0xc8c8ba);
     }
-    const labels = [t('Search {hours} h', { hours: search }), t('Repair {hours} h', { hours: state.repairHours }), t('Free {hours} h', { hours: free })];
+    const labels = [t('Search {hours} h', { hours: search }), t('Repair {hours} h', { hours: state.repairHours }), t('Rest {hours} h', { hours: free })];
     labels.forEach((label, index) => this.text(box.x + box.width * index / 3, box.y + 32, label, 11, [RED, '#526537', MUTED][index]));
   }
 
@@ -330,12 +377,6 @@ export class ExplorationScene extends Phaser.Scene {
     const y = box.y + 10;
     this.text(x, y, t(location.name), compact ? 16 : 19, INK, true);
     this.text(x, y + 28, t('Search required: {hours} h', { hours: location.searchHours }), 12, RED);
-    const rowY = y + (compact ? 56 : 66);
-    RESOURCE_KEYS.forEach((key, index) => {
-      const column = (box.width - 24) / 3;
-      this.text(x + column * index, rowY, t(RESOURCE_LABELS[key]), 11, MUTED);
-      this.text(x + column * index, rowY + 18, t(resourceExpectation(location.lootTable[key])), 12, INK, true);
-    });
     const state = this.transitionMap ?? this.exploration.getState();
     const planned = state.plannedLocationIds.includes(location.id);
     const block = state.confirmed ? 'DAY COMPLETE' : location.searched ? 'SEARCHED' :
@@ -370,7 +411,7 @@ export class ExplorationScene extends Phaser.Scene {
     [
       t('Sites searched: {count} · Barricade +{repair}%', { count: result.locationIds.length, repair: result.repaired }),
       t('Time spent: {hours} h', { hours: result.hoursSpent }),
-      t('Barricade: {current}% · Unused: {hours} h', { current: state.barricade, hours: state.remainingHours }),
+      t('Barricade: {current}% · Rest {hours} h', { current: state.barricade, hours: state.remainingHours }),
     ].forEach((label, index) => this.text(board.x + summary.x, board.y + summary.y + index * 22, label, 12, MUTED)
       .setWordWrapWidth(summary.width));
     const x = board.x + table.x;
@@ -407,7 +448,7 @@ export class ExplorationScene extends Phaser.Scene {
     });
     const footerY = board.y + board.height - (compact ? 134 : 178);
     this.text(left, footerY, t('Time spent: {hours} h', { hours: result.hoursSpent }), 14, MUTED);
-    this.text(left, footerY + 20, t('Barricade: {current}% · Unused: {hours} h', { current: state.barricade, hours: state.remainingHours }), 14, RED);
+    this.text(left, footerY + 20, t('Barricade: {current}% · Rest {hours} h', { current: state.barricade, hours: state.remainingHours }), 14, RED);
     this.resources({ x: left, y: footerY + 45, width, height: 44 }, state, true);
     this.button(left, board.y + board.height - (compact ? 42 : 73), width, t('NEXT: ARMORY'), () => {
       this.armoryOpen = true;

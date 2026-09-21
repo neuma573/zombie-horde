@@ -2,6 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { EXPLORATION_HOURS, HAZARD_LOCATIONS } from '../../config/explorationConfig';
 
 describe('Hazard exploration configuration', () => {
+  it('offers a dozen destinations spread across all four map quarters', () => {
+    expect(HAZARD_LOCATIONS.length).toBeGreaterThanOrEqual(12);
+    for (const right of [false, true]) {
+      for (const bottom of [false, true]) {
+        expect(HAZARD_LOCATIONS.filter(location =>
+          (location.x >= 0.5) === right && (location.y >= 0.5) === bottom,
+        ).length).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
+  it('keeps building tap targets separate on the base map', () => {
+    HAZARD_LOCATIONS.forEach((location, index) => {
+      for (const other of HAZARD_LOCATIONS.slice(index + 1)) {
+        expect(Math.abs(location.x - other.x) * 800 >= 86 ||
+          Math.abs(location.y - other.y) * 620 >= 86).toBe(true);
+      }
+    });
+  });
+
   it('provides unique selectable locations inside the map', () => {
     expect(HAZARD_LOCATIONS.length).toBeGreaterThan(0);
     expect(new Set(HAZARD_LOCATIONS.map(location => location.id)).size).toBe(HAZARD_LOCATIONS.length);

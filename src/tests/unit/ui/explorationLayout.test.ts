@@ -3,6 +3,14 @@ import { getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, p
 import { PinchViewport } from '../../../logic/pinchViewport';
 
 describe('exploration layout', () => {
+  it.each([[539, 150], [264, 208], [800, 620]])(
+    'starts a %i by %i map enlarged with room to pan in both axes', (width, height) => {
+      const zoom = getExplorationMapZoom(width, height, 800, 620);
+      expect(800 * zoom).toBeGreaterThan(width);
+      expect(620 * zoom).toBeGreaterThan(height);
+    },
+  );
+
   it.each([[448, 256], [536, 186], [288, 296], [448, 284], [448, 285]])(
     'reserves a visible budget above usable plan controls on a %i by %i board', (width, height) => {
       const layout = getPlanningPageLayout(width, height);
