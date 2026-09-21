@@ -14,7 +14,7 @@ export class ScrollPanel {
 
   constructor(private readonly scene: Phaser.Scene, parent: Phaser.GameObjects.Container, box: Box,
     width: number, height: number, state: ViewportState, fit: 'contain' | 'cover' = 'contain',
-    options: { dragCursor?: boolean; onNavigate?: () => void } = {}) {
+    options: { dragCursor?: boolean; onNavigate?: () => void; zoomEnabled?: boolean } = {}) {
     const view = new PinchViewport(box.width, box.height, width, height, state, fit);
     this.view = view;
     this.content = scene.add.container(box.x, box.y);
@@ -63,7 +63,8 @@ export class ScrollPanel {
         const before = pair();
         touch.point = position;
         const after = pair();
-        view.pinch(before.center, after.center, before.distance > 0 ? after.distance / before.distance : 1);
+        view.pinch(before.center, after.center,
+          options.zoomEnabled !== false && before.distance > 0 ? after.distance / before.distance : 1);
       } else {
         if (!gesture && Math.hypot((position.x - touch.start.x) * matrix.scaleX,
           (position.y - touch.start.y) * matrix.scaleY) < 8) return;
@@ -98,6 +99,12 @@ export class ScrollPanel {
     input.on('wheel', (pointer: Phaser.Input.Pointer, _dx: number, dy: number) => {
       if (touches.size) return;
       navigate();
+      if (options.zoomEnabled === false) {
+        view.scroll.move(0, -dy, 1);
+        view.scroll.stop();
+        sync();
+        return;
+      }
       const center = point(pointer);
       view.pinch(center, center, Math.exp(-dy * 0.002));
       sync();
