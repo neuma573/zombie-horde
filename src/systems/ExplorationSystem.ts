@@ -20,6 +20,17 @@ export class ExplorationSystem {
 
   getState(): ExplorationState { return structuredClone(this.state); }
 
+  completeNight(day: number, barricade: number): boolean {
+    if (day !== this.state.day || !Number.isFinite(barricade) || barricade < 0 || barricade > 100) return false;
+    this.state.day += 1;
+    this.state.barricade = barricade;
+    this.state.remainingHours = EXPLORATION_HOURS;
+    this.state.plannedLocationIds = [];
+    this.state.repairHours = 0;
+    this.state.confirmed = false;
+    return true;
+  }
+
   getUnallocatedHours(): number {
     if (this.state.confirmed) return this.state.remainingHours;
     return this.state.remainingHours - this.state.repairHours - this.state.locations
@@ -28,7 +39,7 @@ export class ExplorationSystem {
   }
 
   toggleLocation(id: string): boolean {
-    if (this.state.confirmed) return false;
+    if (this.state.day === 1 || this.state.confirmed) return false;
     if (this.state.plannedLocationIds.includes(id)) {
       this.state.plannedLocationIds = this.state.plannedLocationIds.filter(value => value !== id);
       return true;
@@ -40,7 +51,7 @@ export class ExplorationSystem {
   }
 
   setRepairHours(hours: number): boolean {
-    if (this.state.confirmed || !Number.isInteger(hours) || hours < 0 ||
+    if (this.state.day === 1 || this.state.confirmed || !Number.isInteger(hours) || hours < 0 ||
       hours > this.getUnallocatedHours() + this.state.repairHours ||
       hours > Math.ceil((100 - this.state.barricade) / REPAIR_PERCENT_PER_PERSON_HOUR)) return false;
     this.state.repairHours = hours;
@@ -48,7 +59,7 @@ export class ExplorationSystem {
   }
 
   confirmPlan(): DayResult | null {
-    if (this.state.confirmed || (!this.state.plannedLocationIds.length && !this.state.repairHours)) return null;
+    if (this.state.day === 1 || this.state.confirmed || (!this.state.plannedLocationIds.length && !this.state.repairHours)) return null;
     const locationIds = [...this.state.plannedLocationIds];
     const locations = locationIds.map(id => this.state.locations.find(location => location.id === id)!);
     if (this.getUnallocatedHours() < 0 || locations.some(location => location.searched)) return null;
@@ -68,6 +79,7 @@ export class ExplorationSystem {
   }
 
   getSearchBlock(locationId: string): SearchBlock | null {
+    if (this.state.day === 1) return 'SURVIVE THE FIRST NIGHT';
     if (this.state.confirmed) return 'DAY COMPLETE';
     const location = this.state.locations.find(({ id }) => id === locationId);
     if (!location) return 'UNKNOWN LOCATION';
@@ -80,7 +92,7 @@ export class ExplorationSystem {
   canSearch(locationId: string): boolean { return this.getSearchBlock(locationId) === null; }
 
   hasPlannableLocations(): boolean {
-    if (this.state.confirmed) return false;
+    if (this.state.day === 1 || this.state.confirmed) return false;
     const available = this.getUnallocatedHours();
     return this.state.locations.some(location => !location.searched &&
       !this.state.plannedLocationIds.includes(location.id) && location.searchHours <= available);

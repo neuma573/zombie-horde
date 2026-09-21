@@ -1,3 +1,5 @@
+import type { LastStandNightVictory } from '../types/lastStandCombat';
+import type { WeaponId } from '../logic/weapon';
 import Phaser from 'phaser';
 import { EXPLORATION_MAP_SELECTION_ZOOM, getCompactResultLayout, getExplorationMapZoom, getPlanningPageLayout, usesExplorationPages } from '../logic/explorationLayout';
 import { getArmoryViewportScale } from '../logic/armoryLayout';
@@ -107,7 +109,10 @@ export class ExplorationScene extends Phaser.Scene {
     if (this.diaryOpen) {
       this.ui.add(new ExplorationDiary(this, width, height, () => {
         this.diaryOpen = false;
-        this.render();
+        this.armory.selectWeapon('pistol');
+        this.armory.clickSlot(0);
+        this.armoryOpen = true;
+        void this.startDefense();
       }, this.animateDiary).container);
       this.animateDiary = false;
       this.renderNight(width, height);
@@ -121,7 +126,7 @@ export class ExplorationScene extends Phaser.Scene {
     this.onTap(mainMenu, () => this.scene.start('MainMenuScene'));
     if (this.armoryOpen) {
       renderLastStandArmory(this, this.ui!, board, this.armory, PISTOL_KEY, this.exploration.getState().day, () => this.render(), () => {
-        this.showDefenseNotice(board);
+        void this.startDefense();
       }, this.armoryOffset);
       this.renderNight(width, height);
       return;
@@ -456,17 +461,42 @@ export class ExplorationScene extends Phaser.Scene {
     });
   }
 
-  private showDefenseNotice(board: Box): void {
-    if (!this.armory.canStartDefense()) return;
-    // Keep the selected loadout intact until Last Stand defense is available.
-    this.render();
-    const notice = this.text(board.x + board.width / 2, board.y + 92,
-      t('Last Stand defense is not available yet.'), 15, '#fff0cf', true)
-      .setOrigin(0.5, 0).setBackgroundColor('#39291f').setPadding(12, 10)
-      .setWordWrapWidth(board.width - 64).setAlign('center');
-    const tween = this.tweens.add({ targets: notice, alpha: 0, delay: 2500, duration: 300,
-      onComplete: () => notice.destroy() });
-    notice.once('destroy', () => tween.remove());
+  private async startDefense(): Promise<void> {
+    if (!this.armory.canStartDefense() || !this.input.enabled) return;
+    this.input.enabled = false;
+    try {
+      const { LastStandCombatScene } = await import('./LastStandCombatScene');
+      if (!this.scene.isActive()) return;
+      if (!this.scene.manager.keys.LastStandCombatScene) {
+        this.scene.add('LastStandCombatScene', LastStandCombatScene, false);
+      }
+      const state = this.exploration.getState();
+      this.events.once(Phaser.Scenes.Events.WAKE, (_sys: Phaser.Scenes.Systems, victory?: LastStandNightVictory) => {
+        if (victory && this.exploration.completeNight(victory.day, victory.barricade)) {
+          this.armoryOpen = false;
+          this.result = null;
+          this.turnResult = false;
+          this.transitionMap = null;
+          this.nightStartedAt = null;
+          this.selectedId = null;
+          this.feedback = null;
+          this.selectionStartedAt.clear();
+          this.confirmationOpen = false;
+          this.planningPage = 'map';
+        }
+        this.input.enabled = true;
+        this.render();
+      });
+      this.scene.launch('LastStandCombatScene', {
+        day: state.day,
+        barricades: { 'hazard-main': state.barricade },
+        slots: this.armory.getState().slots as [WeaponId | null, WeaponId | null],
+      });
+      this.scene.sleep();
+    } catch (error) {
+      this.input.enabled = true;
+      throw error;
+    }
   }
 
   private renderNight(width: number, height: number): void {

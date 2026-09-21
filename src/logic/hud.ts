@@ -24,6 +24,7 @@ type WeaponTooltipWeapon = {
 export interface HudState {
   health: number;
   maxHealth: number;
+  barricadeIntegrity?: number;
   stamina: number;
   maxStamina: number;
   magazineAmmo: number;
@@ -85,7 +86,9 @@ export interface HudViewModel {
   statusText: string;
   waveTagText: string;
   healthRatio: number;
+  barricadeText?: string;
   staminaRatio: number;
+  showStamina?: boolean;
   ammoText: string;
   magazineAmmo: number;
   magazineSize: number;
@@ -438,9 +441,14 @@ export function createHudViewModel(state: HudState, locale: Locale = 'en'): HudV
   return {
     statusText: translate(locale, 'KILLS {count}', { count: state.killCount }),
     waveTagText: state.waveNumber > 0 ? translate(locale, '#Wave{wave}', { wave: state.waveNumber }) : translate(locale, '#Wave--'),
-    healthRatio: normalizedGaugeRatio(state.health, state.maxHealth),
+    healthRatio: state.barricadeIntegrity === undefined
+      ? normalizedGaugeRatio(state.health, state.maxHealth)
+      : normalizedGaugeRatio(state.barricadeIntegrity, 100),
+    ...(state.barricadeIntegrity === undefined ? {} : {
+      barricadeText: translate(locale, 'BARRICADE {integrity}%', { integrity: Math.ceil(state.barricadeIntegrity) }),
+    }),
     staminaRatio: normalizedGaugeRatio(state.stamina, state.maxStamina),
-    ammoText: state.weaponId === 'policeBaton' ? '' : `+${state.reserveAmmo}`,
+    ammoText: state.weaponId === 'policeBaton' ? '' : `+${state.reserveAmmo === Infinity ? '∞' : state.reserveAmmo}`,
     magazineAmmo: state.magazineAmmo,
     magazineSize: state.magazineSize,
     spentCasings: Math.max(0, Math.floor(state.spentCasings ?? 0)),

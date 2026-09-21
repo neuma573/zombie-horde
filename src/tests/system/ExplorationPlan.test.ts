@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { ExplorationSystem } from '../../systems/ExplorationSystem';
 
+function createDayTwoExploration(...args: ConstructorParameters<typeof ExplorationSystem>) {
+  const system = new ExplorationSystem(...args);
+  system.completeNight(1, system.getState().barricade);
+  return system;
+}
+
 describe('day exploration plan', () => {
   it('keeps the current day unchanged while planning and confirming', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
-    expect(system.getState().day).toBe(1);
+    const system = createDayTwoExploration(undefined, () => 0);
+    expect(system.getState().day).toBe(2);
     system.toggleLocation('gas');
-    expect(system.getState().day).toBe(1);
+    expect(system.getState().day).toBe(2);
     system.confirmPlan();
-    expect(system.getState().day).toBe(1);
+    expect(system.getState().day).toBe(2);
   });
   it('reserves and releases time without revealing loot or searching locations', () => {
-    const system = new ExplorationSystem(undefined, () => { throw Error('Premature loot roll'); });
+    const system = createDayTwoExploration(undefined, () => { throw Error('Premature loot roll'); });
     expect(system.toggleLocation('gas')).toBe(true);
     expect(system.setRepairHours(2)).toBe(true);
     expect(system.getUnallocatedHours()).toBe(7);
@@ -23,7 +29,7 @@ describe('day exploration plan', () => {
     expect(system.getUnallocatedHours()).toBe(10);
   });
   it('resolves all selected sites and repairs together exactly once', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.toggleLocation('gas');
     system.toggleLocation('grocery');
     system.setRepairHours(5);
@@ -41,7 +47,7 @@ describe('day exploration plan', () => {
     expect(system.getState()).toEqual(before);
   });
   it('rejects over-budget additions and repair allocations without changing the plan', () => {
-    const system = new ExplorationSystem();
+    const system = createDayTwoExploration();
     system.toggleLocation('police');
     system.setRepairHours(5);
     const before = system.getState();
@@ -53,7 +59,7 @@ describe('day exploration plan', () => {
     expect(system.getUnallocatedHours()).toBe(0);
   });
   it('allows repair-only plans and caps the barricade at full strength', () => {
-    const system = new ExplorationSystem();
+    const system = createDayTwoExploration();
     expect(system.setRepairHours(11)).toBe(false);
     expect(system.setRepairHours(10)).toBe(true);
     expect(system.confirmPlan()?.repaired).toBe(50);
@@ -62,7 +68,7 @@ describe('day exploration plan', () => {
     expect(system.toggleLocation('pharmacy')).toBe(false);
   });
   it('rejects direct searches when all hours are reserved and preserves plan confirmation', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.toggleLocation('gas');
     system.setRepairHours(9);
     const before = system.getState();
@@ -76,7 +82,7 @@ describe('day exploration plan', () => {
   });
 
   it('keeps planned locations unsearched until the plan is confirmed', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.toggleLocation('gas');
     const before = system.getState();
 
@@ -86,7 +92,7 @@ describe('day exploration plan', () => {
   });
 
   it('allows direct searches again after releasing every planned location', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.toggleLocation('gas');
     expect(system.search('pharmacy')).toEqual({ ok: false, reason: 'PLAN ACTIVE' });
 
@@ -96,7 +102,7 @@ describe('day exploration plan', () => {
   });
 
   it('blocks direct searches during repair-only plans until their hours are released', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.setRepairHours(1);
     const before = system.getState();
 
@@ -107,7 +113,7 @@ describe('day exploration plan', () => {
   });
 
   it('offers planning locations after repair allocation despite blocked direct searches', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.setRepairHours(1);
     expect(system.canSearch('pharmacy')).toBe(false);
     expect(system.hasPlannableLocations()).toBe(true);
@@ -115,7 +121,7 @@ describe('day exploration plan', () => {
   });
 
   it('offers only unsearched unplanned locations within the free planning budget', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     system.search('pharmacy');
     system.toggleLocation('gas');
     system.setRepairHours(6);
@@ -129,14 +135,14 @@ describe('day exploration plan', () => {
   });
 
   it('does not offer a location already included in the plan', () => {
-    const system = new ExplorationSystem(undefined, () => 0);
+    const system = createDayTwoExploration(undefined, () => 0);
     for (const id of ['gas', 'pharmacy', 'house-a', 'house-b']) system.toggleLocation(id);
     expect(system.getUnallocatedHours()).toBe(3);
     expect(system.hasPlannableLocations()).toBe(false);
   });
 
   it('rejects empty plans and invalid repair hours', () => {
-    const system = new ExplorationSystem();
+    const system = createDayTwoExploration();
     expect(system.confirmPlan()).toBeNull();
     for (const hours of [-1, 0.5, NaN, Infinity]) expect(system.setRepairHours(hours)).toBe(false);
     expect(system.getState().confirmed).toBe(false);

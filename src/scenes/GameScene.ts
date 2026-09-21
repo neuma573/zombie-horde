@@ -1,3 +1,11 @@
+import { fitDefenseCamera } from '../logic/defenseCamera';
+import { DefenseSpawnSystem } from '../systems/DefenseSpawnSystem';
+import { DefenseDefeatView } from '../effects/DefenseDefeatView';
+import { DEFENSE_CAMERA_CONFIG, DEFENSE_LIGHTING_CONFIG } from '../config/lastStandCombatConfig';
+import { LastStandCombat } from '../systems/LastStandCombat';
+import { DefenseMapView } from '../effects/DefenseMapView';
+import { constrainToArea } from '../logic/defenseSector';
+import type { CityDefenseConfig, LastStandCombatStart } from '../types/lastStandCombat';
 import { t, userSettings } from '../systems/UserSettings';
 import { advanceMeleeSwing } from '../logic/meleeSwing';
 import Phaser from 'phaser';
@@ -25,6 +33,7 @@ import {
   PISTOL_WEAPON,
   POLICE_BATON_WEAPON,
   STARTING_AMMO_RESERVES,
+  WEAPON_DEFINITIONS,
 } from '../config/weaponConfig';
 import { WAVE_CONFIG } from '../config/waveConfig';
 import { ZOMBIE_CONFIG } from '../config/zombieConfig';
@@ -63,9 +72,7 @@ import {
   type RectangleObstacle,
 } from '../logic/obstacleCollision';
 import {
-  moveZombieWithCrowdSpacing,
   resolveZombieCrowdSpacing,
-  zombieVelocityWithCrowdSpacing,
 } from '../logic/zombieCrowdSpacing';
 import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
@@ -141,14 +148,9 @@ import {
 } from '../logic/supplyDrop';
 import { muzzleLightExposure } from '../logic/playerVisual';
 import {
-  zombieAppearanceSeedFromId,
   type ZombieAppearance,
 } from '../logic/zombieAppearance';
-import {
-  advanceFastZombieRun,
-  createFastZombieRunState,
-  type FastZombieRunState,
-} from '../logic/fastZombie';
+import { movePursuingZombie } from '../logic/zombiePursuit';
 import {
   resolveHitscan,
   type HitscanBlocker,
@@ -285,7 +287,6 @@ export class GameScene extends Phaser.Scene {
   private zombies: Zombie[] = [];
   private pathfindingGrid!: PathfindingGrid;
   private readonly zombieNavigation = new Map<string, ZombieNavigationState>();
-  private readonly fastZombieRuns = new Map<string, FastZombieRunState>();
   private pendingZombieSpawns = 0;
   private killCount = 0;
   private shotSequence = 0;
@@ -323,8 +324,27 @@ export class GameScene extends Phaser.Scene {
   private interactionPrompt?: InteractionPrompt;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
-  constructor() {
-    super('GameScene');
+  private night?: LastStandCombat;
+  private nightStart?: LastStandCombatStart;
+  private defenseView?: DefenseMapView;
+  private defeatView?: DefenseDefeatView;
+  private defenseSpawn?: DefenseSpawnSystem;
+
+  constructor(key = 'GameScene', private readonly defenseLayout?: CityDefenseConfig) {
+    super(key);
+  }
+
+  init(data?: LastStandCombatStart): void {
+    if (this.defenseLayout && data?.slots) {
+      this.nightStart = { ...data, slots: [...data.slots], barricades: { ...data.barricades } };
+    }
+  }
+
+  private mapObstacles(): readonly HitscanBlocker[] {
+    return this.defenseLayout ? [
+      ...this.defenseLayout.walls,
+      ...(this.defenseLayout.fixtures ?? []).map(fixture => ({ ...fixture, blocksHitscan: true })),
+    ] : OBSTACLE_CONFIG;
   }
 
   preload(): void {
@@ -336,8 +356,17 @@ export class GameScene extends Phaser.Scene {
       this.sound,
       this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false,
     );
+    this.night = undefined;
+    if (this.defenseLayout) {
+      if (!this.nightStart) throw new Error('Night combat requires the daytime state and armory loadout');
+      this.night = new LastStandCombat(this.defenseLayout, this.nightStart.barricades);
+      this.night.start();
+    }
+    this.defenseSpawn = this.defenseLayout
+      ? new DefenseSpawnSystem(this.defenseLayout, this.defenseLayout.inflow, ZOMBIE_CONFIG.radius)
+      : undefined;
     this.sessionState = createSessionState();
-    this.gameTime = createGameTimeState(GAME_TIME_CONFIG);
+    this.gameTime = this.night?.getTime() ?? createGameTimeState(GAME_TIME_CONFIG);
     this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
     this.supplyDropActive = false;
     this.supplyDropLootReleased = false;
@@ -366,17 +395,24 @@ export class GameScene extends Phaser.Scene {
     this.guardedMobilePointers.clear();
     this.pinchZoomState = createPinchZoomState();
     this.pinchPointerIds = null;
-    this.targetZoom = CAMERA_ZOOM_CONFIG.initial;
-    this.cameras.main.setZoom(CAMERA_ZOOM_CONFIG.initial);
+    this.targetZoom = this.night ? DEFENSE_CAMERA_CONFIG.initial : CAMERA_ZOOM_CONFIG.initial;
+    this.cameras.main.setZoom(this.targetZoom);
     this.mobileRestartArmed = true;
     this.pendingZombieSpawns = 0;
     this.spawn = new SpawnSystem(SPAWN_CONFIG, ZOMBIE_CONFIG.radius);
     this.wave = new WaveSystem(WAVE_CONFIG);
-    this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES);
-    this.weapon.pickup(POLICE_BATON_WEAPON);
-    this.weapon.selectSlot(0);
+    this.weapon = new WeaponSystem(PISTOL_WEAPON, STARTING_AMMO_RESERVES, this.nightStart && this.night ? {
+      unlimitedReserve: true,
+      loadout: this.nightStart.slots.map(id => id ? WEAPON_DEFINITIONS[id] : null) as [
+        typeof WEAPON_DEFINITIONS[WeaponId] | null, typeof WEAPON_DEFINITIONS[WeaponId] | null,
+      ],
+    } : {});
+    if (!this.night) {
+      this.weapon.pickup(POLICE_BATON_WEAPON);
+      this.weapon.selectSlot(0);
+    }
     this.viewport = { width: this.scale.width, height: this.scale.height };
-    this.playArea = createWorldSize(
+    this.playArea = this.defenseLayout?.worldSize ?? createWorldSize(
       URBAN_MAP_CONFIG,
       this.viewport,
       CAMERA_ZOOM_CONFIG.min,
@@ -384,24 +420,29 @@ export class GameScene extends Phaser.Scene {
     );
     this.pathfindingGrid = createPathfindingGrid(
       this.playArea,
-      OBSTACLE_CONFIG,
+      this.mapObstacles(),
       {
         cellSize: PATHFINDING_CONFIG.cellSize,
         clearance: ZOMBIE_CONFIG.radius + PATHFINDING_CONFIG.obstacleClearance,
       },
     );
-    this.worldBackdrop = new WorldBackdrop(this);
-    this.worldBackdrop.resize(
-      this.playArea.width,
-      this.playArea.height,
-      URBAN_MAP_CONFIG.gridSize,
-      URBAN_MAP_CONFIG.roads,
-      URBAN_MAP_CONFIG.pavedAreas,
-      URBAN_MAP_CONFIG.parkingSlotSpacing,
-      URBAN_MAP_CONFIG.sidewalkWidth,
-    );
-    for (const obstacle of OBSTACLE_CONFIG) {
-      new BuildingVisual(this, obstacle);
+    if (!this.defenseLayout) {
+      this.worldBackdrop = new WorldBackdrop(this);
+      this.worldBackdrop.resize(
+        this.playArea.width,
+        this.playArea.height,
+        URBAN_MAP_CONFIG.gridSize,
+        URBAN_MAP_CONFIG.roads,
+        URBAN_MAP_CONFIG.pavedAreas,
+        URBAN_MAP_CONFIG.parkingSlotSpacing,
+        URBAN_MAP_CONFIG.sidewalkWidth,
+      );
+      for (const obstacle of OBSTACLE_CONFIG) {
+        new BuildingVisual(this, obstacle);
+      }
+    } else {
+      this.defenseView = new DefenseMapView(this, this.defenseLayout);
+      this.defenseView.update(this.night!.getSectors());
     }
     const appearance: PlayerAppearance = this.registry.get(
       GAME_REGISTRY_KEYS.characterClassId,
@@ -410,8 +451,8 @@ export class GameScene extends Phaser.Scene {
       : 'male-swat';
     this.player = new Player(
       this,
-      SPAWN_CONFIG.playerPosition.x,
-      SPAWN_CONFIG.playerPosition.y,
+      (this.defenseLayout?.playerSpawn ?? SPAWN_CONFIG.playerPosition).x,
+      (this.defenseLayout?.playerSpawn ?? SPAWN_CONFIG.playerPosition).y,
       appearance,
     );
     this.player.triggerWeaponEquip();
@@ -424,7 +465,6 @@ export class GameScene extends Phaser.Scene {
     this.zombies = [];
     this.zombieKnockbacks.clear();
     this.zombieNavigation.clear();
-    this.fastZombieRuns.clear();
     this.killCount = 0;
     this.shotSequence = 0;
     this.lastShotWeaponId = null;
@@ -438,7 +478,7 @@ export class GameScene extends Phaser.Scene {
     this.effects = new CombatEffects(this);
     this.weaponAudio = new WeaponAudio(this);
     this.aimAssistVisual = new AimAssistVisual(this);
-    this.mobileControls = new MobileControls(this);
+    this.mobileControls = new MobileControls(this, !this.night);
     this.pauseMenu = new PauseMenu(
       this,
       {
@@ -460,6 +500,7 @@ export class GameScene extends Phaser.Scene {
       () => {
         this.gameplayKeyStateGuard.releaseAll();
         this.resumeSceneManagers();
+        if (this.night) this.scene.stop('ExplorationScene');
         this.scene.start('MainMenuScene');
       },
     );
@@ -542,6 +583,10 @@ export class GameScene extends Phaser.Scene {
       this.weaponAudio = undefined;
       this.aimAssistVisual?.destroy();
       this.aimAssistVisual = undefined;
+      this.defenseView?.destroy();
+      this.defenseView = undefined;
+      this.defeatView?.destroy();
+      this.defeatView = undefined;
       this.worldBackdrop?.destroy();
       this.worldBackdrop = undefined;
       this.timeBasedLighting?.destroy();
@@ -616,7 +661,7 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
-    if (this.shoveKey && Phaser.Input.Keyboard.JustDown(this.shoveKey)) {
+    if (!this.night && this.shoveKey && Phaser.Input.Keyboard.JustDown(this.shoveKey)) {
       this.playerActions.requestShove(
         this.shoveKey.timeDown,
         this.finalAimDirection,
@@ -665,6 +710,16 @@ export class GameScene extends Phaser.Scene {
         this.simulationStepState = createFixedStepState();
         break;
       }
+      if (this.night?.getPhase() === 'VICTORY') {
+        this.sessionState = transitionToGameOver(this.sessionState).state;
+        this.weaponAudio?.cancelReload();
+        this.pauseMenu?.setMobileVisible(false);
+        this.mobileRestartArmed = this.activeMobilePointers.size === 0;
+        this.clearAimAssist();
+        this.resetMobileInput();
+        this.simulationStepState = createFixedStepState();
+        break;
+      }
       this.resolvePlayerActions(
         this.simulationElapsedMs,
         (step + 1) * SIMULATION_CONFIG.fixedStepMs,
@@ -678,7 +733,7 @@ export class GameScene extends Phaser.Scene {
     this.updateSupplyDropVisual();
     this.refreshStationaryMouseAim();
     for (const zombie of this.zombies) {
-      zombie.faceToward(this.player);
+      zombie.faceToward(this.night?.getTarget(zombie.id, zombie, this.player) ?? this.player);
       zombie.updateAttackVisual();
     }
 
@@ -690,6 +745,7 @@ export class GameScene extends Phaser.Scene {
         this.weaponAudio?.cancelReload();
         this.pauseMenu?.setMobileVisible(false);
         this.events.emit('player-died');
+        if (this.night) this.playDefenseDeath();
       }
 
       this.mobileRestartArmed = this.activeMobilePointers.size === 0;
@@ -712,17 +768,18 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
+    if (this.night) deltaMs = Math.min(deltaMs, this.night.getRemainingMs());
     const reloadRemainingMs = this.weapon.getState().reloadRemainingMs;
     const reloadingWeaponId = reloadRemainingMs !== null
       ? this.weapon.getDefinition().id
       : null;
-    this.stamina = recoverStamina(
+    if (!this.night) this.stamina = recoverStamina(
       this.stamina,
       deltaMs,
       SHOVE_CONFIG,
     );
     const shoveImpact = this.advancePendingShove(deltaMs);
-    this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
+    if (!this.night) this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
     if (this.supplyDropActive) {
       this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
     }
@@ -823,7 +880,10 @@ export class GameScene extends Phaser.Scene {
       movementObstacles,
       this.playArea,
     );
-    this.player.setPosition(separation.playerPosition.x, separation.playerPosition.y);
+    const separatedPlayer = this.defenseLayout
+      ? constrainToArea(separation.playerPosition, this.defenseLayout.combatArea, PLAYER_RADIUS)
+      : separation.playerPosition;
+    this.player.setPosition(separatedPlayer.x, separatedPlayer.y);
     for (const zombie of this.zombies) {
       const position = separation.zombiePositions.get(zombie.id);
       if (position) zombie.setPosition(position.x, position.y);
@@ -836,7 +896,18 @@ export class GameScene extends Phaser.Scene {
       CAMERA_FOLLOW_CONFIG,
     );
 
-    if (!contactDied) {
+    if (this.night) {
+      this.night.advanceTime(deltaMs, this.player.isAlive);
+      this.gameTime = this.night.getTime();
+      this.defenseView?.update(this.night.getSectors());
+    }
+    if (!contactDied && this.night?.getPhase() === 'COMBAT') {
+      for (const spawn of this.defenseSpawn!.update(deltaMs, this.zombies.length)) {
+        this.zombies.push(new Zombie(this, spawn.id, spawn.position.x, spawn.position.y, undefined, ZOMBIE_CONFIG.health, spawn.kind));
+        this.night.registerZombie(spawn.id, spawn.sectorId);
+      }
+    }
+    if (!contactDied && !this.night) {
       const waveUpdate = this.wave.update(
         deltaMs,
         this.zombies.length + this.pendingZombieSpawns,
@@ -874,6 +945,21 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
   ): { died: boolean; damageEventCount: number } {
     if (deltaMs <= 0) return { died: false, damageEventCount: 0 };
+    if (this.night) {
+      const died = this.night.resolveContacts(
+        { start: playerStart, end: this.player, radius: this.player.hitRadius },
+        this.zombies.map((zombie, index) => ({
+          id: zombie.id, start: zombieStarts[index] ?? zombie, end: zombie, radius: zombie.hitRadius,
+        })), deltaMs,
+      );
+      for (const zombie of this.zombies) {
+        const attack = this.night.getAttackState(zombie.id);
+        zombie.attackCooldownRemainingMs = attack.cooldownRemainingMs;
+        zombie.attackWindupRemainingMs = attack.windupRemainingMs;
+      }
+      if (died) { this.player.health = 0; this.player.isAlive = false; }
+      return { died, damageEventCount: died ? 1 : 0 };
+    }
     const result = this.damage.resolveZombieContacts(
       this.player,
       { start: playerStart, end: { x: this.player.x, y: this.player.y } },
@@ -910,7 +996,7 @@ export class GameScene extends Phaser.Scene {
         padding: PLAYER_RADIUS,
       },
     );
-    const nextPlayerPosition = moveCircleWithObstacles(
+    let nextPlayerPosition = moveCircleWithObstacles(
       this.player,
       desiredPosition,
       PLAYER_RADIUS,
@@ -921,6 +1007,7 @@ export class GameScene extends Phaser.Scene {
         padding: PLAYER_RADIUS,
       },
     );
+    if (this.defenseLayout) nextPlayerPosition = constrainToArea(nextPlayerPosition, this.defenseLayout.combatArea, PLAYER_RADIUS);
     this.player.setPosition(nextPlayerPosition.x, nextPlayerPosition.y);
     const zombieSpatialEntries = this.zombies.map((zombie) => ({
       id: zombie.id,
@@ -962,25 +1049,13 @@ export class GameScene extends Phaser.Scene {
         }
         continue;
       }
-      let zombieSpeed = ZOMBIE_CONFIG.speed;
-      if (zombie.kind === 'fast') {
-        const run = advanceFastZombieRun(
-          this.fastZombieRuns.get(zombie.id)
-            ?? createFastZombieRunState(ZOMBIE_CONFIG.fast),
-          deltaMs,
-          Math.hypot(zombie.x - this.player.x, zombie.y - this.player.y),
-          zombieAppearanceSeedFromId(zombie.id),
-          ZOMBIE_CONFIG.fast,
-        );
-        this.fastZombieRuns.set(zombie.id, run.state);
-        if (run.isRunning) zombieSpeed *= run.state.speedMultiplier;
-      }
+      const defenseTarget = this.night?.getTarget(zombie.id, zombie, this.player);
       const navigation = updateZombieNavigation(
         this.zombieNavigation.get(zombie.id) ?? createZombieNavigationState(),
         zombie,
-        this.player,
+        defenseTarget ?? this.player,
         this.pathfindingGrid,
-        OBSTACLE_CONFIG,
+        this.mapObstacles(),
         zombie.hitRadius,
         this.player.hitRadius,
         PATHFINDING_CONFIG,
@@ -990,17 +1065,12 @@ export class GameScene extends Phaser.Scene {
       const separationVelocity = crowdSpacing.valid
         ? crowdSpacing.velocities.get(zombie.id) ?? { x: 0, y: 0 }
         : { x: 0, y: 0 };
-      const velocity = zombieVelocityWithCrowdSpacing(
-        zombie,
+      const desiredZombiePosition = movePursuingZombie(
+        { id: zombie.id, kind: zombie.kind, position: zombie },
         navigation.target,
-        zombieSpeed,
         separationVelocity,
-      );
-      const desiredZombiePosition = moveZombieWithCrowdSpacing(
-        zombie,
-        navigation.target,
-        velocity,
         deltaMs,
+        ZOMBIE_CONFIG,
       );
       const nextZombiePosition = moveCircleWithObstacles(
         zombie,
@@ -1070,7 +1140,7 @@ export class GameScene extends Phaser.Scene {
   private resolveMeleeAttack(aimDirection: Vector2): void {
     if (this.pendingMelee || this.pendingShove) return;
     const definition = this.weapon.getDefinition();
-    const staminaCost = Math.max(0, definition.config.staminaCost ?? 0);
+    const staminaCost = this.night ? 0 : Math.max(0, definition.config.staminaCost ?? 0);
     if (this.stamina.current < staminaCost || !this.weapon.fire()) {
       this.updateHud();
       return;
@@ -1129,7 +1199,6 @@ export class GameScene extends Phaser.Scene {
       for (const id of deadIds) {
         this.zombieKnockbacks.delete(id);
         this.zombieNavigation.delete(id);
-        this.fastZombieRuns.delete(id);
       }
       if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
         this.aimTargetId = null;
@@ -1140,7 +1209,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private resolveShoveRequest(aimDirection: Vector2): void {
-    if (!isPlaying(this.sessionState) || this.pendingMelee) return;
+    if (this.night || !isPlaying(this.sessionState) || this.pendingMelee) return;
     const windup = startShoveWindup(this.pendingShove?.windup ?? null);
     if (!windup.started) return;
 
@@ -1347,7 +1416,6 @@ export class GameScene extends Phaser.Scene {
       for (const id of deadIds) this.zombieKnockbacks.delete(id);
       this.zombies = this.zombies.filter((zombie) => !deadIds.has(zombie.id));
       for (const id of deadIds) this.zombieNavigation.delete(id);
-      for (const id of deadIds) this.fastZombieRuns.delete(id);
 
       if (this.aimTargetId !== null && deadIds.has(this.aimTargetId)) {
         this.aimTargetId = null;
@@ -1443,7 +1511,7 @@ export class GameScene extends Phaser.Scene {
     if (deltaMs <= 0) return { died: false, damageEventCount: 0 };
     const playerStart = { x: this.player.x, y: this.player.y };
     const zombieStarts = this.zombies.map((zombie) => ({ x: zombie.x, y: zombie.y }));
-    this.advanceActorMovement(deltaMs, movementObstacles);
+    this.advanceActorMovement(deltaMs, this.night ? this.activeMovementObstacles() : movementObstacles);
     this.collectNearbyItems();
     return this.resolveContactMovementSegment(playerStart, zombieStarts, deltaMs);
   }
@@ -1518,7 +1586,7 @@ export class GameScene extends Phaser.Scene {
     });
     pickup.on(Phaser.Input.Events.POINTER_DOWN, (pointer: Phaser.Input.Pointer) => {
       const mobileRole = this.mobileControlsEnabled && this.mobileLayout
-        ? classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout)
+        ? classifyMobilePointer({ x: pointer.x, y: pointer.y }, this.mobileLayout, false, !this.night)
         : null;
       if (
         pointer.wasTouch
@@ -1733,8 +1801,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private minimumAllowedZoom(): number {
+    if (this.defenseLayout) return this.defenseFrame().zoom;
     return minimumZoomToCoverViewport(
-      CAMERA_ZOOM_CONFIG.min,
+      this.night ? DEFENSE_CAMERA_CONFIG.min : CAMERA_ZOOM_CONFIG.min,
       CAMERA_ZOOM_CONFIG.max,
       this.viewport,
       this.playArea,
@@ -1850,6 +1919,15 @@ export class GameScene extends Phaser.Scene {
       this.player.getMuzzleDirection(),
       this.cameras.main.zoom,
     );
+    if (this.defenseLayout) {
+      const area = this.defenseLayout.interiorArea;
+      const screen = cameraScreenPoint(area, {
+        x: this.cameras.main.scrollX, y: this.cameras.main.scrollY,
+      }, this.viewport, this.cameras.main.zoom);
+      this.timeBasedLighting?.setInteriorLight({
+        ...screen, width: area.width * this.cameras.main.zoom, height: area.height * this.cameras.main.zoom,
+      }, DEFENSE_LIGHTING_CONFIG.interiorLightIntensity);
+    }
     if (!this.uiCamera) return;
 
     const fixedObjects: Phaser.GameObjects.GameObject[] = [];
@@ -1881,6 +1959,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!isPlaying(this.sessionState)) {
+      if (this.night?.getPhase() === 'DEFEAT') return;
       if (!pointer.wasTouch && isPrimaryFireInput(pointer)) {
         this.restartSession();
       } else if (pointer.wasTouch && canRestartWithMobileTouch(
@@ -1911,6 +1990,7 @@ export class GameScene extends Phaser.Scene {
       { x: pointer.x, y: pointer.y },
       this.mobileLayout,
       this.canOpenSupplyCrate(),
+      !this.night,
     );
     if (isOverWeaponPickup && !isMobileControlPointerRole(role)) return;
     this.activeMobilePointers.add(pointerId);
@@ -1984,6 +2064,8 @@ export class GameScene extends Phaser.Scene {
         classifyMobilePointer(
           { x: pointer.x, y: pointer.y },
           this.mobileLayout,
+          this.canOpenSupplyCrate(),
+          !this.night,
         ),
       );
       this.mobileOwnership = claimMobilePointer(
@@ -2036,7 +2118,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   private restartSession(): void {
-    this.scene.restart();
+    if (this.night?.getPhase() === 'DEFEAT') return;
+    if (this.night?.getPhase() === 'VICTORY') {
+      const victory = { day: this.nightStart!.day, barricade: this.night.getSectors()[0].integrity };
+      this.scene.stop();
+      this.scene.wake('ExplorationScene', victory);
+    }
+    else this.scene.restart(this.nightStart);
+  }
+
+  private playDefenseDeath(): void {
+    this.mobileControls?.setVisible(false);
+    this.tweens.add({
+      targets: this.player, alpha: 0.55, scaleY: 0.55,
+      angle: this.player.angle + 32, duration: 650, ease: 'Cubic.Out',
+    });
+    this.time.delayedCall(800, () => {
+      this.defeatView = new DefenseDefeatView(this, this.nightStart?.day ?? 1, () => {
+        this.scene.stop();
+        this.scene.wake('ExplorationScene');
+      });
+    });
   }
 
   private resizePlayArea(gameSize: Phaser.Structs.Size): void {
@@ -2054,7 +2156,7 @@ export class GameScene extends Phaser.Scene {
       height: gameSize.height,
     };
     this.lastMouseScreenPoint = null;
-    const nextPlayArea = createWorldSize(
+    const nextPlayArea = this.defenseLayout?.worldSize ?? createWorldSize(
       URBAN_MAP_CONFIG,
       this.viewport,
       CAMERA_ZOOM_CONFIG.min,
@@ -2063,7 +2165,7 @@ export class GameScene extends Phaser.Scene {
     const nextPathfindingGrid = resizePathfindingGrid(
       this.pathfindingGrid,
       nextPlayArea,
-      OBSTACLE_CONFIG,
+      this.mapObstacles(),
       {
         cellSize: PATHFINDING_CONFIG.cellSize,
         clearance: ZOMBIE_CONFIG.radius + PATHFINDING_CONFIG.obstacleClearance,
@@ -2112,6 +2214,12 @@ export class GameScene extends Phaser.Scene {
     this.updateTimeBasedLighting();
 
     this.refreshInputMode();
+    if (this.defenseLayout) {
+      this.targetZoom = this.defenseFrame().zoom;
+      this.cameras.main.setZoom(this.targetZoom);
+      this.updateCameraPosition();
+      this.updateTimeBasedLighting();
+    }
   }
 
   private updateHud(deltaMs = 0): void {
@@ -2137,6 +2245,7 @@ export class GameScene extends Phaser.Scene {
     const viewModel = createHudViewModel({
       health: this.player.health,
       maxHealth: PLAYER_CONFIG.health,
+      barricadeIntegrity: this.night?.getSectors()[0]?.integrity,
       stamina: this.stamina.current,
       maxStamina: SHOVE_CONFIG.staminaMax,
       magazineAmmo: weapon.magazineAmmo,
@@ -2162,9 +2271,21 @@ export class GameScene extends Phaser.Scene {
         description: owned.definition.description,
         rarity: owned.definition.rarity,
         ...weaponTooltipStats(owned.definition, userSettings.locale),
+        ...(this.night ? { staminaCost: undefined } : {}),
       }) : null),
       activeWeaponSlot: inventory.activeSlot,
     }, userSettings.locale);
+    if (this.night) {
+      viewModel.showStamina = false;
+      viewModel.waveNumber = 0;
+      viewModel.waveBannerText = null;
+      viewModel.waveTagText = this.night.getSectors().some(sector => sector.phase === 'BREACHED')
+        ? t('BREACHED') : t('{city} · DAY {day}', { city: this.defenseLayout!.cityId.toUpperCase(), day: this.nightStart!.day });
+      viewModel.gameOverText = this.night.getPhase() === 'VICTORY'
+        ? t('DAWN · DAY {day}\nEnter or tap to explore', { day: this.nightStart!.day + 1 })
+        : '';
+      if (this.night.getPhase() === 'DEFEAT') viewModel.showGameOver = false;
+    }
     this.hud?.update(viewModel, deltaMs);
   }
 
@@ -2182,6 +2303,7 @@ export class GameScene extends Phaser.Scene {
       safeArea,
       mobileControls: this.mobileControlsEnabled,
     }, pauseVisible);
+    if (this.night?.getPhase() === 'DEFEAT') this.mobileControls?.setVisible(false);
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled
@@ -2363,7 +2485,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private defenseFrame(zoom?: number) {
+    return fitDefenseCamera(this.defenseLayout!, this.viewport, this.mobileControlsEnabled, this.readSafeArea(), zoom, this.cameraFollowState.targetPosition);
+  }
+
   private updateCameraPosition(): void {
+    if (this.defenseLayout) {
+      const frame = this.defenseFrame(this.cameras.main.zoom);
+      this.cameras.main.removeBounds().setScroll(frame.scroll.x, frame.scroll.y);
+      return;
+    }
     const scroll = cameraScrollForPlayer(
       this.cameraFollowState.targetPosition,
       this.playArea,
@@ -2391,9 +2522,9 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.zoom,
     );
     this.timeBasedLighting.update(
-      darknessAlphaForTime(
-        this.gameTime.minuteOfDay,
-        TIME_BASED_LIGHTING_CONFIG.darknessKeyframes,
+      Math.min(
+        this.night ? DEFENSE_LIGHTING_CONFIG.maximumDarknessAlpha : 1,
+        darknessAlphaForTime(this.gameTime.minuteOfDay, TIME_BASED_LIGHTING_CONFIG.darknessKeyframes),
       ),
       playerScreenPosition.x,
       playerScreenPosition.y,
@@ -2440,6 +2571,7 @@ export class GameScene extends Phaser.Scene {
       this.readSafeArea(),
       this.cameras.main.zoom,
     );
+    if (this.night?.getPhase() === 'DEFEAT') this.mobileControls?.setVisible(false);
     this.mobileControls?.setInteractionVisible(
       isPlaying(this.sessionState)
         && this.mobileControlsEnabled
@@ -2476,7 +2608,7 @@ export class GameScene extends Phaser.Scene {
     const target = selectSupplyDropLocation(
       this.player,
       this.playArea,
-      OBSTACLE_CONFIG,
+      this.mapObstacles(),
       this.previousSupplyDropPosition,
       Math.floor(Math.random() * 0x1_0000_0000),
       {
@@ -2544,7 +2676,7 @@ export class GameScene extends Phaser.Scene {
       loot.length,
       this.currentSupplyDropConfig.target,
       this.playArea,
-      OBSTACLE_CONFIG,
+      this.mapObstacles(),
       Math.floor(Math.random() * 0x1_0000_0000),
       ITEM_BALANCE_CONFIG,
     );
@@ -2634,7 +2766,7 @@ export class GameScene extends Phaser.Scene {
       const target = revalidatePickupPosition(
         this.currentSupplyDropConfig.target,
         this.playArea,
-        OBSTACLE_CONFIG,
+        this.mapObstacles(),
         SUPPLY_DROP_BALANCE.locationClearance,
       );
       this.currentSupplyDropConfig = {
@@ -2646,7 +2778,7 @@ export class GameScene extends Phaser.Scene {
       this.previousSupplyDropPosition = revalidatePickupPosition(
         this.previousSupplyDropPosition,
         this.playArea,
-        OBSTACLE_CONFIG,
+        this.mapObstacles(),
         SUPPLY_DROP_BALANCE.locationClearance,
       );
     }
@@ -2654,7 +2786,7 @@ export class GameScene extends Phaser.Scene {
       const position = revalidatePickupPosition(
         pickup,
         this.playArea,
-        OBSTACLE_CONFIG,
+        this.mapObstacles(),
         WEAPON_PICKUP_RADIUS,
       );
       pickup.setPosition(position.x, position.y);
@@ -2663,7 +2795,7 @@ export class GameScene extends Phaser.Scene {
       const position = revalidatePickupPosition(
         pickup,
         this.playArea,
-        OBSTACLE_CONFIG,
+        this.mapObstacles(),
         ITEM_BALANCE_CONFIG.pickupRadius / 2,
       );
       pickup.setPosition(position.x, position.y);
@@ -2720,12 +2852,14 @@ export class GameScene extends Phaser.Scene {
 
   private activeMovementObstacles(): readonly RectangleObstacle[] {
     const crate = this.activeSupplyCrateObstacle();
-    return crate ? [...OBSTACLE_CONFIG, crate] : OBSTACLE_CONFIG;
+    const obstacles = this.night?.getMovementObstacles() ?? this.mapObstacles();
+    return crate ? [...obstacles, crate] : obstacles;
   }
 
   private activeHitscanBlockers(): readonly HitscanBlocker[] {
     const crate = this.activeSupplyCrateObstacle();
-    return crate ? [...OBSTACLE_CONFIG, crate] : OBSTACLE_CONFIG;
+    const obstacles = this.mapObstacles();
+    return crate ? [...obstacles, crate] : obstacles;
   }
 
   private readSafeArea(): SafeAreaInsets {

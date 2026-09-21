@@ -7,9 +7,9 @@ const HAND = '"Chalkboard SE", "Comic Sans MS", cursive';
 
 
 const INTRO_PARAGRAPHS = [
-  'The radio finally picked up something useful this morning. The evacuation point is still operating, but not for long. Forty days, they said. After that, no promises.',
-  'Hazard is quiet. Most of the cars are still where people left them, and the stores look untouched from a distance. That probably means nothing.',
-  'I found a local map and marked a few places worth checking. I cannot stay here. I need supplies, then I need to keep moving.',
+  "I arrived in Hazard and found an empty shop to stay in. It is already eleven, so looking around will have to wait until tomorrow.",
+  "I put up a barricade with some furniture and checked the pistol and ammunition. The barricade is not very sturdy. I will need to keep the zombies away from it.",
+  "For now, I need to hold out until five. Tomorrow I will look for supplies nearby and repair the barricade. There should be time to rest as well.",
 ] as const satisfies readonly MessageKey[];
 
 /** Introductory writing paginates at a readable size without changing exploration state. */
@@ -58,7 +58,7 @@ export class ExplorationDiary {
     };
     text(left + pageWidth - pad, top + 18, t('DAY {day}', { day: 1 }), compact ? 18 : 23).setOrigin(1, 0);
     const titleY = top + (compact ? 46 : 76);
-    text(left + pad, titleY, t('TWELVE HOURS'), pageWidth < 400 ? 25 : 33);
+    text(left + pad, titleY, t('THE FIRST NIGHT'), pageWidth < 400 ? 25 : 33);
     const body = text(left + pad, titleY + (compact ? 48 : 64),
       INTRO_PARAGRAPHS.map(message => t(message)).join('\n\n'), compact ? 17 : 20);
     body.setWordWrapWidth(pageWidth - pad * 2, true).setLineSpacing(compact ? 5 : 9);
@@ -67,38 +67,36 @@ export class ExplorationDiary {
     const pages = paginateDiaryLines(body.getWrappedText(), bodyBottom - body.y,
       body.getTextMetrics().fontSize + body.lineSpacing);
     let page = 0;
-    body.setWordWrapWidth(0).setText(pages[page]);
-    if (pages.length > 1) {
-      const indicator = text(left + pad + 48, closeY + 42, '', 12).setOrigin(0.5, 0);
-      const refresh = () => { body.setText(pages[page]); indicator.setText(`${page + 1} / ${pages.length}`); };
-      [-1, 1].forEach((direction, index) => {
-        const x = left + pad + index * 52;
-        text(x + 22, closeY + 18, direction < 0 ? '←' : '→', 24).setOrigin(0.5);
-        this.container.add(scene.add.zone(x + 22, closeY + 18, 44, 44)
-          .setInteractive({ useHandCursor: true }).on('pointerup', () => {
-            if (animating) return;
-            page = Math.max(0, Math.min(pages.length - 1, page + direction));
-            refresh();
-          }));
-      });
-      refresh();
-    }
-    const closeX = left + pageWidth - pad - 23;
-    const mark = scene.add.graphics().lineStyle(2.5, 0x303321);
-    mark.strokePoints([
-      new Phaser.Geom.Point(closeX - 20, closeY - 1),
-      new Phaser.Geom.Point(closeX + 21, closeY - 3),
-      new Phaser.Geom.Point(closeX + 20, closeY + 37),
-      new Phaser.Geom.Point(closeX - 21, closeY + 39),
-    ], true);
-    mark.lineBetween(closeX - 13, closeY + 5, closeX + 13, closeY + 31);
-    mark.lineBetween(closeX + 13, closeY + 5, closeX - 13, closeY + 31);
+    body.setWordWrapWidth(0);
+    const indicator = text(left + pad + 48, closeY + 42, '', 12).setOrigin(0.5, 0);
+    const actionX = left + pageWidth - pad - 60;
+    const actionLabel = text(actionX, closeY + 18, '', 14).setOrigin(0.5);
+    const refresh = () => {
+      body.setText(pages[page]);
+      indicator.setText(`${page + 1} / ${pages.length}`);
+      actionLabel.setText(t(page === pages.length - 1 ? 'START NIGHT DEFENSE' : 'NEXT PAGE'));
+      actionLabel.setScale(Math.min(1, 110 / Math.max(1, actionLabel.width)));
+    };
+    [-1, 1].forEach((direction, index) => {
+      const x = left + pad + index * 48;
+      text(x + 20, closeY + 18, direction < 0 ? '←' : '→', 24).setOrigin(0.5);
+      this.container.add(scene.add.zone(x + 20, closeY + 18, 40, 44)
+        .setInteractive({ useHandCursor: true }).on('pointerup', () => {
+          if (animating) return;
+          page = Math.max(0, Math.min(pages.length - 1, page + direction));
+          refresh();
+        }));
+    });
+    const mark = scene.add.graphics().lineStyle(2, 0x303321);
+    mark.strokeRoundedRect(actionX - 60, closeY - 4, 120, 44, 3);
     this.container.add(mark);
-    text(closeX, closeY + 42, t('CLOSE'), 12).setOrigin(0.5, 0);
-    this.container.add(scene.add.zone(closeX, closeY + 24, 64, 68)
-       .setInteractive({ useHandCursor: true }).on('pointerup', () => {
-        if (!animating) close();
+    this.container.add(scene.add.zone(actionX, closeY + 18, 120, 44)
+      .setInteractive({ useHandCursor: true }).on('pointerup', (pointer: Phaser.Input.Pointer) => {
+        if (animating || pointer.getDistance() > 8) return;
+        if (page < pages.length - 1) { page++; refresh(); }
+        else close();
       }));
+    refresh();
     let animating = animate;
     if (animate) {
       this.container.y = height;

@@ -16,7 +16,7 @@ export class MobileControls {
   private visible = false;
   private interactionVisible = false;
 
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, private readonly shoveEnabled = true) {
     this.graphics = scene.add.graphics().setDepth(200).setScrollFactor(0);
     this.fireLabel = scene.add.text(0, 0, t('FIRE'), {
       color: '#ffffff',
@@ -72,7 +72,7 @@ export class MobileControls {
     this.refreshLabels();
     this.fireLabel.setVisible(visible);
     this.reloadLabel.setVisible(visible);
-    this.shoveLabel.setVisible(visible);
+    this.shoveLabel.setVisible(visible && this.shoveEnabled);
     this.interactionLabel.setVisible(visible && this.interactionVisible);
   }
 
@@ -111,8 +111,10 @@ export class MobileControls {
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(fire.x, fire.y, fire.radius);
     this.graphics.fillStyle(0x51483f, 0.68).fillCircle(reload.x, reload.y, reload.radius);
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(reload.x, reload.y, reload.radius);
+    if (this.shoveEnabled) {
     this.graphics.fillStyle(0x8a5a24, 0.7).fillCircle(shove.x, shove.y, shove.radius);
     this.graphics.lineStyle(2, 0xffffff, 0.7).strokeCircle(shove.x, shove.y, shove.radius);
+    }
     if (this.interactionVisible) {
       this.graphics
         .fillStyle(0x41603f, 0.78)
