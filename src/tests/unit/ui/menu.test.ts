@@ -27,6 +27,20 @@ describe('main menu state', () => {
     expect(layout.actionWidth).toBe(300);
   });
 
+  it.each([
+    [357, 667],
+    [667, 357],
+    [844, 250],
+  ])('leaves at least 12px between mode buttons at %i x %i', (width, height) => {
+    const layout = createMainMenuLayout(24, width - 24, 24, height - 24);
+    const firstBottom = layout.primaryActionY + 27;
+    const secondTop = layout.primaryActionY + layout.actionGap - 27;
+
+    expect(secondTop - firstBottom).toBeGreaterThanOrEqual(12);
+    expect(layout.primaryActionY - 27).toBeGreaterThanOrEqual(24);
+    expect(secondTop + 54).toBeLessThanOrEqual(height - 24);
+  });
+
   it('keeps the logo separated from the action on a short wide viewport', () => {
     const layout = createMainMenuLayout(24, 820, 24, 226);
     const logoBottom = layout.logoY + layout.logoWidth / 6;
