@@ -1,8 +1,10 @@
 import { createPathfindingGrid } from '../../logic/pathfinding';
 import { createZombieNavigationState, updateZombieNavigation, type ZombieNavigationState } from '../../logic/zombieNavigation';
 import { PATHFINDING_CONFIG } from '../../config/pathfindingConfig';
-import { fastZombieSpeedMultiplier } from '../../logic/fastZombie';
-import { zombieAppearanceSeedFromId } from '../../logic/zombieAppearance';
+import { ZOMBIE_CROWD_SPACING_CONFIG } from '../../config/zombieCrowdSpacingConfig';
+import { resolveZombieCrowdSpacing } from '../../logic/zombieCrowdSpacing';
+import { queryZombieCollisionCandidates } from '../../logic/zombieSpatialGrid';
+import { movePursuingZombie } from '../../logic/zombiePursuit';
 import { describe, expect, it } from 'vitest';
 import { HAZARD_DEFENSE_CONFIG, HAZARD_INFLOW_CONFIG } from '../../config/lastStandCombatConfig';
 import { PISTOL_WEAPON } from '../../config/weaponConfig';
@@ -11,7 +13,6 @@ import { DefenseSpawnSystem } from '../../systems/DefenseSpawnSystem';
 import { LastStandCombat } from '../../systems/LastStandCombat';
 import { WeaponSystem } from '../../systems/WeaponSystem';
 import { DamageSystem } from '../../systems/DamageSystem';
-import { moveToward } from '../../logic/movement';
 import { moveCircleWithObstacles } from '../../logic/obstacleCollision';
 import { resolveHitscan } from '../../logic/hitscan';
 
@@ -55,17 +56,24 @@ function defendNight(shoot: boolean) {
     if (weapon.getState().magazineAmmo === 0) weapon.reload();
     kills += zombies.filter(z => z.health <= 0).length;
     zombies = zombies.filter(z => z.health > 0);
+    // Resolve the whole crowd before moving any zombie, as GameScene does.
+    const crowdSpacing = resolveZombieCrowdSpacing(
+      zombies,
+      queryZombieCollisionCandidates(zombies),
+      ZOMBIE_CROWD_SPACING_CONFIG,
+      ZOMBIE_CONFIG.speed,
+    );
     const motions = zombies.map(z => {
       const start = z.position;
       const target = night.getTarget(z.id, start, player.end);
-      let speed = ZOMBIE_CONFIG.speed;
-      if (z.kind === 'fast') {
-        speed *= fastZombieSpeedMultiplier(zombieAppearanceSeedFromId(z.id), ZOMBIE_CONFIG.fast);
-      }
       const route = updateZombieNavigation(navigation.get(z.id) ?? createZombieNavigationState(),
         start, target, grid, obstacles, z.radius, player.radius, PATHFINDING_CONFIG, dt);
       navigation.set(z.id, route.state);
-      z.position = moveCircleWithObstacles(start, moveToward(start, route.target, speed, dt),
+      const separationVelocity = crowdSpacing.valid
+        ? crowdSpacing.velocities.get(z.id) ?? { x: 0, y: 0 }
+        : { x: 0, y: 0 };
+      const desiredPosition = movePursuingZombie(z, route.target, separationVelocity, dt, ZOMBIE_CONFIG);
+      z.position = moveCircleWithObstacles(start, desiredPosition,
         z.radius, night.getMovementObstacles(), { ...layout.worldSize, padding: z.radius });
       return { id: z.id, start, end: z.position, radius: z.radius };
     });
