@@ -20,6 +20,7 @@ const MUZZLE_FLASH_VARIANTS = [
 ] as const;
 
 export class TimeBasedLighting {
+  private readonly interiorLight: Phaser.GameObjects.Graphics;
   private readonly darkness: Phaser.GameObjects.Rectangle;
   private readonly ambientMaskSource: Phaser.GameObjects.Image;
   private readonly flashlightMaskSource: Phaser.GameObjects.Image;
@@ -81,7 +82,9 @@ export class TimeBasedLighting {
       y: 0,
       add: false,
     }).setScrollFactor(0);
+    this.interiorLight = scene.make.graphics({ x: 0, y: 0 }, false).setScrollFactor(0);
     this.lightMaskSource.add([
+      this.interiorLight,
       this.ambientMaskSource,
       this.flashlightMaskSource,
       this.muzzleFlashCoreMaskSource,
@@ -96,6 +99,11 @@ export class TimeBasedLighting {
       this.ambientMask = null;
       this.darkness.setVisible(false);
     }
+  }
+
+  setInteriorLight(area: { x: number; y: number; width: number; height: number }, intensity: number): void {
+    this.interiorLight.clear().fillStyle(0xffffff, Math.max(0, Math.min(1, intensity)))
+      .fillRect(area.x, area.y, area.width, area.height);
   }
 
   resize(width: number, height: number): void {

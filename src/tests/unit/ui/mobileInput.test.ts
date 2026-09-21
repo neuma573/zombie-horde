@@ -21,6 +21,12 @@ import {
 const noInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
 describe('mobile input', () => {
+  it('releases the removed shove control area for aiming in defense mode', () => {
+    const layout = createMobileControlLayout(390, 844, noInsets);
+    expect(classifyMobilePointer(layout.shove, layout, false, true)).toBe('shove');
+    expect(classifyMobilePointer(layout.shove, layout, false, false)).toBe('aim');
+    expect(classifyMobilePointer(layout.fire, layout, false, false)).toBe('fire');
+  });
   it('shows controls from capabilities rather than a user agent', () => {
     expect(shouldShowMobileControls(5, true)).toBe(true);
     expect(shouldShowMobileControls(0, true)).toBe(false);

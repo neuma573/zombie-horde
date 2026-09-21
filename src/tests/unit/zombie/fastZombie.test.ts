@@ -1,8 +1,8 @@
+import { moveToward } from '../../../logic/movement';
 import { describe, expect, it } from 'vitest';
 
 import {
-  advanceFastZombieRun,
-  createFastZombieRunState,
+  fastZombieSpeedMultiplier,
   fastZombieSpawnChance,
   isFastZombieSpawn,
   type FastZombieConfig,
@@ -12,13 +12,6 @@ const config: FastZombieConfig = {
   initialSpawnChance: 0.05,
   spawnChancePerWave: 0.05,
   maximumSpawnChance: 0.4,
-  spontaneousRunChance: 1,
-  runCheckIntervalMs: 1_000,
-  minimumRunDurationMs: 1_500,
-  maximumRunDurationMs: 3_000,
-  minimumRunCooldownMs: 1_000,
-  maximumRunCooldownMs: 2_000,
-  proximityRunDistance: 200,
   minimumSpeedMultiplier: 2,
   maximumSpeedMultiplier: 3,
 };
@@ -32,63 +25,30 @@ describe('fast zombie behavior', () => {
     expect(isFastZombieSpawn(4, 0.2, config)).toBe(false);
   });
 
-  it('always runs near the player at no less than twice walking speed', () => {
-    const result = advanceFastZombieRun(
-      createFastZombieRunState(config),
-      16,
-      200,
-      42,
-      config,
-    );
-
-    expect(result.isRunning).toBe(true);
-    expect(result.state.speedMultiplier).toBeGreaterThanOrEqual(2);
-    expect(result.state.speedMultiplier).toBeLessThanOrEqual(3);
-    expect(result.state.runRemainingMs).toBeGreaterThanOrEqual(1_500);
-    expect(result.state.runRemainingMs).toBeLessThanOrEqual(3_000);
+  it('runs at no less than twice walking speed from spawn', () => {
+    const speed = fastZombieSpeedMultiplier(42, config);
+    expect(speed).toBeGreaterThanOrEqual(2);
+    expect(speed).toBeLessThanOrEqual(3);
   });
 
-  it('starts a random run when its check interval elapses', () => {
-    const before = advanceFastZombieRun(
-      createFastZombieRunState(config),
-      999,
-      201,
-      42,
-      config,
-    );
-    const atBoundary = advanceFastZombieRun(before.state, 1, 201, 42, config);
-
-    expect(before.isRunning).toBe(false);
-    expect(atBoundary.isRunning).toBe(true);
+  it('keeps the same running speed across repeated movement updates', () => {
+    const speed = fastZombieSpeedMultiplier(42, config);
+    for (let frame = 0; frame < 10000; frame++) {
+      expect(fastZombieSpeedMultiplier(42, config)).toBe(speed);
+    }
   });
 
-  it('produces the same state for split and combined elapsed time', () => {
-    const initial = createFastZombieRunState(config);
-    const combined = advanceFastZombieRun(initial, 2_400, 201, 42, config);
-    const first = advanceFastZombieRun(initial, 800, 201, 42, config);
-    const second = advanceFastZombieRun(first.state, 1_600, 201, 42, config);
-
-    expect(second).toEqual(combined);
+  it('travels the same distance for split and combined elapsed time', () => {
+    const advance = (x: number, ms: number) => moveToward({ x, y: 0 }, { x: 10000, y: 0 },
+      100 * fastZombieSpeedMultiplier(42, config), ms).x;
+    expect(advance(advance(0, 800), 1600)).toBeCloseTo(advance(0, 2400));
   });
 
-  it('waits for a random cooldown after a run ends', () => {
-    const running = advanceFastZombieRun(
-      createFastZombieRunState(config),
-      1_000,
-      201,
-      42,
-      config,
-    );
-    const finished = advanceFastZombieRun(
-      running.state,
-      running.state.runRemainingMs,
-      201,
-      42,
-      config,
-    );
-
-    expect(finished.isRunning).toBe(false);
-    expect(finished.state.checkRemainingMs).toBeGreaterThanOrEqual(1_000);
-    expect(finished.state.checkRemainingMs).toBeLessThanOrEqual(2_000);
+  it('continues running beyond the former run and cooldown periods', () => {
+    const speed = 100 * fastZombieSpeedMultiplier(42, config);
+    const first = moveToward({ x: 0, y: 0 }, { x: 100000, y: 0 }, speed, 10000);
+    const next = moveToward(first, { x: 100000, y: 0 }, speed, 10000);
+    expect(first.x).toBeGreaterThanOrEqual(2000);
+    expect(next.x - first.x).toBeCloseTo(first.x);
   });
 });

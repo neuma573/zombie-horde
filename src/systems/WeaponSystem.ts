@@ -24,8 +24,19 @@ export class WeaponSystem {
   constructor(
     startingWeapon: WeaponDefinition,
     initialAmmoReserves?: Partial<Record<AmmoType, number>>,
+    options: {
+      unlimitedReserve?: boolean;
+      loadout?: readonly [WeaponDefinition | null, WeaponDefinition | null];
+    } = {},
   ) {
     this.inventory = createWeaponInventory(startingWeapon);
+    if (options.loadout) {
+      if (!options.loadout.some(Boolean)) throw new Error('Loadout needs at least one weapon');
+      this.inventory = {
+        slots: options.loadout.map(weapon => weapon ? createOwnedWeapon(weapon) : null) as WeaponInventoryState['slots'],
+        activeSlot: options.loadout[0] ? 0 : 1,
+      };
+    }
     this.ammoReserves = {
       pistolAmmo: Math.max(0, initialAmmoReserves?.pistolAmmo ?? (
         startingWeapon.ammoType === 'pistolAmmo' ? startingWeapon.config.reserveAmmo : 0
@@ -37,6 +48,11 @@ export class WeaponSystem {
         startingWeapon.ammoType === 'shotgunAmmo' ? startingWeapon.config.reserveAmmo : 0
       )),
     };
+    if (options.unlimitedReserve) {
+      this.ammoReserves.pistolAmmo = Infinity;
+      this.ammoReserves.rifleAmmo = Infinity;
+      this.ammoReserves.shotgunAmmo = Infinity;
+    }
     this.syncActiveReserve();
   }
 

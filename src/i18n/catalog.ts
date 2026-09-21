@@ -1,4 +1,25 @@
 export const korean = {
+  "I arrived in Hazard and found an empty shop to stay in. It is already eleven, so looking around will have to wait until tomorrow.": "해저드에 도착해 빈 가게에 자리를 잡았다. 벌써 밤 열한 시다. 주변을 둘러보는 건 내일로 미뤘다.",
+  "I put up a barricade with some furniture and checked the pistol and ammunition. The barricade is not very sturdy. I will need to keep the zombies away from it.": "가구를 모아 바리케이드를 세우고 권총과 탄약을 챙겼다. 바리케이드가 튼튼하지는 않아서 좀비가 달라붙기 전에 막아야 한다.",
+  "For now, I need to hold out until five. Tomorrow I will look for supplies nearby and repair the barricade. There should be time to rest as well.": "우선 새벽 다섯 시까지 버티는 게 목표다. 내일은 근처에서 물자를 구하고 바리케이드도 손볼 생각이다. 쉴 시간도 조금은 남겨둬야겠다.",
+
+
+  "THE FIRST NIGHT": "첫 번째 밤",
+  "START NIGHT DEFENSE": "전투 시작",
+  "NEXT PAGE": "다음 쪽",
+  "SURVIVE THE FIRST NIGHT": "첫날 밤을 먼저 버티세요",
+  "DAWN · DAY {day}\nEnter or tap to explore": "새벽 · {day}일째\nEnter 또는 터치로 탐색 시작",
+
+  "You did your best, but after {day} days, you finally died.": "당신은 최선을 다했지만, {day} 일만에 마침내 당신은 사망했습니다.",
+  "CONFIRM": "확인",
+  "DEFENSE FAILED": "방어 실패",
+  "CONFIRM · RETURN TO ARMORY": "확인 · 무기고로 돌아가기",
+  "BARRICADE {integrity}%": "바리케이드 {integrity}%",
+  "{city} · DAY {day}": "{city} · {day}일째",
+  "BREACHED": "방어선 붕괴",
+  "Barricade {integrity}%": "바리케이드 {integrity}%",
+  "DEFENSE COMPLETE\nEnter or tap to return": "방어 성공\nEnter 또는 터치로 메뉴 이동",
+  "DEFENSE FAILED\nEnter or tap to retry": "방어 실패\nEnter 또는 터치로 재도전",
   "Found": "획득",
   "Total": "합계",
   "Map": "지도",

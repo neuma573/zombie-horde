@@ -23,7 +23,7 @@ export interface ExplorationState {
   resources: Resources;
   locations: SearchLocation[];
 }
-export type SearchBlock = 'UNKNOWN LOCATION' | 'SEARCHED' | 'NOT ENOUGH TIME' | 'DAY COMPLETE' | 'PLAN ACTIVE';
+export type SearchBlock = 'SURVIVE THE FIRST NIGHT' | 'UNKNOWN LOCATION' | 'SEARCHED' | 'NOT ENOUGH TIME' | 'DAY COMPLETE' | 'PLAN ACTIVE';
 export type SearchResult = {
   ok: true;
   locationId: string;

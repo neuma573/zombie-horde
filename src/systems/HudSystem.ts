@@ -66,6 +66,7 @@ export class HudSystem {
   private readonly ammoRounds: Phaser.GameObjects.Image[] = [];
   private readonly spentShotgunShells: Phaser.GameObjects.Image[] = [];
   private readonly timeGraphics: Phaser.GameObjects.Graphics;
+  private readonly barricadeLabel: Phaser.GameObjects.Text;
   private readonly statusBarGraphics: Phaser.GameObjects.Graphics;
   private readonly timeMetaText: Phaser.GameObjects.Text;
   private readonly gameOverText: Phaser.GameObjects.Text;
@@ -124,6 +125,10 @@ export class HudSystem {
     }).setDepth(100).setOrigin(0, 0).setScrollFactor(0);
     this.timeGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
     this.statusBarGraphics = scene.add.graphics().setDepth(100).setScrollFactor(0);
+    this.barricadeLabel = scene.add.text(0, 0, '', {
+      fontFamily: 'sans-serif', fontSize: '10px', fontStyle: 'bold', color: '#fff1d2',
+      stroke: '#251c13', strokeThickness: 2,
+    }).setDepth(102).setOrigin(0.5).setScrollFactor(0).setVisible(false);
     this.timeMetaText = scene.add.text(0, 0, t('LOCAL        24H'), {
       color: '#20251c',
       fontFamily: 'monospace',
@@ -339,6 +344,7 @@ export class HudSystem {
     this.spentShotgunShells.forEach((round) => round.destroy());
     this.timeGraphics.destroy();
     this.statusBarGraphics.destroy();
+    this.barricadeLabel.destroy();
     this.timeMetaText.destroy();
     this.gameOverText.destroy();
     this.reloadGraphics.destroy();
@@ -503,9 +509,17 @@ export class HudSystem {
       this.delayedHealth?.displayedRatio ?? viewModel?.healthRatio ?? 0,
       0xffb0a6,
     );
-    drawFill(healthBar, viewModel?.healthRatio ?? 0, 0xd94747);
-    drawFrame(staminaBar);
-    drawFill(staminaBar, viewModel?.staminaRatio ?? 0, 0x42b96b);
+    drawFill(healthBar, viewModel?.healthRatio ?? 0, viewModel?.barricadeText ? 0xb78b47 : 0xd94747);
+    this.barricadeLabel.setText(viewModel?.barricadeText ?? '')
+      .setPosition(healthBar.x + healthBar.width / 2, healthBar.y + healthBar.height / 2)
+      .setVisible(this.topHudVisible && !!viewModel?.barricadeText).setScale(1);
+    this.barricadeLabel.setScale(Math.min(1,
+      (healthBar.width - 8) / Math.max(1, this.barricadeLabel.width),
+      (healthBar.height - 6) / Math.max(1, this.barricadeLabel.height)));
+    if (viewModel?.showStamina !== false) {
+      drawFrame(staminaBar);
+      drawFill(staminaBar, viewModel?.staminaRatio ?? 0, 0x42b96b);
+    }
     this.statusBarGraphics.setVisible(this.topHudVisible);
   }
 

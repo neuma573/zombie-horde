@@ -251,20 +251,21 @@ export function classifyMobilePointer(
   point: Position,
   layout: MobileControlLayout,
   interactionEnabled = false,
+  shoveEnabled = true,
 ): MobilePointerClassification {
   if (interactionEnabled && contains(layout.interactionHit, point)) {
     return 'interaction';
   }
   if (contains(layout.fireHit, point)) return 'fire';
-  if (contains(layout.shoveHit, point)) return 'shove';
+  if (shoveEnabled && contains(layout.shoveHit, point)) return 'shove';
   if (contains(layout.reloadHit, point)) return 'reload';
   if (contains(layout.joystick, point)) return 'movement';
   if (
     contains(layout.fireGuard, point)
     || contains(layout.reloadGuard, point)
-    || contains(layout.shoveGuard, point)
+    || (shoveEnabled && contains(layout.shoveGuard, point))
     || (interactionEnabled && contains(layout.interactionGuard, point))
-    || containsRectangle(layout.controlExclusion, point)
+    || (shoveEnabled && containsRectangle(layout.controlExclusion, point))
   ) {
     return 'controlGuard';
   }

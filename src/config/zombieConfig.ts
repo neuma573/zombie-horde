@@ -10,13 +10,6 @@ export interface ZombieConfig {
     initialSpawnChance: number;
     spawnChancePerWave: number;
     maximumSpawnChance: number;
-    spontaneousRunChance: number;
-    runCheckIntervalMs: number;
-    minimumRunDurationMs: number;
-    maximumRunDurationMs: number;
-    minimumRunCooldownMs: number;
-    maximumRunCooldownMs: number;
-    proximityRunDistance: number;
     minimumSpeedMultiplier: number;
     maximumSpeedMultiplier: number;
   };
@@ -34,13 +27,6 @@ export const ZOMBIE_CONFIG = {
     initialSpawnChance: 0.05,
     spawnChancePerWave: 0.025,
     maximumSpawnChance: 0.45,
-    spontaneousRunChance: 0.2,
-    runCheckIntervalMs: 1_000,
-    minimumRunDurationMs: 1_500,
-    maximumRunDurationMs: 3_000,
-    minimumRunCooldownMs: 1_000,
-    maximumRunCooldownMs: 2_000,
-    proximityRunDistance: 260,
     minimumSpeedMultiplier: 2,
     maximumSpeedMultiplier: 3,
   },
