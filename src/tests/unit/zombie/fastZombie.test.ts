@@ -1,4 +1,3 @@
-import { moveToward } from '../../../logic/movement';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -31,24 +30,5 @@ describe('fast zombie behavior', () => {
     expect(speed).toBeLessThanOrEqual(3);
   });
 
-  it('keeps the same running speed across repeated movement updates', () => {
-    const speed = fastZombieSpeedMultiplier(42, config);
-    for (let frame = 0; frame < 10000; frame++) {
-      expect(fastZombieSpeedMultiplier(42, config)).toBe(speed);
-    }
-  });
-
-  it('travels the same distance for split and combined elapsed time', () => {
-    const advance = (x: number, ms: number) => moveToward({ x, y: 0 }, { x: 10000, y: 0 },
-      100 * fastZombieSpeedMultiplier(42, config), ms).x;
-    expect(advance(advance(0, 800), 1600)).toBeCloseTo(advance(0, 2400));
-  });
-
-  it('continues running beyond the former run and cooldown periods', () => {
-    const speed = 100 * fastZombieSpeedMultiplier(42, config);
-    const first = moveToward({ x: 0, y: 0 }, { x: 100000, y: 0 }, speed, 10000);
-    const next = moveToward(first, { x: 100000, y: 0 }, speed, 10000);
-    expect(first.x).toBeGreaterThanOrEqual(2000);
-    expect(next.x - first.x).toBeCloseTo(first.x);
-  });
+  // Pursuit distance and elapsed-time regression cases live in zombiePursuit.test.ts.
 });

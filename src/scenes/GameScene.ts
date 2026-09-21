@@ -72,9 +72,7 @@ import {
   type RectangleObstacle,
 } from '../logic/obstacleCollision';
 import {
-  moveZombieWithCrowdSpacing,
   resolveZombieCrowdSpacing,
-  zombieVelocityWithCrowdSpacing,
 } from '../logic/zombieCrowdSpacing';
 import { queryZombieCollisionCandidates } from '../logic/zombieSpatialGrid';
 import { separatePlayerFromZombies } from '../logic/entityCollision';
@@ -150,12 +148,9 @@ import {
 } from '../logic/supplyDrop';
 import { muzzleLightExposure } from '../logic/playerVisual';
 import {
-  zombieAppearanceSeedFromId,
   type ZombieAppearance,
 } from '../logic/zombieAppearance';
-import {
-  fastZombieSpeedMultiplier,
-} from '../logic/fastZombie';
+import { movePursuingZombie } from '../logic/zombiePursuit';
 import {
   resolveHitscan,
   type HitscanBlocker,
@@ -1054,10 +1049,6 @@ export class GameScene extends Phaser.Scene {
         }
         continue;
       }
-      let zombieSpeed = ZOMBIE_CONFIG.speed;
-      if (zombie.kind === 'fast') {
-        zombieSpeed *= fastZombieSpeedMultiplier(zombieAppearanceSeedFromId(zombie.id), ZOMBIE_CONFIG.fast);
-      }
       const defenseTarget = this.night?.getTarget(zombie.id, zombie, this.player);
       const navigation = updateZombieNavigation(
         this.zombieNavigation.get(zombie.id) ?? createZombieNavigationState(),
@@ -1074,17 +1065,12 @@ export class GameScene extends Phaser.Scene {
       const separationVelocity = crowdSpacing.valid
         ? crowdSpacing.velocities.get(zombie.id) ?? { x: 0, y: 0 }
         : { x: 0, y: 0 };
-      const velocity = zombieVelocityWithCrowdSpacing(
-        zombie,
+      const desiredZombiePosition = movePursuingZombie(
+        { id: zombie.id, kind: zombie.kind, position: zombie },
         navigation.target,
-        zombieSpeed,
         separationVelocity,
-      );
-      const desiredZombiePosition = moveZombieWithCrowdSpacing(
-        zombie,
-        navigation.target,
-        velocity,
         deltaMs,
+        ZOMBIE_CONFIG,
       );
       const nextZombiePosition = moveCircleWithObstacles(
         zombie,
