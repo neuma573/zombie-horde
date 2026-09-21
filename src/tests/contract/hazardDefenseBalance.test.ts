@@ -88,11 +88,11 @@ function defendNight(shoot: boolean) {
 }
 
 describe('Hazard pistol defense balance', () => {
-  it('charges one percentage point for each of three landed attacks during accurate pistol defense', () => {
+  it('charges one percentage point for the landed attack during 90-second pistol defense', () => {
     const result = defendNight(true);
     expect(result.phase).toBe('VICTORY');
     expect(result.integrity).toBeGreaterThan(20);
-    expect(result.integrity).toBe(97);
+    expect(result.integrity).toBe(99);
   });
   it('loses an undefended barricade before dawn', () => {
     expect(defendNight(false).phase).toBe('DEFEAT');
