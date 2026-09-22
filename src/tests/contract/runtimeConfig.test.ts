@@ -21,6 +21,12 @@ vi.mock('phaser', () => ({
 }));
 
 describe('game runtime configuration', () => {
+  it('listens for touch input even when the game boots on a desktop', () => {
+    const input = GAME_CONFIG.input;
+    if (typeof input !== 'object') throw new Error('Expected Phaser input configuration');
+    expect(input.touch).toBe(true);
+  });
+
   it('uses responsive Phaser scaling without fixed dimensions', () => {
     const input = GAME_CONFIG.input;
 

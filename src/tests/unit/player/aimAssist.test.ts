@@ -2,12 +2,35 @@ import { describe, expect, it } from 'vitest';
 
 import {
   resolveAimAssist,
+  resolveAimSourceForInputMode,
   shouldReleaseAimLock,
   shouldApplyMobileAimAssist,
   type AimAssistConfig,
   type AimAssistTarget,
 } from '../../../logic/aimAssist';
 import { resolveHitscan } from '../../../logic/hitscan';
+
+describe('aim source across input mode changes', () => {
+  it('enables mobile aim when desktop input changes to touch', () => {
+    expect(resolveAimSourceForInputMode('mouse', false, true)).toBe('mobile');
+  });
+
+  it('restores mobile aim after orientation cancellation in either event order', () => {
+    const mobileFirst = resolveAimSourceForInputMode('mouse', false, true);
+    expect(mobileFirst).toBe('mobile');
+    expect(resolveAimSourceForInputMode('none', true, true)).toBe('mobile');
+    const orientationFirst = resolveAimSourceForInputMode('none', false, false);
+    expect(resolveAimSourceForInputMode(orientationFirst, false, true)).toBe('mobile');
+  });
+
+  it('preserves deliberate mouse use on a touch-capable device during resize', () => {
+    expect(resolveAimSourceForInputMode('mouse', true, true)).toBe('mouse');
+  });
+
+  it('returns to mouse aiming when touch mode is disabled', () => {
+    expect(resolveAimSourceForInputMode('mobile', true, false)).toBe('mouse');
+  });
+});
 
 const config: AimAssistConfig = {
   acquisitionHalfAngleRadians: 12 * Math.PI / 180,

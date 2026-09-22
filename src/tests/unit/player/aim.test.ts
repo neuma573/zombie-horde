@@ -11,8 +11,32 @@ import {
   velocityBetween,
 } from '../../../logic/cameraFollow';
 import { interpolateCameraZoom } from '../../../logic/cameraZoom';
+import { HAZARD_DEFENSE_CONFIG } from '../../../config/lastStandCombatConfig';
+import { cameraScreenPoint, cameraScrollForPlayer } from '../../../logic/camera';
+import { fitDefenseCamera } from '../../../logic/defenseCamera';
 
 const FIXED_STEP_MS = 1_000 / 60;
+
+describe('screenAimCandidate', () => {
+  it.each([[1280, 800], [390, 844], [844, 390]])(
+    'aims at the displayed defense target after resizing to %i by %i', (width, height) => {
+      const viewport = { width, height };
+      const layout = HAZARD_DEFENSE_CONFIG;
+      const frame = fitDefenseCamera(layout, viewport, true);
+      const target = { x: 900, y: 620 };
+      const candidate = screenAimCandidate({
+        screenPoint: cameraScreenPoint(target, frame.scroll, viewport, frame.zoom),
+        playerPosition: layout.playerSpawn,
+        cameraScroll: frame.scroll,
+        viewport,
+        zoom: frame.zoom,
+      });
+
+      expect(candidate.x).toBeCloseTo(target.x - layout.playerSpawn.x);
+      expect(candidate.y).toBeCloseTo(target.y - layout.playerSpawn.y);
+    },
+  );
+});
 
 function stationaryAimAcrossRenderGroups(renderGroups: number[]) {
   const viewport = { width: 960, height: 540 };
@@ -36,8 +60,7 @@ function stationaryAimAcrossRenderGroups(renderGroups: number[]) {
       lastAim = resolveAimDirection(screenAimCandidate({
         screenPoint,
         playerPosition: player,
-        cameraTargetPosition: camera.targetPosition,
-        world,
+        cameraScroll: cameraScrollForPlayer(camera.targetPosition, world, viewport, zoom),
         viewport,
         zoom,
       }), lastAim);

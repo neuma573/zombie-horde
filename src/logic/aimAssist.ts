@@ -8,6 +8,15 @@ import {
 
 export type AimSource = 'none' | 'mouse' | 'mobile';
 
+export function resolveAimSourceForInputMode(
+  source: AimSource,
+  wasMobile: boolean,
+  isMobile: boolean,
+): AimSource {
+  if (!isMobile) return 'mouse';
+  return !wasMobile || source === 'none' ? 'mobile' : source;
+}
+
 export interface AimAssistConfig {
   acquisitionHalfAngleRadians: number;
   manualReleaseAngleRadians: number;

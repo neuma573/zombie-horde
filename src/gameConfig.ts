@@ -7,6 +7,8 @@ export const GAME_CONFIG: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   backgroundColor: '#1b1b1b',
   input: {
+    // Device emulation and hybrid devices can enable touch after boot.
+    touch: true,
     activePointers: GAME_RUNTIME_CONFIG.activePointers,
   },
   scale: {
