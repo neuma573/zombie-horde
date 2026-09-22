@@ -62,6 +62,7 @@ import { WeaponPickup, WEAPON_PICKUP_RADIUS } from '../entities/WeaponPickup';
 import { ItemPickup } from '../entities/ItemPickup';
 import {
   resolveAimAssist,
+  resolveAimSourceForInputMode,
   shouldReleaseAimLock,
   shouldApplyMobileAimAssist,
   type AimSource,
@@ -1985,6 +1986,12 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.mobileControlsEnabled || !this.mobileLayout) return;
 
+    // Movement and fire controls also resume mobile aiming after mouse use or blur.
+    if (this.aimSource !== 'mobile') {
+      this.aimSource = 'mobile';
+      this.clearAimAssist();
+    }
+
     const pointerId = pointer.id;
     const role = classifyMobilePointer(
       { x: pointer.x, y: pointer.y },
@@ -2327,11 +2334,12 @@ export class GameScene extends Phaser.Scene {
         && this.canOpenSupplyCrate(),
     );
 
+    this.aimSource = resolveAimSourceForInputMode(
+      this.aimSource, wasEnabled, this.mobileControlsEnabled,
+    );
     if (this.mobileControlsEnabled) {
-      if (!wasEnabled) this.aimSource = 'mobile';
       this.mobileLayout = uiLayout?.mobileControlsLayout ?? undefined;
     } else {
-      this.aimSource = 'mouse';
       this.mobileLayout = undefined;
       this.clearAimAssist();
       this.resetMobileInput();
