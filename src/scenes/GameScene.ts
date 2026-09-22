@@ -1990,6 +1990,7 @@ export class GameScene extends Phaser.Scene {
     if (this.aimSource !== 'mobile') {
       this.aimSource = 'mobile';
       this.clearAimAssist();
+      this.refreshAimAssist();
     }
 
     const pointerId = pointer.id;
