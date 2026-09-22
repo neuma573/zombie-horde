@@ -1729,8 +1729,7 @@ export class GameScene extends Phaser.Scene {
       screenAimCandidate({
         screenPoint,
         playerPosition: this.player,
-        cameraTargetPosition: this.cameraFollowState.targetPosition,
-        world: this.playArea,
+        cameraScroll: this.cameraScroll(),
         viewport: this.viewport,
         zoom: this.cameras.main.zoom,
       }),
@@ -1753,15 +1752,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private refreshStationaryMouseAim(): void {
-    if (
-      this.mobileControlsEnabled
-      || this.aimSource !== 'mouse'
-    ) {
-      return;
-    }
+    // Touch capability does not prevent mouse use in desktop device emulation.
+    if (this.aimSource !== 'mouse') return;
 
-    const screenPoint = this.lastMouseScreenPoint
-      ?? this.sampleActiveMouseScreenPoint();
+    const screenPoint = this.sampleActiveMouseScreenPoint()
+      ?? this.lastMouseScreenPoint;
     if (screenPoint === null) return;
 
     this.lastMouseScreenPoint = screenPoint;
@@ -2512,18 +2507,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateCameraPosition(): void {
+    if (this.defenseLayout) this.cameras.main.removeBounds();
+    const scroll = this.cameraScroll();
+    this.cameras.main.setScroll(scroll.x, scroll.y);
+  }
+
+  private cameraScroll(): Vector2 {
+    // Share framing with aim calculation, including between fixed simulation steps.
     if (this.defenseLayout) {
-      const frame = this.defenseFrame(this.cameras.main.zoom);
-      this.cameras.main.removeBounds().setScroll(frame.scroll.x, frame.scroll.y);
-      return;
+      return this.defenseFrame(this.cameras.main.zoom).scroll;
     }
-    const scroll = cameraScrollForPlayer(
+    return cameraScrollForPlayer(
       this.cameraFollowState.targetPosition,
       this.playArea,
       this.viewport,
       this.cameras.main.zoom,
     );
-    this.cameras.main.setScroll(scroll.x, scroll.y);
   }
 
   private snapCameraToPlayer(): void {

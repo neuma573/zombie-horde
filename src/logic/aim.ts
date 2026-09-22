@@ -1,8 +1,4 @@
-import {
-  cameraScrollForPlayer,
-  cameraWorldPoint,
-  type Size,
-} from './camera';
+import { cameraWorldPoint, type Size } from './camera';
 import type { Vector2 } from './hitscan';
 import type { Position } from './movement';
 
@@ -11,8 +7,7 @@ const AIM_EPSILON = 1e-8;
 export interface ScreenAimCandidateInput {
   screenPoint: Position;
   playerPosition: Position;
-  cameraTargetPosition: Position;
-  world: Size;
+  cameraScroll: Position;
   viewport: Size;
   zoom: number;
 }
@@ -20,17 +15,10 @@ export interface ScreenAimCandidateInput {
 export function screenAimCandidate({
   screenPoint,
   playerPosition,
-  cameraTargetPosition,
-  world,
+  cameraScroll,
   viewport,
   zoom,
 }: ScreenAimCandidateInput): Vector2 {
-  const cameraScroll = cameraScrollForPlayer(
-    cameraTargetPosition,
-    world,
-    viewport,
-    zoom,
-  );
   const worldPoint = cameraWorldPoint(
     screenPoint,
     cameraScroll,
