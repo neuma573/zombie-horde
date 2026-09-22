@@ -1986,13 +1986,6 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.mobileControlsEnabled || !this.mobileLayout) return;
 
-    // Movement and fire controls also resume mobile aiming after mouse use or blur.
-    if (this.aimSource !== 'mobile') {
-      this.aimSource = 'mobile';
-      this.clearAimAssist();
-      this.refreshAimAssist();
-    }
-
     const pointerId = pointer.id;
     const role = classifyMobilePointer(
       { x: pointer.x, y: pointer.y },
@@ -2026,6 +2019,17 @@ export class GameScene extends Phaser.Scene {
         this.guardedMobilePointers.add(pointerId);
       }
       return;
+    }
+
+    // Only accepted directional controls resume aim; interactions retain mouse aim.
+    // Aim gestures switch source themselves when applying their screen position.
+    if (
+      this.aimSource !== 'mobile'
+      && (role === 'movement' || role === 'fire' || role === 'shove')
+    ) {
+      this.aimSource = 'mobile';
+      this.clearAimAssist();
+      this.refreshAimAssist();
     }
 
     if (role === 'movement') {
