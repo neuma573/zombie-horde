@@ -2033,11 +2033,12 @@ export class GameScene extends Phaser.Scene {
     } else if (role === 'aim') {
       this.updateAimDirection(pointer, 'mobile');
     } else if (role === 'fire') {
-      this.playerActions.requestFire(pointer.time, this.finalAimDirection);
+      // A resize can restore mobile input before the next simulation update.
+      this.playerActions.requestFire(pointer.time, this.refreshAimAssist());
     } else if (role === 'reload') {
       this.playerActions.requestReload(pointer.time);
     } else if (role === 'shove') {
-      this.playerActions.requestShove(pointer.time, this.finalAimDirection);
+      this.playerActions.requestShove(pointer.time, this.refreshAimAssist());
     } else if (role === 'interaction') {
       this.playerActions.requestOpenSupplyCrate(pointer.time);
     }
