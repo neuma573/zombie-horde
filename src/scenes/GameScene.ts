@@ -127,27 +127,12 @@ import { darknessAlphaForTime } from '../logic/timeBasedLighting';
 import {
   addClamped,
   canCollectConsumable,
-  claimSupplyLoot,
   revalidatePickupPosition,
   selectSupplyLoot,
   spreadSupplyLootPositions,
 } from '../logic/item';
-import {
-  advanceSupplyDrop,
-  canOpenSupplyDropCrate,
-  createSupplyTriggerState,
-  createSupplyDropState,
-  damageSupplyDropCrate,
-  openSupplyDropCrate,
-  resolveSupplyDropCrateBounds,
-  resolveSupplyDropSnapshot,
-  resolveSupplyTrigger,
-  selectSupplyDropLocation,
-  totalAvailableAmmo,
-  type SupplyDropConfig,
-  type SupplyDropState,
-  type SupplyTriggerState,
-} from '../logic/supplyDrop';
+import { totalAvailableAmmo } from '../logic/supplyDrop';
+import { SupplyDropSystem } from '../systems/SupplyDropSystem';
 import { muzzleLightExposure } from '../logic/playerVisual';
 import {
   type ZombieAppearance,
@@ -240,7 +225,6 @@ import { WaveSystem } from '../systems/WaveSystem';
 import { WeaponSystem } from '../systems/WeaponSystem';
 
 type MovementKeys = Record<'up' | 'down' | 'left' | 'right', Phaser.Input.Keyboard.Key>;
-const SUPPLY_CRATE_TARGET_ID = 'supply-drop-crate';
 const SPAWN_OFFSCREEN_WORLD_MARGIN = ZOMBIE_CONFIG.radius * 4 + 1;
 const SHOVE_IMPACT_DELAY_MS = 70;
 
@@ -297,12 +281,7 @@ export class GameScene extends Phaser.Scene {
   private firstShotAccuracy: FirstShotAccuracyState = createFirstShotAccuracyState();
   private sessionState: SessionState = createSessionState();
   private gameTime: GameTimeState = createGameTimeState(GAME_TIME_CONFIG);
-  private supplyDropState: SupplyDropState = createSupplyDropState();
-  private supplyDropActive = false;
-  private supplyDropLootReleased = false;
-  private supplyTriggerState: SupplyTriggerState = createSupplyTriggerState();
-  private currentSupplyDropConfig: SupplyDropConfig = SUPPLY_DROP_CONFIG;
-  private previousSupplyDropPosition: Vector2 | null = null;
+  private supplyDrop = new SupplyDropSystem();
   private simulationStepState: FixedStepState = createFixedStepState();
   private simulationElapsedMs = 0;
   private playArea: Omit<MovementBounds, 'padding'> = { width: 0, height: 0 };
@@ -370,12 +349,7 @@ export class GameScene extends Phaser.Scene {
       : undefined;
     this.sessionState = createSessionState();
     this.gameTime = this.night?.getTime() ?? createGameTimeState(GAME_TIME_CONFIG);
-    this.supplyDropState = createSupplyDropState(SUPPLY_DROP_CONFIG.crateHealth);
-    this.supplyDropActive = false;
-    this.supplyDropLootReleased = false;
-    this.supplyTriggerState = createSupplyTriggerState();
-    this.currentSupplyDropConfig = SUPPLY_DROP_CONFIG;
-    this.previousSupplyDropPosition = null;
+    this.supplyDrop = new SupplyDropSystem();
     this.simulationStepState = createFixedStepState();
     this.simulationElapsedMs = 0;
     this.playerActions.reset(0, this.game.loop.now);
@@ -786,9 +760,7 @@ export class GameScene extends Phaser.Scene {
     );
     const shoveImpact = this.advancePendingShove(deltaMs);
     if (!this.night) this.gameTime = advanceGameTime(this.gameTime, deltaMs, GAME_TIME_CONFIG);
-    if (this.supplyDropActive) {
-      this.supplyDropState = advanceSupplyDrop(this.supplyDropState, deltaMs);
-    }
+    this.supplyDrop.advance(deltaMs);
     const movementObstacles = this.activeMovementObstacles();
     this.firstShotAccuracy = advanceFirstShotAccuracy(
       this.firstShotAccuracy,
@@ -1320,7 +1292,7 @@ export class GameScene extends Phaser.Scene {
     this.shotSequence += 1;
     this.lastShotWeaponId = weaponDefinition.id;
     const shotOrigin = { x: this.player.x, y: this.player.y };
-    const supplyCrateTarget = this.activeSupplyCrateTarget();
+    const supplyCrateTarget = this.supplyDrop.getCrateTarget();
     const targets = [
       ...this.zombies.map((zombie) => ({
         id: zombie.id,
@@ -1361,12 +1333,8 @@ export class GameScene extends Phaser.Scene {
 
     for (const { direction, result } of results) {
       for (const hit of result.hits) {
-        if (hit.targetId === SUPPLY_CRATE_TARGET_ID) {
-          const damage = damageSupplyDropCrate(
-            this.supplyDropState,
-            weaponConfig.damage,
-          );
-          this.supplyDropState = damage.state;
+        if (this.supplyDrop.isCrateTarget(hit.targetId)) {
+          const damage = this.supplyDrop.damageCrate(weaponConfig.damage);
           this.effects?.playSupplyCrateHit(hit.point, damage.died);
           if (damage.died) this.releaseSupplyLoot();
           continue;
@@ -2570,15 +2538,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateSupplyDropVisual(): void {
-    if (!this.supplyDropVisual || !this.supplyDropActive) {
+    if (!this.supplyDropVisual || !this.supplyDrop.isActive()) {
       this.mobileControls?.setInteractionVisible(false);
       return;
     }
 
-    const snapshot = resolveSupplyDropSnapshot(
-      this.supplyDropState,
-      this.currentSupplyDropConfig,
-    );
+    const snapshot = this.supplyDrop.getSnapshot();
     const crateScreen = cameraScreenPoint(
       snapshot.cratePosition,
       {
@@ -2602,7 +2567,7 @@ export class GameScene extends Phaser.Scene {
       planeScreen,
       crateScreen,
       this.viewport,
-      this.currentSupplyDropConfig.indicatorMargin,
+      SUPPLY_DROP_CONFIG.indicatorMargin,
       this.readSafeArea(),
       this.cameras.main.zoom,
     );
@@ -2619,75 +2584,24 @@ export class GameScene extends Phaser.Scene {
       this.weapon.getInventory(),
       this.weapon.getAmmoReserves(),
     );
-    const trigger = resolveSupplyTrigger(
-      this.supplyTriggerState,
-      {
-        activeSupply: this.supplyDropActive,
-        waveCleared,
-        ammoRatio: ammo.capacity > 0 ? ammo.current / ammo.capacity : 0,
-        healthRatio: this.player.health / PLAYER_CONFIG.health,
-        randomValue: Math.random(),
-      },
-      SUPPLY_DROP_BALANCE,
-    );
-    if (!trigger.shouldDrop) {
-      this.supplyTriggerState = trigger.state;
-      return;
-    }
-    if (this.startSupplyDrop()) {
-      this.supplyTriggerState = trigger.state;
-    }
-  }
-
-  private startSupplyDrop(): boolean {
-    const target = selectSupplyDropLocation(
-      this.player,
-      this.playArea,
-      this.mapObstacles(),
-      this.previousSupplyDropPosition,
-      Math.floor(Math.random() * 0x1_0000_0000),
-      {
-        sampleCount: SUPPLY_DROP_BALANCE.locationSampleCount,
-        clearance: SUPPLY_DROP_BALANCE.locationClearance,
-        normalMinimumPlayerDistance: SUPPLY_DROP_BALANCE.normalMinimumPlayerDistance,
-        normalMaximumPlayerDistance: SUPPLY_DROP_BALANCE.normalMaximumPlayerDistance,
-        previousDropMinimumDistance: SUPPLY_DROP_BALANCE.previousDropMinimumDistance,
-      },
-    );
-    if (!target) return false;
-
-    this.previousSupplyDropPosition = target;
-    this.currentSupplyDropConfig = {
-      ...SUPPLY_DROP_CONFIG,
-      target,
-    };
-    this.supplyDropState = createSupplyDropState(this.currentSupplyDropConfig.crateHealth);
-    this.supplyDropLootReleased = false;
-    this.supplyDropActive = true;
-    this.updateSupplyDropVisual();
-    return true;
+    const started = this.supplyDrop.tryTrigger({
+      waveCleared,
+      ammoRatio: ammo.capacity > 0 ? ammo.current / ammo.capacity : 0,
+      healthRatio: this.player.health / PLAYER_CONFIG.health,
+    }, this.player, this.playArea, this.mapObstacles());
+    if (started) this.updateSupplyDropVisual();
   }
 
   private canOpenSupplyCrate(): boolean {
-    if (!this.supplyDropActive) return false;
-    return canOpenSupplyDropCrate(
-      resolveSupplyDropSnapshot(this.supplyDropState, this.currentSupplyDropConfig),
-      this.player,
-      this.currentSupplyDropConfig,
-    );
+    return this.supplyDrop.canOpen(this.player);
   }
 
   private tryOpenSupplyCrate(): void {
-    if (!this.canOpenSupplyCrate()) return;
-    this.supplyDropState = openSupplyDropCrate(this.supplyDropState);
-    this.releaseSupplyLoot();
+    if (this.supplyDrop.open(this.player)) this.releaseSupplyLoot();
   }
 
   private releaseSupplyLoot(): void {
-    if (!this.supplyDropActive) return;
-    const claim = claimSupplyLoot(this.supplyDropLootReleased);
-    this.supplyDropLootReleased = claim.released;
-    if (!claim.shouldDrop) return;
+    if (!this.supplyDrop.claimLoot()) return;
     const loot = selectSupplyLoot(
       this.wave.getState().waveNumber,
       this.player.health / PLAYER_CONFIG.health,
@@ -2709,7 +2623,7 @@ export class GameScene extends Phaser.Scene {
     );
     const positions = spreadSupplyLootPositions(
       loot.length,
-      this.currentSupplyDropConfig.target,
+      this.supplyDrop.getSnapshot().target,
       this.playArea,
       this.mapObstacles(),
       Math.floor(Math.random() * 0x1_0000_0000),
@@ -2741,7 +2655,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
     this.updateSupplyDropVisual();
-    this.supplyDropActive = false;
+    this.supplyDrop.completeLootRelease();
   }
 
   private collectNearbyItems(): void {
@@ -2797,26 +2711,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private revalidateSupplyCoordinates(): void {
-    if (this.supplyDropActive) {
-      const target = revalidatePickupPosition(
-        this.currentSupplyDropConfig.target,
-        this.playArea,
-        this.mapObstacles(),
-        SUPPLY_DROP_BALANCE.locationClearance,
-      );
-      this.currentSupplyDropConfig = {
-        ...this.currentSupplyDropConfig,
-        target,
-      };
-    }
-    if (this.previousSupplyDropPosition) {
-      this.previousSupplyDropPosition = revalidatePickupPosition(
-        this.previousSupplyDropPosition,
-        this.playArea,
-        this.mapObstacles(),
-        SUPPLY_DROP_BALANCE.locationClearance,
-      );
-    }
+    this.supplyDrop.revalidateCoordinates(this.playArea, this.mapObstacles());
     for (const pickup of this.weaponPickups) {
       const position = revalidatePickupPosition(
         pickup,
@@ -2837,62 +2732,14 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private activeSupplyCrateTarget(): {
-    id: string;
-    position: Vector2;
-    width: number;
-    height: number;
-  } | null {
-    if (!this.supplyDropActive) return null;
-    const snapshot = resolveSupplyDropSnapshot(
-      this.supplyDropState,
-      this.currentSupplyDropConfig,
-    );
-    if (
-      snapshot.crateDestroyed
-      || snapshot.crateOpened
-      || snapshot.phase !== 'landed'
-    ) {
-      return null;
-    }
-
-    return {
-      id: SUPPLY_CRATE_TARGET_ID,
-      position: { ...snapshot.cratePosition },
-      width: this.currentSupplyDropConfig.crateSize.width,
-      height: this.currentSupplyDropConfig.crateSize.height,
-    };
-  }
-
-  private activeSupplyCrateObstacle(): {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    blocksHitscan: true;
-  } | null {
-    if (!this.supplyDropActive) return null;
-    const snapshot = resolveSupplyDropSnapshot(
-      this.supplyDropState,
-      this.currentSupplyDropConfig,
-    );
-    const bounds = resolveSupplyDropCrateBounds(snapshot, this.currentSupplyDropConfig);
-    if (!bounds) return null;
-
-    return {
-      ...bounds,
-      blocksHitscan: true,
-    };
-  }
-
   private activeMovementObstacles(): readonly RectangleObstacle[] {
-    const crate = this.activeSupplyCrateObstacle();
+    const crate = this.supplyDrop.getCrateObstacle();
     const obstacles = this.night?.getMovementObstacles() ?? this.mapObstacles();
     return crate ? [...obstacles, crate] : obstacles;
   }
 
   private activeHitscanBlockers(): readonly HitscanBlocker[] {
-    const crate = this.activeSupplyCrateObstacle();
+    const crate = this.supplyDrop.getCrateObstacle();
     const obstacles = this.mapObstacles();
     return crate ? [...obstacles, crate] : obstacles;
   }
