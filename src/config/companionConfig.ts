@@ -1,3 +1,5 @@
+import { PISTOL_WEAPON } from './weaponConfig';
+import type { WeaponDefinition } from '../logic/weapon';
 /** Initial tuning; gameplay rules live in logic/companion.ts. */
 export const COMPANION_CONFIG = {
   maximum: 4,
@@ -24,3 +26,12 @@ export const COMPANION_NAMES = {
   female: ['Emma', 'Sarah', 'Olivia', 'Grace', 'Hannah', 'Maya', 'Claire', 'Emily'],
   surnames: ['Miller', 'Davis', 'Wilson', 'Brooks', 'Reed', 'Carter', 'Morgan', 'Hayes'],
 } as const;
+
+/** Personal fallback, using the existing pistol pose and ammunition mechanics. */
+export const COMPANION_PISTOL: WeaponDefinition = {
+  ...PISTOL_WEAPON,
+  name: 'Worn Pistol',
+  description: 'A weak, painfully slow sidearm.',
+  config: { ...PISTOL_WEAPON.config, damage: COMPANION_CONFIG.civilianPistolDamage,
+    fireIntervalMs: COMPANION_CONFIG.civilianPistolIntervalMs },
+};

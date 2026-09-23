@@ -1,4 +1,10 @@
 export const korean = {
+  "Night preparation": "야간 준비",
+  "Ammo {ammo} · Deployment cost {cost}": "탄약 {ammo} · 참전 비용 {cost}",
+  "Worn Pistol": "낡은 권총",
+  "Unequip": "배정 해제",
+  "Participating · Ammo 1": "참전 중 · 탄약 1",
+  "Stay at base": "거점 대기",
   "Companions {count}/4": "동료 {count}/4",
   "Player": "플레이어",
   "Courage": "사기",

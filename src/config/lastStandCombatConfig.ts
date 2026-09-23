@@ -45,7 +45,7 @@ export const HAZARD_DEFENSE_CONFIG: CityDefenseConfig = {
   interiorArea: { x: 600, y: 480, width: 720, height: 440 },
   combatArea: { x: 1100, y: 480, width: 220, height: 440 },
   playerSpawn: { x: 1240, y: 700 },
-  allyPositions: [{ x: 1240, y: 620 }, { x: 1240, y: 780 }],
+  allyPositions: [{ x: 1190, y: 560 }, { x: 1240, y: 640 }, { x: 1190, y: 740 }, { x: 1240, y: 830 }],
   sectors: [{
     id: 'mainEntrance',
     barricadeId: 'hazard-main',

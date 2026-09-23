@@ -1,3 +1,4 @@
+import type { CompanionDeployment } from './companion';
 import type { Vector2, HitscanBlocker } from '../logic/hitscan';
 import type { RectangleObstacle } from '../logic/obstacleCollision';
 import type { WeaponId } from '../logic/weapon';
@@ -40,6 +41,7 @@ export interface DefenseInflowConfig {
 }
 
 export interface LastStandCombatStart {
+  companions?: CompanionDeployment[];
   day: number;
   barricades: Record<string, number>;
   slots: [WeaponId | null, WeaponId | null];
@@ -49,6 +51,7 @@ export type NightCombatPhase = 'PREPARING' | 'COMBAT' | 'VICTORY' | 'DEFEAT';
 export type DefenseSectorPhase = 'ACTIVE' | 'DANGER' | 'BREACHED';
 
 export interface LastStandNightVictory {
+  fledCompanionIds?: string[];
   day: number;
   barricade: number;
 }

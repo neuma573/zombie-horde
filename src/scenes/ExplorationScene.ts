@@ -1,3 +1,4 @@
+import { renderCompanionArmory } from '../effects/CompanionArmoryView';
 import { renderCompanionPlanning } from '../effects/CompanionPlanningView';
 import type { LastStandNightVictory } from '../types/lastStandCombat';
 import type { WeaponId } from '../logic/weapon';
@@ -52,6 +53,7 @@ export class ExplorationScene extends Phaser.Scene {
   private planningPage: 'map' | 'site' | 'plan' = 'map';
   private confirmationOpen = false;
   private companionsOpen = false;
+  private deploymentOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
   private companionOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
 
   constructor() { super('ExplorationScene'); }
@@ -64,6 +66,7 @@ export class ExplorationScene extends Phaser.Scene {
   create(): void {
     this.exploration = new ExplorationSystem();
     this.companionsOpen = false;
+    this.deploymentOffset = { x: 0, y: 0, zoom: 1 };
     this.companionOffset = { x: 0, y: 0, zoom: 1 };
     this.transitionMap = null;
     this.input.enabled = true;
@@ -138,6 +141,11 @@ export class ExplorationScene extends Phaser.Scene {
       return;
     }
     if (this.armoryOpen) {
+      if (this.exploration.companions.getActive().length || this.armory.getState().owned.length > 1) {
+        renderCompanionArmory(this, this.ui!, board, this.exploration, this.armory, this.deploymentOffset,
+          () => this.render(), () => { void this.startDefense(); });
+        return;
+      }
       renderLastStandArmory(this, this.ui!, board, this.armory, PISTOL_KEY, this.exploration.getState().day, () => this.render(), () => {
         void this.startDefense();
       }, this.armoryOffset);
@@ -252,6 +260,10 @@ export class ExplorationScene extends Phaser.Scene {
     const map = this.exploration.getState();
     const result = this.exploration.confirmPlan();
     if (!result) { this.render(); return; }
+    // One recoverable long gun at each designated weapon cache.
+    if (result.locationIds.includes('police')) this.armory.addWeapon('burstRifle');
+    if (result.locationIds.includes('house-b')) this.armory.addWeapon('doubleBarrelShotgun');
+    this.armory.syncCompanions(this.exploration.companions.getActive().map(ally => ally.id));
     // Resolve once, but keep the map visible while daylight fades.
     this.transitionMap = map;
     this.nightStartedAt = this.time.now;
@@ -485,8 +497,11 @@ export class ExplorationScene extends Phaser.Scene {
         this.scene.add('LastStandCombatScene', LastStandCombatScene, false);
       }
       const state = this.exploration.getState();
+      this.armory.syncCompanions(this.exploration.companions.getActive().map(ally => ally.id));
+      const deployedIds = this.armory.getDeployedIds();
+      if (!this.exploration.beginNight(deployedIds.length)) { this.input.enabled = true; return; }
       this.events.once(Phaser.Scenes.Events.WAKE, (_sys: Phaser.Scenes.Systems, victory?: LastStandNightVictory) => {
-        if (victory && this.exploration.completeNight(victory.day, victory.barricade)) {
+        if (victory && this.exploration.completeNight(victory.day, victory.barricade, victory.fledCompanionIds)) {
           this.armoryOpen = false;
           this.result = null;
           this.turnResult = false;
@@ -497,17 +512,20 @@ export class ExplorationScene extends Phaser.Scene {
           this.selectionStartedAt.clear();
           this.confirmationOpen = false;
           this.planningPage = 'map';
-        }
+        } else this.exploration.retryNight();
         this.input.enabled = true;
         this.render();
       });
       this.scene.launch('LastStandCombatScene', {
+        companions: this.exploration.companions.getActive().filter(ally => deployedIds.includes(ally.id))
+          .map(companion => ({ companion, weaponId: this.armory.getCompanionWeapon(companion.id) as WeaponId | null })),
         day: state.day,
         barricades: { 'hazard-main': state.barricade },
         slots: this.armory.getState().slots as [WeaponId | null, WeaponId | null],
       });
       this.scene.sleep();
     } catch (error) {
+      this.exploration.retryNight();
       this.input.enabled = true;
       throw error;
     }
