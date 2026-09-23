@@ -67,4 +67,59 @@ describe('companion day allocation', () => {
     expect(system.getState().resources.ammo).toBe(0);
     expect(system.beginNight(0)).toBe(true);
   });
+  it('loses supplies with a wiped-out team and leaves its later sites unsearched', () => {
+    const system = recruitedDay();
+    const id = system.companions.getActive()[0].id;
+    system.toggleLocation('grocery');
+    system.setParticipants('grocery', [id]);
+    system.toggleLocation('pharmacy');
+    system.setParticipants('pharmacy', [id]);
+    const hours = system.getSearchHours('grocery');
+    const result = system.confirmPlan()!;
+    expect(result.loot).toEqual({ food: 0, ammo: 0, fuel: 0 });
+    expect(result.locationIds).toEqual(['grocery']);
+    expect(system.getState().locations.find(site => site.id === 'pharmacy')?.searched).toBe(false);
+    expect(system.companions.getActive()).toHaveLength(0);
+    expect(system.getSearchHours('grocery')).toBe(hours);
+  });
+
+  it('does not apply survival recovery twice when a night result is repeated', () => {
+    const system = recruitedDay();
+    const initial = system.companions.getActive()[0].courage;
+    expect(system.completeNight(3, 40)).toBe(true);
+    const recovered = system.companions.getActive()[0].courage;
+    expect(recovered).toBeGreaterThan(initial);
+    expect(system.completeNight(3, 40)).toBe(false);
+    expect(system.companions.getActive()[0].courage).toBe(recovered);
+  });
+
+  it('does not recover a weapon cache or perform repairs when its only searcher dies', () => {
+    const system = recruitedDay();
+    const id = system.companions.getActive()[0].id;
+    system.toggleLocation('police');
+    expect(system.setParticipants('police', [id])).toBe(true);
+    expect(system.setRepairHours(1, id)).toBe(true);
+    const result = system.confirmPlan()!;
+    expect(system.getRecoveredWeapons()).toEqual([]);
+    expect(result.repaired).toBe(0);
+  });
+
+  it('rejects a joint schedule that finishes after twelve hours despite spare personal hours', () => {
+    const locations = [['recruit', 0], ['long', 8], ['joint', 1], ['last', 3]] as const;
+    const system = new ExplorationSystem(locations.map(([id, searchHours]) => ({
+      id, name: id, x: 0, y: 0, searchHours, lootTable: {}, searched: false,
+    })), () => 0);
+    system.completeNight(1, 50);
+    system.search('recruit');
+    system.completeNight(2, 50);
+    const id = system.companions.getActive()[0].id;
+    expect(system.toggleLocation('long')).toBe(true);
+    expect(system.toggleLocation('joint')).toBe(true);
+    expect(system.setParticipants('joint', ['player', id])).toBe(true);
+    expect(system.toggleLocation('last')).toBe(true);
+    expect(system.getUnallocatedHours(id)).toBe(11);
+    expect(system.setParticipants('last', [id])).toBe(false);
+    expect(system.getParticipants('last')).toEqual(['player']);
+  });
+
 });

@@ -1,5 +1,5 @@
 import { PISTOL_WEAPON } from './weaponConfig';
-import type { WeaponDefinition } from '../logic/weapon';
+import type { WeaponDefinition, WeaponId } from '../logic/weapon';
 /** Initial tuning; gameplay rules live in logic/companion.ts. */
 export const COMPANION_CONFIG = {
   maximum: 4,
@@ -17,6 +17,7 @@ export const COMPANION_CONFIG = {
   minimumSearchEfficiency: 0.5,
   ammoPerCompanion: 1,
   fleeSpeed: 90,
+  fleeFadeDistance: 80,
   civilianPistolDamage: 10,
   civilianPistolIntervalMs: 2000,
 } as const;
@@ -34,4 +35,10 @@ export const COMPANION_PISTOL: WeaponDefinition = {
   description: 'A weak, painfully slow sidearm.',
   config: { ...PISTOL_WEAPON.config, damage: COMPANION_CONFIG.civilianPistolDamage,
     fireIntervalMs: COMPANION_CONFIG.civilianPistolIntervalMs },
+};
+
+/** Initial Last Stand weapon caches; each provides one shared weapon. */
+export const COMPANION_WEAPON_CACHES: Readonly<Partial<Record<string, WeaponId>>> = {
+  police: 'burstRifle',
+  'house-b': 'doubleBarrelShotgun',
 };

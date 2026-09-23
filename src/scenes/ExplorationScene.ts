@@ -251,7 +251,7 @@ export class ExplorationScene extends Phaser.Scene {
     renderExplorationConfirmation(this, this.ui!, width, height, state, () => {
       this.confirmationOpen = false;
       this.render();
-    }, () => this.confirmDayPlan());
+    }, () => this.confirmDayPlan(), this.exploration);
   }
 
   private confirmDayPlan(): void {
@@ -260,9 +260,7 @@ export class ExplorationScene extends Phaser.Scene {
     const map = this.exploration.getState();
     const result = this.exploration.confirmPlan();
     if (!result) { this.render(); return; }
-    // One recoverable long gun at each designated weapon cache.
-    if (result.locationIds.includes('police')) this.armory.addWeapon('burstRifle');
-    if (result.locationIds.includes('house-b')) this.armory.addWeapon('doubleBarrelShotgun');
+    for (const weapon of this.exploration.getRecoveredWeapons()) this.armory.addWeapon(weapon);
     this.armory.syncCompanions(this.exploration.companions.getActive().map(ally => ally.id));
     // Resolve once, but keep the map visible while daylight fades.
     this.transitionMap = map;
@@ -272,6 +270,8 @@ export class ExplorationScene extends Phaser.Scene {
     this.transitionTimer = this.time.delayedCall(NIGHT_FADE_MS, () => {
       this.transitionMap = null;
       this.result = result;
+      this.companionsOpen = this.exploration.companions.getEvents().length > 0 || this.exploration.getRecoveredWeapons().length > 0;
+      this.companionOffset = { x: 0, y: 0, zoom: 1 };
       this.turnResult = true;
       this.render();
       this.input.enabled = true;

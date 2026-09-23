@@ -1,3 +1,4 @@
+import type { ExplorationSystem } from '../systems/ExplorationSystem';
 import type Phaser from 'phaser';
 import { t } from '../systems/UserSettings';
 import type { ExplorationState } from '../types/exploration';
@@ -7,7 +8,7 @@ import { ScrollPanel } from './ScrollPanel';
 export function renderExplorationConfirmation(
   scene: Phaser.Scene, parent: Phaser.GameObjects.Container,
   width: number, height: number, state: ExplorationState,
-  cancel: () => void, confirm: () => void,
+  cancel: () => void, confirm: () => void, exploration?: ExplorationSystem,
 ): void {
   const overlay = scene.add.container(0, 0);
   parent.add(overlay);
@@ -45,9 +46,13 @@ export function renderExplorationConfirmation(
   };
   let siteY = summaryText(0, 0, t('Search sites'), siteWidth, true) + 8;
   const locations = state.locations.filter(location => state.plannedLocationIds.includes(location.id));
-  const searchHours = locations.reduce((total, location) => total + location.searchHours, 0);
+  const names = new Map([['player', t('Player')], ...(exploration?.companions.getActive() ?? [])
+    .map(ally => [ally.id, `${ally.firstName} ${ally.lastName}`] as [string, string])]);
+  const searchHours = locations.filter(location => !exploration || exploration.getParticipants(location.id).includes('player'))
+    .reduce((total, location) => total + (exploration?.getSearchHours(location.id) ?? location.searchHours), 0);
   const rows = locations.length ? locations.map(location =>
-    t('{site} · {hours} h', { site: t(location.name), hours: location.searchHours }),
+    t('{site} · {hours} h', { site: t(location.name), hours: exploration?.getSearchHours(location.id) ?? location.searchHours })
+      + (exploration ? '\n' + exploration.getParticipants(location.id).map(id => names.get(id)).join(', ') : ''),
   ) : [t('No sites selected')];
   rows.forEach(row => { siteY += summaryText(0, siteY, row, siteWidth) + 6; });
 
@@ -59,6 +64,12 @@ export function renderExplorationConfirmation(
     t('Rest {hours} h', { hours: state.remainingHours - searchHours - state.repairHours }),
   ].forEach(label => { budgetY += summaryText(budgetX, budgetY, label, innerWidth - budgetX) + 6; });
 
+  for (const ally of exploration?.companions.getActive() ?? []) {
+    if (ally.joinedDay >= state.day) continue;
+    budgetY += summaryText(budgetX, budgetY, `${ally.firstName} ${ally.lastName} · `
+      + t('{hours} h repair', { hours: exploration!.getRepairHours(ally.id) }) + ' · '
+      + t('Rest {hours} h', { hours: exploration!.getUnallocatedHours(ally.id) }), innerWidth - budgetX) + 6;
+  }
   const buttonY = top + panelHeight - 60;
   const viewport = { x: left + padding, y: top + 52, width: innerWidth, height: buttonY - (top + 52) - 12 };
   const contentHeight = Math.max(viewport.height, siteY, budgetY);

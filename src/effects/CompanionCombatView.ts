@@ -1,9 +1,12 @@
+import { COMPANION_CONFIG } from '../config/companionConfig';
+import type { Vector2 } from '../logic/hitscan';
 import Phaser from 'phaser';
 import { Player } from '../entities/Player';
 import type { CompanionCombat, CompanionShot } from '../systems/CompanionCombat';
 
 /** Reuses survivor poses while keeping all targeting, damage and flight decisions in the system. */
 export class CompanionCombatView {
+  private readonly starts = new Map<string, Vector2>();
   private readonly actors = new Map<string, Player>();
   constructor(scene: Phaser.Scene, combat: CompanionCombat) {
     for (const pose of combat.getPoses()) {
@@ -11,6 +14,7 @@ export class CompanionCombatView {
       actor.setWeaponVisual(pose.weaponId);
       actor.setAlpha(0.85);
       this.actors.set(pose.id, actor);
+      this.starts.set(pose.id, { ...pose.position });
     }
   }
   update(combat: CompanionCombat, deltaMs: number): void {
@@ -18,6 +22,8 @@ export class CompanionCombatView {
       const actor = this.actors.get(pose.id)!;
       actor.setPosition(pose.position.x, pose.position.y);
       actor.setVisible(pose.state !== 'left');
+      const start = this.starts.get(pose.id)!;
+      actor.setAlpha(pose.state === 'fleeing' ? 0.85 * Math.max(0, 1 - Math.hypot(pose.position.x - start.x, pose.position.y - start.y) / COMPANION_CONFIG.fleeFadeDistance) : 0.85);
       actor.setAimDirection(pose.direction);
       actor.setReloadVisual(pose.reload.isReloading, pose.reload.normalized);
       actor.updateVisual(deltaMs, pose.state === 'fleeing');

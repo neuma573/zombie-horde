@@ -1,3 +1,4 @@
+import { WEAPON_DEFINITIONS } from '../config/weaponConfig';
 import Phaser from 'phaser';
 import { ScrollPanel } from './ScrollPanel';
 import type { ViewportState } from '../logic/pinchViewport';
@@ -16,7 +17,7 @@ export function renderCompanionPlanning(scene: Phaser.Scene, parent: Phaser.Game
   }))];
   const width = box.width - 24;
   const events = exploration.companions.getEvents();
-  const contentHeight = 130 + people.length * 105 + state.plannedLocationIds.length * (66 + people.length * 42) + events.length * 48;
+  const contentHeight = 130 + people.length * 105 + state.plannedLocationIds.length * (110 + people.length * 42) + events.length * 48 + exploration.getRecoveredWeapons().length * 48;
   const panel = new ScrollPanel(scene, parent, { x: box.x + 12, y: box.y + 56, width, height: Math.max(40, box.height - 68) },
     width, Math.max(contentHeight, box.height - 68), offset, 'contain', { zoomEnabled: false });
   const text = (x: number, y: number, label: string, size = 14, color = '#292b25') => {
@@ -34,6 +35,18 @@ export function renderCompanionPlanning(scene: Phaser.Scene, parent: Phaser.Game
   parent.add(back);
   let y = 8;
   text(0, y, t('Each person has 12 hours. Unassigned time is rest.'), 13); y += 48;
+  for (const weapon of exploration.getRecoveredWeapons()) {
+    text(0, y, t('Recovered {weapon}', { weapon: t(WEAPON_DEFINITIONS[weapon].name) }), 14, '#526537');
+    y += 48;
+  }
+  for (const event of events) {
+    text(0, y, t(event.type === 'joined' ? '{name} joined at {site}.' : '{name} died at {site}.', {
+      name: `${event.companion.firstName} ${event.companion.lastName}`,
+      site: t(state.locations.find(location => location.id === event.locationId)?.name ?? event.locationId),
+    }), 13, event.type === 'died' ? '#982c24' : '#526537');
+    y += 48;
+  }
+
   for (const person of people) {
     text(0, y, person.name + (person.courage === null ? '' : ` · ${t('Courage')} ${person.courage}`), 15);
     const editable = person.available && !state.confirmed && state.day > 1;
@@ -48,11 +61,13 @@ export function renderCompanionPlanning(scene: Phaser.Scene, parent: Phaser.Game
     const location = state.locations.find(location => location.id === locationId)!;
     text(0, y, `${t(location.name)} · ${exploration.getSearchHours(locationId)} h`, 15); y += 28;
     const ids = exploration.getParticipants(locationId);
+    const feedback = text(0, y, '', 12, '#982c24');
+    y += 36;
     for (const person of people) {
       button(0, y, width - 2, `${ids.includes(person.id) ? '✓' : '+'} ${person.name}`, () => {
         const next = ids.includes(person.id) ? ids.filter(id => id !== person.id) : [...ids, person.id];
         if (!exploration.setParticipants(locationId, next)) {
-          text(0, y, t('Keep one searcher and stay within each time budget.'), 12, '#982c24');
+          feedback.setText(t('Keep one searcher and stay within each time budget.'));
           return;
         }
         refresh();
@@ -60,12 +75,5 @@ export function renderCompanionPlanning(scene: Phaser.Scene, parent: Phaser.Game
       y += 42;
     }
     y += 38;
-  }
-  for (const event of events) {
-    text(0, y, t(event.type === 'joined' ? '{name} joined at {site}.' : '{name} died at {site}.', {
-      name: `${event.companion.firstName} ${event.companion.lastName}`,
-      site: t(state.locations.find(location => location.id === event.locationId)?.name ?? event.locationId),
-    }), 13, event.type === 'died' ? '#982c24' : '#526537');
-    y += 48;
   }
 }

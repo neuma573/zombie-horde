@@ -1,4 +1,5 @@
 export const korean = {
+  "Recovered {weapon}": "{weapon} 확보",
   "Night preparation": "야간 준비",
   "Ammo {ammo} · Deployment cost {cost}": "탄약 {ammo} · 참전 비용 {cost}",
   "Worn Pistol": "낡은 권총",

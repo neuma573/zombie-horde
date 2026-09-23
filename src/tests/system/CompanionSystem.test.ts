@@ -6,6 +6,7 @@ describe('CompanionSystem', () => {
     const party = new CompanionSystem(() => 0);
     for (let n = 0; n < 6; n++) party.resolveSearch(2, `site-${n}`, [], 1);
     expect(party.getActive()).toHaveLength(4);
+    expect(new Set(party.getActive().map(ally => `${ally.firstName} ${ally.lastName}`)).size).toBe(4);
     expect(new Set(party.getActive().map(ally => ally.id)).size).toBe(4);
     party.getRoster()[0].courage = -10;
     expect(party.getActive()[0].courage).toBe(35);

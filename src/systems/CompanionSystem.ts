@@ -1,4 +1,4 @@
-import { COMPANION_CONFIG as C } from '../config/companionConfig';
+import { COMPANION_CONFIG as C, COMPANION_NAMES } from '../config/companionConfig';
 import { clampCourage, companionDeathChance, createCompanion } from '../logic/companion';
 import type { Companion, CompanionEvent } from '../types/companion';
 
@@ -13,7 +13,7 @@ export class CompanionSystem {
   getEvents(): CompanionEvent[] { return structuredClone(this.events); }
   beginDay(): void { this.events = []; }
 
-  resolveSearch(day: number, locationId: string, participantIds: readonly string[], people: number): void {
+  resolveSearch(day: number, locationId: string, participantIds: readonly string[], people: number): boolean {
     // All participants face this site's risk using their pre-result courage.
     const deaths = this.roster.filter(ally => ally.status === 'active' && participantIds.includes(ally.id))
       .filter(ally => this.random() < companionDeathChance(ally.courage, people));
@@ -24,11 +24,19 @@ export class CompanionSystem {
     if (deaths.length) for (const ally of this.roster) {
       if (ally.status === 'active') ally.courage = clampCourage(ally.courage - C.deathCourageLoss * deaths.length);
     }
+    if (deaths.length >= people) return false;
     if (this.getActive().length < C.maximum && this.random() < C.discoveryChance) {
       const ally = createCompanion(`companion-${this.nextId++}`, day, this.random);
+      const usedNames = new Set(this.getActive().map(member => `${member.firstName} ${member.lastName}`));
+      const firstSurname = COMPANION_NAMES.surnames.indexOf(ally.lastName as typeof COMPANION_NAMES.surnames[number]);
+      for (let offset = 0; offset < COMPANION_NAMES.surnames.length; offset++) {
+        ally.lastName = COMPANION_NAMES.surnames[(firstSurname + offset) % COMPANION_NAMES.surnames.length];
+        if (!usedNames.has(`${ally.firstName} ${ally.lastName}`)) break;
+      }
       this.roster.push(ally);
       this.events.push({ type: 'joined', companion: { ...ally }, locationId });
     }
+    return true;
   }
   rest(id: string, hours: number): void {
     if (!Number.isFinite(hours) || hours <= 0) return;
