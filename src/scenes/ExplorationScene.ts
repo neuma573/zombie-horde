@@ -1,3 +1,4 @@
+import { renderCompanionPlanning } from '../effects/CompanionPlanningView';
 import type { LastStandNightVictory } from '../types/lastStandCombat';
 import type { WeaponId } from '../logic/weapon';
 import Phaser from 'phaser';
@@ -9,7 +10,7 @@ import pistolUrl from '../assets/weapons/pistol-armory.png';
 import { LastStandArmory } from '../systems/LastStandArmory';
 import { renderLastStandArmory } from '../effects/LastStandArmoryView';
 import mapUrl from '../assets/hazard-map.svg?url';
-import { EXPLORATION_HOURS, REPAIR_PERCENT_PER_PERSON_HOUR } from '../config/explorationConfig';
+import { EXPLORATION_HOURS } from '../config/explorationConfig';
 import { turnExplorationPage } from '../effects/ExplorationPageTurn';
 import { drawExplorationSelection } from '../effects/ExplorationSelection';
 import { ExplorationDiary } from '../effects/ExplorationDiary';
@@ -50,6 +51,8 @@ export class ExplorationScene extends Phaser.Scene {
   private result: DayResult | null = null;
   private planningPage: 'map' | 'site' | 'plan' = 'map';
   private confirmationOpen = false;
+  private companionsOpen = false;
+  private companionOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
 
   constructor() { super('ExplorationScene'); }
 
@@ -60,6 +63,8 @@ export class ExplorationScene extends Phaser.Scene {
 
   create(): void {
     this.exploration = new ExplorationSystem();
+    this.companionsOpen = false;
+    this.companionOffset = { x: 0, y: 0, zoom: 1 };
     this.transitionMap = null;
     this.input.enabled = true;
     this.armory = new LastStandArmory();
@@ -124,6 +129,14 @@ export class ExplorationScene extends Phaser.Scene {
     const compact = board.height < 620;
     const mainMenu = this.text(board.x, board.y - 30, '← ' + t('MAIN MENU'), 12, '#b9b9a6');
     this.onTap(mainMenu, () => this.scene.start('MainMenuScene'));
+    const companions = this.text(board.x + board.width, board.y - 30,
+      t('Companions {count}/4', { count: this.exploration.companions.getActive().length }), 12, '#e2d6a5').setOrigin(1, 0);
+    this.onTap(companions, () => { this.companionsOpen = !this.companionsOpen; this.render(); });
+    if (this.companionsOpen) {
+      renderCompanionPlanning(this, this.ui!, board, this.exploration, this.companionOffset,
+        () => this.render(), () => { this.companionsOpen = false; this.render(); });
+      return;
+    }
     if (this.armoryOpen) {
       renderLastStandArmory(this, this.ui!, board, this.armory, PISTOL_KEY, this.exploration.getState().day, () => this.render(), () => {
         void this.startDefense();
@@ -211,7 +224,7 @@ export class ExplorationScene extends Phaser.Scene {
 
   private renderPlan(box: Box, state: ExplorationState, compact = false): void {
     this.line(box.x, box.y, box.x + box.width, box.y);
-    const projected = state.confirmed ? state.barricade : Math.min(100, state.barricade + state.repairHours * REPAIR_PERCENT_PER_PERSON_HOUR);
+    const projected = state.confirmed ? state.barricade : Math.min(100, state.barricade + this.exploration.getProjectedRepair());
     this.text(box.x, box.y + (compact ? 0 : 7), t('Barricade: {current}% → {next}%', { current: state.barricade, next: projected }), 14, INK, true);
     if (!compact) this.text(box.x, box.y + 28, t('Repair · 1 person · 5% / h'), 12, MUTED);
     const repairY = box.y + (compact ? 22 : 49);
@@ -222,7 +235,7 @@ export class ExplorationScene extends Phaser.Scene {
     this.button(box.x, box.y + (compact ? 78 : 113), box.width, t(state.confirmed ? 'DAY COMPLETE' : 'CONFIRM DAY PLAN'), () => {
       this.confirmationOpen = true;
       this.render();
-    }, !state.confirmed && (state.plannedLocationIds.length > 0 || state.repairHours > 0));
+    }, this.exploration.canConfirmPlan());
   }
 
   private renderConfirmation(width: number, height: number, state: ExplorationState): void {
@@ -362,7 +375,8 @@ export class ExplorationScene extends Phaser.Scene {
 
   private renderTimeBudget(box: Box, state: ExplorationState): void {
     const search = state.locations.filter(location => state.plannedLocationIds.includes(location.id))
-      .reduce((hours, location) => hours + location.searchHours, 0);
+      .filter(location => this.exploration.getParticipants(location.id).includes('player'))
+      .reduce((hours, location) => hours + this.exploration.getSearchHours(location.id), 0);
     const free = this.transitionMap ? EXPLORATION_HOURS - search - state.repairHours : this.exploration.getUnallocatedHours();
     this.text(box.x, box.y, t('Allocated {used} / {total} h', { used: search + state.repairHours, total: EXPLORATION_HOURS }), 13, INK, true);
     const gap = 3;
@@ -381,7 +395,7 @@ export class ExplorationScene extends Phaser.Scene {
     const x = box.x + 12;
     const y = box.y + 10;
     this.text(x, y, t(location.name), compact ? 16 : 19, INK, true);
-    this.text(x, y + 28, t('Search required: {hours} h', { hours: location.searchHours }), 12, RED);
+    this.text(x, y + 28, t('Search required: {hours} h', { hours: this.exploration.getSearchHours(location.id) }), 12, RED);
     const state = this.transitionMap ?? this.exploration.getState();
     const planned = state.plannedLocationIds.includes(location.id);
     const block = state.confirmed ? 'DAY COMPLETE' : location.searched ? 'SEARCHED' :

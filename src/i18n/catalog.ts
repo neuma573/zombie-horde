@@ -1,4 +1,13 @@
 export const korean = {
+  "Companions {count}/4": "동료 {count}/4",
+  "Player": "플레이어",
+  "Courage": "사기",
+  "Back": "돌아가기",
+  "Each person has 12 hours. Unassigned time is rest.": "각자 12시간을 사용합니다. 남은 시간은 휴식합니다.",
+  "Available for work tomorrow": "낮 일과는 내일부터 참여",
+  "Keep one searcher and stay within each time budget.": "탐색 인원 1명 이상과 개인별 시간 예산을 유지하세요.",
+  "{name} joined at {site}.": "{site}에서 {name} 합류.",
+  "{name} died at {site}.": "{site}에서 {name} 사망.",
   "NIGHT DEBRIEF": "사후 강평",
   "Night {day} survived": "{day}일째 밤 생존",
   "Zombies killed": "처치한 좀비",
