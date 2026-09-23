@@ -1,3 +1,4 @@
+import { DefenseBlackout } from '../effects/DefenseBlackout';
 import { CompanionCombat } from '../systems/CompanionCombat';
 import { CompanionCombatView } from '../effects/CompanionCombatView';
 import { fitDefenseCamera } from '../logic/defenseCamera';
@@ -313,6 +314,7 @@ export class GameScene extends Phaser.Scene {
   private nightStart?: LastStandCombatStart;
   private defenseView?: DefenseMapView;
   private defeatView?: DefenseDefeatView;
+  private defenseBlackout?: DefenseBlackout;
   private nightDebrief?: NightDebriefView;
   private defenseSpawn?: DefenseSpawnSystem;
 
@@ -575,6 +577,8 @@ export class GameScene extends Phaser.Scene {
       this.companionCombat = undefined;
       this.defenseView?.destroy();
       this.defenseView = undefined;
+      this.defenseBlackout?.destroy();
+      this.defenseBlackout = undefined;
       this.defeatView?.destroy();
       this.defeatView = undefined;
       this.nightDebrief?.destroy();
@@ -2178,11 +2182,7 @@ export class GameScene extends Phaser.Scene {
 
   private playDefenseDeath(): void {
     this.mobileControls?.setVisible(false);
-    this.tweens.add({
-      targets: this.player, alpha: 0.55, scaleY: 0.55,
-      angle: this.player.angle + 32, duration: 650, ease: 'Cubic.Out',
-    });
-    this.time.delayedCall(800, () => {
+    this.defenseBlackout = new DefenseBlackout(this, () => {
       this.defeatView = new DefenseDefeatView(this, this.nightStart?.day ?? 1, () => {
         this.scene.stop();
         this.scene.wake('ExplorationScene');
