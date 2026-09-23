@@ -7,6 +7,7 @@ export const LAST_STAND_COMBAT_CONFIG = {
   endHour: 5,
   maxIntegrity: 100,
   dangerThreshold: 10,
+  breachedPursuitSpeed: 38,
   // Percent points per strike; prolonged contact across successive groups adds up.
   barricadeDamage: 1,
   attackIntervalMs: ZOMBIE_CONFIG.attackIntervalMs,

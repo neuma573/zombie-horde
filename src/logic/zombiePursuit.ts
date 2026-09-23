@@ -11,8 +11,9 @@ export function movePursuingZombie(
   separationVelocity: Position,
   deltaMs: number,
   config: Pick<ZombieConfig, 'speed' | 'fast'>,
+  speedOverride?: number,
 ): Position {
-  const speed = config.speed * (zombie.kind === 'fast'
+  const speed = speedOverride ?? config.speed * (zombie.kind === 'fast'
     ? fastZombieSpeedMultiplier(zombieAppearanceSeedFromId(zombie.id), config.fast)
     : 1);
   const velocity = zombieVelocityWithCrowdSpacing(zombie.position, target, speed, separationVelocity);

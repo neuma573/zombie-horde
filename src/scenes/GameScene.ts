@@ -1095,6 +1095,7 @@ export class GameScene extends Phaser.Scene {
         separationVelocity,
         deltaMs,
         ZOMBIE_CONFIG,
+        this.night?.getPursuitSpeed(zombie.id),
       );
       const nextZombiePosition = moveCircleWithObstacles(
         zombie,

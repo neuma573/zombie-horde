@@ -66,6 +66,12 @@ export class LastStandCombat {
     };
   }
 
+  getPursuitSpeed(id: string): number | undefined {
+    const zombie = this.zombies.get(id);
+    return zombie && this.integrity.get(zombie.sectorId) === 0
+      ? LAST_STAND_COMBAT_CONFIG.breachedPursuitSpeed : undefined;
+  }
+
   getAttackState(id: string) {
     const state = this.zombies.get(id);
     return { cooldownRemainingMs: state?.cooldownRemainingMs ?? 0, windupRemainingMs: state?.windupRemainingMs ?? null };
