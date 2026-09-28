@@ -464,8 +464,9 @@ export class GameScene extends Phaser.Scene {
     this.aimAssistVisual = new AimAssistVisual(this);
     if (this.defenseLayout && this.nightStart?.companions?.length) {
       this.companionCombat = new CompanionCombat(this.nightStart.companions, this.defenseLayout.allyPositions,
-        { x: this.defenseLayout.worldSize.width + 40, y: this.defenseLayout.playerSpawn.y });
-      this.companionView = new CompanionCombatView(this, this.companionCombat);
+        { x: this.defenseLayout.worldSize.width + 40, y: this.defenseLayout.playerSpawn.y },
+        this.defenseLayout.combatArea, this.defenseLayout.interiorArea);
+      this.companionView = new CompanionCombatView(this, this.companionCombat, this.effects);
     }
     this.mobileControls = new MobileControls(this, !this.night);
     this.pauseMenu = new PauseMenu(
@@ -943,7 +944,6 @@ export class GameScene extends Phaser.Scene {
     const deadIds = new Set<string>();
     for (const shot of shots) {
       this.companionView?.shot(shot);
-      if (!shot.melee) this.effects?.playShot({ origin: shot.origin, endPoint: shot.endPoint });
       for (const hit of shot.hits) {
         const zombie = this.zombies.find(zombie => zombie.id === hit.id);
         if (!zombie || deadIds.has(zombie.id)) continue;

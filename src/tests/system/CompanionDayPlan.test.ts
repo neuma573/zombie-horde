@@ -15,6 +15,7 @@ describe('companion day allocation', () => {
     const team = recruitedDay();
     const id = team.companions.getActive()[0].id;
     solo.toggleLocation('grocery');
+    expect(solo.setParticipants('grocery', ['player'])).toBe(true);
     team.toggleLocation('grocery');
     expect(team.setParticipants('grocery', ['player', id])).toBe(true);
     expect(team.getSearchHours('grocery')).toBeLessThan(solo.getSearchHours('grocery'));
@@ -113,6 +114,8 @@ describe('companion day allocation', () => {
     system.search('recruit');
     system.completeNight(2, 50);
     const id = system.companions.getActive()[0].id;
+    expect(system.setParticipants('long', ['player'])).toBe(true);
+    expect(system.setParticipants('last', ['player'])).toBe(true);
     expect(system.toggleLocation('long')).toBe(true);
     expect(system.toggleLocation('joint')).toBe(true);
     expect(system.setParticipants('joint', ['player', id])).toBe(true);
@@ -120,6 +123,89 @@ describe('companion day allocation', () => {
     expect(system.getUnallocatedHours(id)).toBe(11);
     expect(system.setParticipants('last', [id])).toBe(false);
     expect(system.getParticipants('last')).toEqual(['player']);
+  });
+
+  it('selects eligible companions by default when marking each building', () => {
+    const system = recruitedDay();
+    for (let index = 0; index < 3; index++) system.companions.resolveSearch(2, 'recruit', [], 1);
+    const ids = system.companions.getActive().map(ally => ally.id);
+    expect(ids).toHaveLength(4);
+
+    expect(system.getParticipants('grocery')).toEqual(['player', ...ids]);
+    expect(system.toggleLocation('grocery')).toBe(true);
+    expect(system.toggleLocation('pharmacy')).toBe(true);
+    expect(system.getParticipants('grocery')).toEqual(['player', ...ids]);
+    expect(system.getParticipants('pharmacy')).toEqual(['player', ...ids]);
+  });
+
+  it('keeps participation choices specific to a building and updates its search time', () => {
+    const system = recruitedDay();
+    const id = system.companions.getActive()[0].id;
+    system.toggleLocation('grocery');
+    const together = system.getSearchHours('grocery');
+
+    expect(system.setParticipants('grocery', ['player'])).toBe(true);
+    expect(system.getSearchHours('grocery')).toBeGreaterThan(together);
+    expect(system.getParticipants('pharmacy')).toEqual(['player', id]);
+    expect(system.getParticipants('grocery')).toEqual(['player']);
+    expect(system.setParticipants('grocery', ['player', id])).toBe(true);
+    expect(system.getSearchHours('grocery')).toBe(together);
+  });
+
+  it('offers searches that fit with the default team but exceed the solo time budget', () => {
+    const system = recruitedDay();
+    expect(system.setRepairHours(9)).toBe(true);
+    expect(system.getUnallocatedHours()).toBe(3);
+
+    expect(system.canPlanLocation('grocery')).toBe(true);
+    expect(system.hasPlannableLocations()).toBe(true);
+    expect(system.toggleLocation('grocery')).toBe(true);
+    const team = system.getParticipants('grocery');
+    expect(system.setParticipants('grocery', ['player'])).toBe(false);
+    expect(system.getParticipants('grocery')).toEqual(team);
+  });
+
+  it('previews a building team without reserving time and rejects over-budget team plans', () => {
+    const system = recruitedDay();
+    const id = system.companions.getActive()[0].id;
+    expect(system.setRepairHours(10, id)).toBe(true);
+    const before = system.getState();
+
+    expect(system.canPlanLocation('grocery')).toBe(false);
+    expect(system.toggleLocation('grocery')).toBe(false);
+    expect(system.getState()).toEqual(before);
+    expect(system.setParticipants('grocery', ['player'])).toBe(true);
+    expect(system.getState()).toEqual(before);
+    expect(system.getUnallocatedHours()).toBe(12);
+    expect(system.canPlanLocation('grocery')).toBe(true);
+    expect(system.toggleLocation('grocery')).toBe(true);
+    expect(system.getParticipants('grocery')).toEqual(['player']);
+  });
+
+  it('does not default same-day recruits into exploration and freezes confirmed teams', () => {
+    const system = new ExplorationSystem(undefined, () => 0);
+    system.completeNight(1, 50);
+    system.search('gas');
+    expect(system.companions.getActive()).toHaveLength(1);
+    expect(system.getAvailableCompanions()).toEqual([]);
+    expect(system.toggleLocation('grocery')).toBe(true);
+    expect(system.getParticipants('grocery')).toEqual(['player']);
+    system.confirmPlan();
+
+    expect(system.getParticipants('grocery')).toEqual(['player']);
+    expect(system.setParticipants('grocery', ['player'])).toBe(false);
+    expect(system.setParticipants('police', ['player'])).toBe(false);
+  });
+
+  it('restores the default team when a building is unmarked and marked again', () => {
+    const system = recruitedDay();
+    const id = system.companions.getActive()[0].id;
+    system.toggleLocation('grocery');
+    system.setParticipants('grocery', ['player']);
+    expect(system.toggleLocation('grocery')).toBe(true);
+    expect(system.toggleLocation('grocery')).toBe(true);
+    expect(system.getParticipants('grocery')).toEqual(['player', id]);
+    expect(system.setParticipants('missing', ['player'])).toBe(false);
   });
 
 });

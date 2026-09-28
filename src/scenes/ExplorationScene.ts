@@ -1,5 +1,4 @@
-import { renderCompanionArmory } from '../effects/CompanionArmoryView';
-import { renderCompanionPlanning } from '../effects/CompanionPlanningView';
+import { renderExplorationLocationNote } from '../effects/ExplorationLocationNote';
 import type { LastStandNightVictory } from '../types/lastStandCombat';
 import type { WeaponId } from '../logic/weapon';
 import Phaser from 'phaser';
@@ -8,6 +7,8 @@ import { getArmoryViewportScale } from '../logic/armoryLayout';
 import type { ViewportState } from '../logic/pinchViewport';
 import { ScrollPanel } from '../effects/ScrollPanel';
 import pistolUrl from '../assets/weapons/pistol-armory.png';
+import { GAME_IMAGE_ASSETS } from '../effects/gameAssetPreloader';
+import { WEAPON_DEFINITIONS } from '../config/weaponConfig';
 import { LastStandArmory } from '../systems/LastStandArmory';
 import { renderLastStandArmory } from '../effects/LastStandArmoryView';
 import mapUrl from '../assets/hazard-map.svg?url';
@@ -17,7 +18,8 @@ import { drawExplorationSelection } from '../effects/ExplorationSelection';
 import { ExplorationDiary } from '../effects/ExplorationDiary';
 import { renderExplorationConfirmation } from '../effects/ExplorationConfirmation';
 import { ExplorationSystem } from '../systems/ExplorationSystem';
-import { t } from '../systems/UserSettings';
+import { t, userSettings } from '../systems/UserSettings';
+import { explorationPlanMessage } from '../logic/explorationFeedback';
 import { RESOURCE_KEYS, type ExplorationState, type SearchLocation, type DayResult } from '../types/exploration';
 
 const NIGHT_FADE_MS = 1500;
@@ -52,22 +54,25 @@ export class ExplorationScene extends Phaser.Scene {
   private result: DayResult | null = null;
   private planningPage: 'map' | 'site' | 'plan' = 'map';
   private confirmationOpen = false;
-  private companionsOpen = false;
-  private deploymentOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
-  private companionOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
+  private armoryRecipient = 'player';
+  private resultOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
+  private noteOffset: ViewportState = { x: 0, y: 0, zoom: 1 };
 
   constructor() { super('ExplorationScene'); }
 
   preload(): void {
     if (!this.textures.exists(PISTOL_KEY)) this.load.image(PISTOL_KEY, pistolUrl);
     if (!this.textures.exists(MAP_KEY)) this.load.svg(MAP_KEY, mapUrl);
+    for (const [key, url] of Object.entries(GAME_IMAGE_ASSETS)) {
+      if (key.startsWith('weapon-') && !this.textures.exists(key)) this.load.image(key, url);
+    }
   }
 
   create(): void {
     this.exploration = new ExplorationSystem();
-    this.companionsOpen = false;
-    this.deploymentOffset = { x: 0, y: 0, zoom: 1 };
-    this.companionOffset = { x: 0, y: 0, zoom: 1 };
+    this.armoryRecipient = 'player';
+    this.resultOffset = { x: 0, y: 0, zoom: 1 };
+    this.noteOffset = { x: 0, y: 0, zoom: 1 };
     this.transitionMap = null;
     this.input.enabled = true;
     this.armory = new LastStandArmory();
@@ -132,23 +137,16 @@ export class ExplorationScene extends Phaser.Scene {
     const compact = board.height < 620;
     const mainMenu = this.text(board.x, board.y - 30, '← ' + t('MAIN MENU'), 12, '#b9b9a6');
     this.onTap(mainMenu, () => this.scene.start('MainMenuScene'));
-    const companions = this.text(board.x + board.width, board.y - 30,
-      t('Companions {count}/4', { count: this.exploration.companions.getActive().length }), 12, '#e2d6a5').setOrigin(1, 0);
-    this.onTap(companions, () => { this.companionsOpen = !this.companionsOpen; this.render(); });
-    if (this.companionsOpen) {
-      renderCompanionPlanning(this, this.ui!, board, this.exploration, this.companionOffset,
-        () => this.render(), () => { this.companionsOpen = false; this.render(); });
-      return;
-    }
     if (this.armoryOpen) {
-      if (this.exploration.companions.getActive().length || this.armory.getState().owned.length > 1) {
-        renderCompanionArmory(this, this.ui!, board, this.exploration, this.armory, this.deploymentOffset,
-          () => this.render(), () => { void this.startDefense(); });
-        return;
-      }
+      const roster = this.exploration.companions.getActive();
+      this.armory.syncCompanions(roster.map(ally => ally.id));
       renderLastStandArmory(this, this.ui!, board, this.armory, PISTOL_KEY, this.exploration.getState().day, () => this.render(), () => {
         void this.startDefense();
-      }, this.armoryOffset);
+      }, this.armoryOffset, {
+        companions: roster, ammo: this.exploration.getState().resources.ammo,
+        recipientId: this.armoryRecipient,
+        selectRecipient: id => { this.armoryRecipient = id; this.render(); },
+      });
       this.renderNight(width, height);
       return;
     }
@@ -185,7 +183,9 @@ export class ExplorationScene extends Phaser.Scene {
     const bodyY = board.y + headerHeight + 12;
     const bodyHeight = footerY - bodyY - 12;
     if (portrait) {
-      const noteHeight = 154;
+      const companions = this.exploration.getAvailableCompanions().length;
+      const noteHeight = companions && selected
+        ? Math.min(112 + (companions + 1) * 56, Math.max(154, bodyHeight - 140)) : 154;
       const map = { x: board.x + pad, y: bodyY, width: board.width - pad * 2, height: bodyHeight - noteHeight - 10 };
       this.renderMap(map, state.locations);
       const note = { x: map.x, y: map.y + map.height + 10, width: map.width, height: noteHeight };
@@ -231,14 +231,23 @@ export class ExplorationScene extends Phaser.Scene {
   }
 
   private renderPlan(box: Box, state: ExplorationState, compact = false): void {
-    this.line(box.x, box.y, box.x + box.width, box.y);
+    const repairHours = this.exploration.getTeamRepairHours();
+    const repair = this.exploration.getTeamRepairSummary();
     const projected = state.confirmed ? state.barricade : Math.min(100, state.barricade + this.exploration.getProjectedRepair());
+    this.line(box.x, box.y, box.x + box.width, box.y);
     this.text(box.x, box.y + (compact ? 0 : 7), t('Barricade: {current}% → {next}%', { current: state.barricade, next: projected }), 14, INK, true);
-    if (!compact) this.text(box.x, box.y + 28, t('Repair · 1 person · 5% / h'), 12, MUTED);
+    if (!compact) this.text(box.x, box.y + 28, t('Repair is shared automatically.'), 12, MUTED);
     const repairY = box.y + (compact ? 22 : 49);
-    this.button(box.x, repairY, 40, '−', () => { this.exploration.setRepairHours(state.repairHours - 1); this.render(); }, !state.confirmed && state.repairHours > 0);
-    this.text(box.x + 50, repairY + 9, t('{hours} h repair', { hours: state.repairHours }), 13, INK);
-    this.button(box.x + box.width - 40, repairY, 40, '+', () => { this.exploration.setRepairHours(state.repairHours + 1); this.render(); }, !state.confirmed && this.exploration.getUnallocatedHours() > 0 && projected < 100);
+    this.button(box.x, repairY, 40, '−', () => {
+      this.exploration.setTeamRepairHours(repairHours - 1); this.render();
+    }, !state.confirmed && repairHours > 0);
+    this.text(box.x + box.width / 2, repairY + 1, t('Up to {hours} h repair', { hours: repairHours }), 13, INK).setOrigin(0.5, 0);
+    this.text(box.x + box.width / 2, repairY + 20,
+      t('{count} workers · +{repair}%', { count: repair.workers, repair: this.exploration.getProjectedRepair() }), 11, MUTED).setOrigin(0.5, 0);
+    this.button(box.x + box.width - 40, repairY, 40, '+', () => {
+      this.exploration.setTeamRepairHours(repairHours + 1); this.render();
+    }, !state.confirmed && repairHours < EXPLORATION_HOURS
+      && this.exploration.getTeamRepairSummary(repairHours + 1).totalHours > repair.totalHours);
     this.text(box.x, box.y + (compact ? 60 : 91), t('Plan: {count} sites · Rest {hours} h', { count: state.plannedLocationIds.length, hours: this.exploration.getUnallocatedHours() }), 12, MUTED);
     this.button(box.x, box.y + (compact ? 78 : 113), box.width, t(state.confirmed ? 'DAY COMPLETE' : 'CONFIRM DAY PLAN'), () => {
       this.confirmationOpen = true;
@@ -270,8 +279,7 @@ export class ExplorationScene extends Phaser.Scene {
     this.transitionTimer = this.time.delayedCall(NIGHT_FADE_MS, () => {
       this.transitionMap = null;
       this.result = result;
-      this.companionsOpen = this.exploration.companions.getEvents().length > 0 || this.exploration.getRecoveredWeapons().length > 0;
-      this.companionOffset = { x: 0, y: 0, zoom: 1 };
+      this.resultOffset = { x: 0, y: 0, zoom: 1 };
       this.turnResult = true;
       this.render();
       this.input.enabled = true;
@@ -342,6 +350,7 @@ export class ExplorationScene extends Phaser.Scene {
       const hitWidth = Math.max(48, buildingWidth + 14);
       const hitHeight = Math.max(48, buildingHeight + 26);
       panel.onTap({ x: x - hitWidth / 2, y: y + 8 - hitHeight / 2, width: hitWidth, height: hitHeight }, () => {
+          if (this.selectedId !== location.id) this.noteOffset = { x: 0, y: 0, zoom: 1 };
           this.selectedId = location.id;
           this.feedback = null;
           if (this.exploration.toggleLocation(location.id)) {
@@ -355,11 +364,11 @@ export class ExplorationScene extends Phaser.Scene {
               zoom: selected ? overview : EXPLORATION_MAP_SELECTION_ZOOM };
             this.mapOverviewZoom = overview;
           } else {
-            const state = this.transitionMap ?? this.exploration.getState();
-            const message = state.confirmed ? t('DAY COMPLETE') : location.searched ? t('SEARCHED') :
-              t('Need {required} h · Only {available} h free', { required: location.searchHours, available: this.exploration.getUnallocatedHours() });
+            const message = explorationPlanMessage(this.exploration.getLocationPlanBlock(location.id),
+              this.exploration.companions.getActive(), userSettings.locale);
             this.feedback = { locationId: location.id, message, until: this.time.now + 2200 };
           }
+          if (this.exploration.getAvailableCompanions().length) this.planningPage = 'site';
           this.render();
         });
     });
@@ -390,7 +399,7 @@ export class ExplorationScene extends Phaser.Scene {
       .filter(location => this.exploration.getParticipants(location.id).includes('player'))
       .reduce((hours, location) => hours + this.exploration.getSearchHours(location.id), 0);
     const free = this.transitionMap ? EXPLORATION_HOURS - search - state.repairHours : this.exploration.getUnallocatedHours();
-    this.text(box.x, box.y, t('Allocated {used} / {total} h', { used: search + state.repairHours, total: EXPLORATION_HOURS }), 13, INK, true);
+    this.text(box.x, box.y, t('Player · Allocated {used} / {total} h', { used: search + state.repairHours, total: EXPLORATION_HOURS }), 13, INK, true);
     const gap = 3;
     const cell = (box.width - gap * (EXPLORATION_HOURS - 1)) / EXPLORATION_HOURS;
     for (let hour = 0; hour < EXPLORATION_HOURS; hour++) {
@@ -402,19 +411,14 @@ export class ExplorationScene extends Phaser.Scene {
   }
 
   private locationNote(box: Box, location: SearchLocation, compact: boolean): void {
-    this.rect(box.x + 3, box.y + 4, box.width, box.height, 0x323429, 0.17);
-    this.rect(box.x, box.y, box.width, box.height, 0xe4dca8);
-    const x = box.x + 12;
-    const y = box.y + 10;
-    this.text(x, y, t(location.name), compact ? 16 : 19, INK, true);
-    this.text(x, y + 28, t('Search required: {hours} h', { hours: this.exploration.getSearchHours(location.id) }), 12, RED);
-    const state = this.transitionMap ?? this.exploration.getState();
-    const planned = state.plannedLocationIds.includes(location.id);
-    const block = state.confirmed ? 'DAY COMPLETE' : location.searched ? 'SEARCHED' :
-      (!planned && location.searchHours > this.exploration.getUnallocatedHours() ? 'NOT ENOUGH TIME' : null);
-    this.text(x, box.y + box.height - 34,
-      t(block ?? (planned ? 'Marked for search' : 'Tap a building to mark or unmark it.')), 12, planned ? RED : MUTED)
-      .setWordWrapWidth(box.width - 24);
+    renderExplorationLocationNote(this, this.ui!, box, location,
+      this.transitionMap ?? this.exploration.getState(), this.exploration, this.noteOffset,
+      message => {
+        this.feedback = message ? { locationId: location.id, message, until: this.time.now + 4000 } : null;
+        if (message) this.noteOffset.y = 0;
+        this.render();
+      }, compact, this.feedback?.locationId === location.id && this.time.now < this.feedback.until
+        ? this.feedback.message : undefined);
   }
 
   private instruction(box: Box): void {
@@ -445,16 +449,8 @@ export class ExplorationScene extends Phaser.Scene {
       t('Barricade: {current}% · Rest {hours} h', { current: state.barricade, hours: state.remainingHours }),
     ].forEach((label, index) => this.text(board.x + summary.x, board.y + summary.y + index * 22, label, 12, MUTED)
       .setWordWrapWidth(summary.width));
-    const x = board.x + table.x;
-    const y = board.y + table.y;
-    this.text(x + table.width * 0.6, y, t('Found'), 12, MUTED).setOrigin(0.5, 0);
-    this.text(x + table.width * 0.9, y, t('Total'), 12, MUTED).setOrigin(0.5, 0);
-    RESOURCE_KEYS.forEach((key, index) => {
-      const rowY = y + 22 + index * 27;
-      this.text(x, rowY, t(RESOURCE_LABELS[key]), 15, INK, true);
-      this.text(x + table.width * 0.6, rowY, `+${result.loot[key]}`, 17, RED, true).setOrigin(0.5, 0);
-      this.text(x + table.width * 0.9, rowY, `${state.resources[key]}`, 17, INK, true).setOrigin(0.5, 0);
-    });
+    this.renderFindings({ x: board.x + table.x, y: board.y + table.y,
+      width: table.width, height: button.y - table.y - 8 }, state, true);
     this.button(board.x + button.x, board.y + button.y, button.width, t('NEXT: ARMORY'), () => {
       this.armoryOpen = true;
       this.render();
@@ -468,16 +464,8 @@ export class ExplorationScene extends Phaser.Scene {
     const width = portrait ? board.width - 48 : board.width * 0.68;
     const top = board.y + headerHeight + (compact ? 16 : 35);
     this.text(left, top, t('Sites searched: {count} · Barricade +{repair}%', { count: result.locationIds.length, repair: result.repaired }), 13, MUTED, true);
-    const loot = RESOURCE_KEYS.filter(key => result.loot[key] > 0);
-    const rowHeight = compact ? 31 : 54;
-    if (!loot.length) this.text(left, top + rowHeight + 8, t('No resources found.'), 17, INK, true);
-    loot.forEach((key, index) => {
-      const y = top + 32 + index * rowHeight;
-      this.text(left, y, t(RESOURCE_LABELS[key]), compact ? 19 : 24, INK, true);
-      this.text(left + width - 8, y - 3, `+${result.loot[key]}`, compact ? 24 : 30, RED, true).setOrigin(1, 0);
-      this.line(left, y + rowHeight - 6, left + width, y + rowHeight - 7, 0xb6b8a6);
-    });
     const footerY = board.y + board.height - (compact ? 134 : 178);
+    this.renderFindings({ x: left, y: top + 32, width, height: footerY - top - 40 }, state);
     this.text(left, footerY, t('Time spent: {hours} h', { hours: result.hoursSpent }), 14, MUTED);
     this.text(left, footerY + 20, t('Barricade: {current}% · Rest {hours} h', { current: state.barricade, hours: state.remainingHours }), 14, RED);
     this.resources({ x: left, y: footerY + 45, width, height: 44 }, state, true);
@@ -485,6 +473,55 @@ export class ExplorationScene extends Phaser.Scene {
       this.armoryOpen = true;
       this.render();
     });
+  }
+
+  private renderFindings(box: Box, state: ExplorationState, totals = false): void {
+    const content = this.add.container(0, 0);
+    const label = (x: number, y: number, value: string, size: number, color = INK) => {
+      const item = this.add.text(x, y, value, { fontFamily: HAND, fontSize: size, color });
+      content.add(item);
+      return item;
+    };
+    let y = 0;
+    if (totals) {
+      label(box.width * 0.6, y, t('Found'), 12, MUTED).setOrigin(0.5, 0);
+      label(box.width * 0.9, y, t('Total'), 12, MUTED).setOrigin(0.5, 0);
+      y += 22;
+    }
+    const loot = RESOURCE_KEYS.filter(key => totals || this.result!.loot[key] > 0);
+    if (!loot.length) { label(0, y, t('No resources found.'), 17); y += 32; }
+    for (const key of loot) {
+      label(0, y, t(RESOURCE_LABELS[key]), totals ? 15 : 20);
+      label(box.width * (totals ? 0.6 : 0.98), y, `+${this.result!.loot[key]}`, totals ? 17 : 24, RED)
+        .setOrigin(totals ? 0.5 : 1, 0);
+      if (totals) label(box.width * 0.9, y, `${state.resources[key]}`, 17).setOrigin(0.5, 0);
+      y += totals ? 27 : 40;
+    }
+    const note = (value: string, color: string) => {
+      const item = label(0, y + 8, value, 14, color).setWordWrapWidth(box.width - 4);
+      y += item.height + 18;
+    };
+    const events = this.exploration.companions.getEvents();
+    for (const event of events.filter(event => event.type === 'died')) {
+      note(t('{name} died at {site}.', {
+        name: `${event.companion.firstName} ${event.companion.lastName}`,
+        site: t(state.locations.find(location => location.id === event.locationId)?.name ?? event.locationId),
+      }), RED);
+    }
+    const section = (title: string, names: string[]) => {
+      if (!names.length) return;
+      const heading = label(0, y + 14, t(title), totals ? 18 : 22).setFontStyle('bold')
+        .setWordWrapWidth(box.width - 4);
+      y += heading.height + 24;
+      for (const name of names) note(name, INK);
+    };
+    section('Companions joined', events.filter(event => event.type === 'joined')
+      .map(event => `${event.companion.firstName} ${event.companion.lastName}`));
+    section('Weapons recovered', this.exploration.getRecoveredWeapons()
+      .map(weapon => t(WEAPON_DEFINITIONS[weapon].name)));
+    const panel = new ScrollPanel(this, this.ui!, box, box.width, Math.max(box.height, y),
+      this.resultOffset, 'contain', { zoomEnabled: false });
+    panel.content.add(content);
   }
 
   private async startDefense(): Promise<void> {
@@ -511,6 +548,8 @@ export class ExplorationScene extends Phaser.Scene {
           this.feedback = null;
           this.selectionStartedAt.clear();
           this.confirmationOpen = false;
+          this.noteOffset = { x: 0, y: 0, zoom: 1 };
+          this.armoryRecipient = 'player';
           this.planningPage = 'map';
         } else this.exploration.retryNight();
         this.input.enabled = true;

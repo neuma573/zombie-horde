@@ -24,6 +24,16 @@ export interface ExplorationState {
   locations: SearchLocation[];
 }
 export type SearchBlock = 'SURVIVE THE FIRST NIGHT' | 'UNKNOWN LOCATION' | 'SEARCHED' | 'NOT ENOUGH TIME' | 'DAY COMPLETE' | 'PLAN ACTIVE';
+export type ExplorationPlanBlock = {
+  reason: Exclude<SearchBlock, 'NOT ENOUGH TIME'> | 'NO SEARCHERS' | 'INVALID SEARCHERS';
+} | {
+  reason: 'NOT ENOUGH TIME';
+  personId: string;
+  /** Total scheduled hours, including work already completed today and waiting. */
+  requiredHours: number;
+  availableHours: number;
+  waitingHours: number;
+};
 export type SearchResult = {
   ok: true;
   locationId: string;

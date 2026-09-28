@@ -16,10 +16,21 @@ export const COMPANION_CONFIG = {
   lowCourageDeathBonus: 0.16,
   minimumSearchEfficiency: 0.5,
   ammoPerCompanion: 1,
-  fleeSpeed: 90,
+  fleeSpeed: 260,
   fleeFadeDistance: 80,
   civilianPistolDamage: 10,
-  civilianPistolIntervalMs: 2000,
+  civilianPistolIntervalMs: 800,
+  civilianPistolPauseMs: { min: 450, max: 900 },
+  engagementRange: 700,
+  aimSpreadDegrees: 10,
+  aimTimeMs: { min: 650, max: 1150 },
+  triggerPauseMs: { min: 750, max: 1500 },
+  turnSpeedRadians: Math.PI,
+  aimToleranceRadians: Math.PI / 60,
+  repositionWaitMs: { min: 3500, max: 6500 },
+  repositionRadius: 24,
+  repositionSpeed: 32,
+  settleTimeMs: 250,
 } as const;
 
 export const COMPANION_NAMES = {
@@ -32,7 +43,7 @@ export const COMPANION_NAMES = {
 export const COMPANION_PISTOL: WeaponDefinition = {
   ...PISTOL_WEAPON,
   name: 'Worn Pistol',
-  description: 'A weak, painfully slow sidearm.',
+  description: 'A worn sidearm with modest stopping power.',
   config: { ...PISTOL_WEAPON.config, damage: COMPANION_CONFIG.civilianPistolDamage,
     fireIntervalMs: COMPANION_CONFIG.civilianPistolIntervalMs },
 };

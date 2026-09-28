@@ -58,6 +58,13 @@ export function renderExplorationConfirmation(
 
   const budgetX = columns ? siteWidth + 12 : 0;
   let budgetY = columns ? 24 : siteY + 8;
+  if (exploration) {
+    const repair = exploration.getTeamRepairSummary();
+    budgetY += summaryText(budgetX, budgetY, t('Team repair: {count} people · {hours} h total · +{repair}%', {
+      count: repair.workers, hours: repair.totalHours, repair: exploration.getProjectedRepair(),
+    }), innerWidth - budgetX, true) + 10;
+  }
+  budgetY += summaryText(budgetX, budgetY, t('Player'), innerWidth - budgetX, true) + 6;
   [
     t('Search {hours} h', { hours: searchHours }),
     t('Repair {hours} h', { hours: state.repairHours }),
