@@ -105,8 +105,9 @@ describe('LastStandCombat', () => {
     expect(system.resolveContacts(player, [motion(1240)], 16)).toBe(false);
     expect(system.getPhase()).toBe('COMBAT');
   });
-  it('wins at dawn even when the barricade has collapsed', () => {
+  it('wins at dawn with no zombies left even when the barricade has collapsed', () => {
     const system = combat(0);
+    system.resolveContacts(player, [], 16);
     system.advanceTime(system.durationMs - 1, true);
     expect(system.getPhase()).toBe('COMBAT');
     system.advanceTime(1, true);
@@ -116,6 +117,8 @@ describe('LastStandCombat', () => {
   it('advances through midnight with the same result for split and oversized deltas', () => {
     const one = combat();
     const split = combat();
+    one.resolveContacts(player, [], 16);
+    split.resolveContacts(player, [], 16);
     one.advanceTime(one.durationMs * 10, true);
     for (let i = 0; i < 600; i++) split.advanceTime(split.durationMs / 600, true);
     expect(split.getTime()).toEqual(one.getTime());
@@ -136,8 +139,54 @@ describe('LastStandCombat', () => {
   });
   it('stops barricade damage after victory', () => {
     const system = combat();
+    system.resolveContacts(player, [], 16);
     system.advanceTime(system.durationMs, true);
     system.resolveContacts(player, [motion()], 10_000);
     expect(system.getSectors()[0].integrity).toBe(80);
+  });
+
+  it('stops arrivals at dawn but keeps the night active until the last zombie dies', () => {
+    const system = combat();
+    system.advanceTime(system.durationMs - 1, true);
+    expect(system.canSpawnZombies()).toBe(true);
+    system.advanceTime(1, true);
+    expect(system.canSpawnZombies()).toBe(false);
+    expect(system.getPhase()).toBe('COMBAT');
+    expect(formatGameTime(system.getTime())).toBe('05:00');
+    system.resolveContacts(player, [motion()], RULES.attackWindupMs);
+    expect(system.getSectors()[0].integrity).toBe(79);
+    system.advanceTime(60000, true);
+    expect(system.getPhase()).toBe('COMBAT');
+    expect(formatGameTime(system.getTime())).toBe('05:00');
+    system.resolveContacts(player, [], 16);
+    system.advanceTime(16, true);
+    expect(system.getPhase()).toBe('VICTORY');
+    expect(system.canSpawnZombies()).toBe(false);
+  });
+
+  it('does not end the night early when the area is cleared before dawn', () => {
+    const system = combat();
+    system.resolveContacts(player, [], 16);
+    system.advanceTime(system.durationMs - 1, true);
+    expect(system.getPhase()).toBe('COMBAT');
+    expect(system.canSpawnZombies()).toBe(true);
+  });
+
+  it('still loses to a surviving zombie after dawn', () => {
+    const system = combat(0);
+    system.advanceTime(system.durationMs, true);
+    system.resolveContacts(player, [motion(1140)], 16);
+    expect(system.resolveContacts(player, [motion(1200)], 16)).toBe(true);
+    system.advanceTime(16, true, 0);
+    expect(system.getPhase()).toBe('DEFEAT');
+  });
+
+  it('waits for every live zombie reported by the scene to be killed', () => {
+    const system = combat();
+    system.advanceTime(system.durationMs, true, 2);
+    system.advanceTime(16, true, 1);
+    expect(system.getPhase()).toBe('COMBAT');
+    system.advanceTime(16, true, 0);
+    expect(system.getPhase()).toBe('VICTORY');
   });
 });

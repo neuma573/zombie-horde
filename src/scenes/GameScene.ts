@@ -530,6 +530,14 @@ export class GameScene extends Phaser.Scene {
     ] : undefined;
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.pauseKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+    // TEMP: remove this block after companion checks. F8 completes the night in dev only.
+    if (import.meta.env.DEV && this.night) {
+      this.input.keyboard?.on('keydown-F8', () => {
+        if (this.night?.getPhase() === 'COMBAT') {
+          this.night.advanceTime(Math.max(1, this.night.getRemainingMs()), true, 0);
+        }
+      });
+    }
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
@@ -893,13 +901,14 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (this.night) {
-      this.night.advanceTime(deltaMs, this.player.isAlive);
+      this.night.advanceTime(deltaMs, this.player.isAlive, this.zombies.length);
       this.gameTime = this.night.getTime();
       this.defenseView?.update(this.night.getSectors());
     }
     if (!contactDied && this.night?.getPhase() === 'COMBAT') {
       this.advanceCompanions(deltaMs);
-      for (const spawn of this.defenseSpawn!.update(deltaMs, this.zombies.length)) {
+      const arrivals = this.night.canSpawnZombies() ? this.defenseSpawn!.update(deltaMs, this.zombies.length) : [];
+      for (const spawn of arrivals) {
         this.zombies.push(new Zombie(this, spawn.id, spawn.position.x, spawn.position.y, undefined, ZOMBIE_CONFIG.health, spawn.kind));
         this.night.registerZombie(spawn.id, spawn.sectorId);
       }
@@ -2157,15 +2166,8 @@ export class GameScene extends Phaser.Scene {
 
   private finishNight(): void {
     this.mobileControls?.setVisible(false);
-    for (const zombie of this.zombies) {
-      this.damage.apply(zombie, zombie.health);
-      this.effects?.playZombieDeath({
-        position: { x: zombie.x, y: zombie.y }, radius: zombie.hitRadius,
-        direction: { x: 0, y: 1 }, rotation: zombie.rotation,
-        variantKey: zombie.id, appearance: zombie.appearance,
-      });
-      zombie.destroy();
-    }
+    // Normal victory has no survivors; the temporary dev shortcut can leave actors to clean up.
+    for (const zombie of this.zombies) zombie.destroy();
     this.zombies = [];
     this.zombieKnockbacks.clear();
     this.zombieNavigation.clear();

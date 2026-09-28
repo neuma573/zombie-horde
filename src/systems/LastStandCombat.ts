@@ -41,6 +41,7 @@ export class LastStandCombat {
   getPhase(): NightCombatPhase { return this.phase; }
   getTime(): { minuteOfDay: number } { return { ...this.time }; }
   getRemainingMs(): number { return Math.max(0, this.durationMs - this.elapsedMs); }
+  canSpawnZombies(): boolean { return this.phase === 'COMBAT' && this.getRemainingMs() >= 1e-7; }
   getSectors() {
     return this.layout.sectors.map(config => ({
       ...config,
@@ -131,7 +132,7 @@ export class LastStandCombat {
     return false;
   }
 
-  advanceTime(deltaMs: number, playerAlive: boolean): void {
+  advanceTime(deltaMs: number, playerAlive: boolean, aliveZombies = this.zombies.size): void {
     if (this.phase !== 'COMBAT') return;
     if (!playerAlive) { this.phase = 'DEFEAT'; return; }
     if (!Number.isFinite(deltaMs) || deltaMs <= 0) return;
@@ -140,7 +141,7 @@ export class LastStandCombat {
     this.time = advanceGameTime(this.time, step, LAST_STAND_TIME_CONFIG);
     if (this.getRemainingMs() < 1e-7) {
       this.time = { minuteOfDay: LAST_STAND_COMBAT_CONFIG.endHour * 60 };
-      this.phase = 'VICTORY';
+      if (aliveZombies === 0) this.phase = 'VICTORY';
     }
   }
 }
