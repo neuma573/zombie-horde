@@ -8,7 +8,7 @@ describe('Last Stand day progression', () => {
     expect(initial.day).toBe(1);
     expect(system.search('gas')).toEqual({ ok: false, reason: 'SURVIVE THE FIRST NIGHT' });
     expect(system.toggleLocation('gas')).toBe(false);
-    expect(system.setRepairHours(2)).toBe(false);
+    expect(system.setTeamRepairHours(2)).toBe(false);
     expect(system.confirmPlan()).toBeNull();
     expect(system.hasSearchableLocations()).toBe(false);
     expect(system.hasPlannableLocations()).toBe(false);
@@ -21,14 +21,14 @@ describe('Last Stand day progression', () => {
     expect(system.getState()).toMatchObject({ day: 2, barricade: 37, remainingHours: 12, confirmed: false });
     expect(system.canSearch('gas')).toBe(true);
     expect(system.toggleLocation('gas')).toBe(true);
-    expect(system.setRepairHours(2)).toBe(true);
+    expect(system.setTeamRepairHours(2)).toBe(true);
   });
 
   it('preserves loot and searched sites while resetting the next day plan', () => {
     const system = new ExplorationSystem(undefined, () => 0);
     system.completeNight(1, 50);
     system.toggleLocation('gas');
-    system.setRepairHours(2);
+    system.setTeamRepairHours(2);
     system.confirmPlan();
     const previous = system.getState();
     expect(system.completeNight(2, 41)).toBe(true);

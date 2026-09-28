@@ -171,6 +171,6 @@ export function renderLastStandArmory(scene: Phaser.Scene, parent: Phaser.GameOb
       if (armory.canStartDefense()) startDefense();
     });
   }
-  text(controlsX + controlsWidth / 2, buttonY + 22, t('Day {day} · Start defense', { day }), 16, canStart ? '#fff0cf' : '#978775')
+  text(controlsX + controlsWidth / 2, buttonY + 22, t('START'), 16, canStart ? '#fff0cf' : '#978775')
     .setOrigin(0.5);
 }

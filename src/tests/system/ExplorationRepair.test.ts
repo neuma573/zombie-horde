@@ -26,7 +26,7 @@ describe('actual barricade repair', () => {
     system.toggleLocation('gas');
     system.toggleLocation('fuel-depot');
     expect(system.getSearchHours('fuel-depot')).toBe(3.5);
-    expect(system.setRepairHours(6)).toBe(true);
+    expect(system.setTeamRepairHours(6)).toBe(true);
 
     const result = system.confirmPlan();
 
@@ -42,7 +42,7 @@ describe('actual barricade repair', () => {
     system.toggleLocation('gas');
     system.toggleLocation('fuel-depot');
     system.toggleLocation('police');
-    expect(system.setRepairHours(3)).toBe(true);
+    expect(system.setTeamRepairHours(3)).toBe(true);
 
     const result = system.confirmPlan();
 
@@ -70,22 +70,26 @@ describe('shared barricade repair', () => {
     expect(system.setTeamRepairHours(3)).toBe(false);
   });
 
-  it('redistributes repair automatically when exploration changes the remaining time', () => {
+  it('shares remaining repair time with the automatic party and rejects overbooking', () => {
     const system = crewDay(1);
     const ally = system.getAvailableCompanions()[0].id;
-    for (const site of ['gas', 'fuel-depot', 'pharmacy']) system.setParticipants(site, ['player']);
     system.toggleLocation('gas');
     system.toggleLocation('fuel-depot');
-    system.setTeamRepairHours(6);
+    system.toggleLocation('police');
+    expect(system.setTeamRepairHours(6)).toBe(false);
+    expect(system.setTeamRepairHours(3)).toBe(true);
     expect(system.getRepairHours()).toBe(3);
-    expect(system.getRepairHours(ally)).toBe(6);
-    expect(system.getProjectedRepair()).toBe(45);
+    expect(system.getRepairHours(ally)).toBe(3);
+    expect(system.getProjectedRepair()).toBe(30);
 
+    expect(system.toggleLocation('pharmacy')).toBe(false);
+    expect(system.setTeamRepairHours(1)).toBe(true);
     expect(system.toggleLocation('pharmacy')).toBe(true);
     expect(system.getRepairHours()).toBe(1);
-    expect(system.getRepairHours(ally)).toBe(6);
-    expect(system.getProjectedRepair()).toBe(35);
+    expect(system.getRepairHours(ally)).toBe(1);
+    expect(system.getProjectedRepair()).toBe(10);
     expect(system.toggleLocation('pharmacy')).toBe(true);
+    expect(system.setTeamRepairHours(3)).toBe(true);
     expect(system.getRepairHours()).toBe(3);
   });
 
@@ -96,6 +100,18 @@ describe('shared barricade repair', () => {
     expect(system.getTeamRepairSummary()).toEqual({ workers: 2, totalHours: 2 });
     expect(system.getProjectedRepair()).toBe(10);
     expect(system.confirmPlan()).toMatchObject({ repaired: 10, hoursSpent: 1 });
+    expect(system.getState().barricade).toBe(100);
+    expect(system.getUnallocatedHours()).toBe(11);
+  });
+
+  it('uses one shared hour to finish a nearly repaired barricade without over-repairing', () => {
+    const system = crewDay(2, 99);
+    expect(system.setTeamRepairHours(4)).toBe(true);
+    expect(system.getTeamRepairHours()).toBe(1);
+    expect(system.getTeamRepairSummary()).toEqual({ workers: 1, totalHours: 1 });
+    expect(system.getUnallocatedHours()).toBe(11);
+
+    expect(system.confirmPlan()).toMatchObject({ repaired: 1, hoursSpent: 1 });
     expect(system.getState().barricade).toBe(100);
     expect(system.getUnallocatedHours()).toBe(11);
   });
@@ -111,17 +127,16 @@ describe('shared barricade repair', () => {
     expect(system.confirmPlan()?.repaired).toBe(10);
   });
 
-  it('lets idle companions repair even when the player spends the whole day searching', () => {
+  it('prevents repairs when the automatic party uses the entire shared day', () => {
     const system = crewDay(2);
-    for (const site of ['gas', 'grocery', 'police']) {
-      system.setParticipants(site, ['player']);
+    for (const site of ['gas', 'grocery', 'police', 'fuel-depot', 'warehouse', 'workshop', 'pharmacy']) {
       system.toggleLocation(site);
     }
-    system.setTeamRepairHours(2);
+    expect(system.setTeamRepairHours(2)).toBe(false);
 
     expect(system.getRepairHours()).toBe(0);
-    expect(system.getTeamRepairSummary()).toEqual({ workers: 2, totalHours: 4 });
-    expect(system.confirmPlan()).toMatchObject({ repaired: 20, hoursSpent: 12 });
+    expect(system.getTeamRepairSummary()).toEqual({ workers: 0, totalHours: 0 });
+    expect(system.confirmPlan()).toMatchObject({ repaired: 0, hoursSpent: 12 });
     expect(system.getUnallocatedHours()).toBe(0);
   });
 

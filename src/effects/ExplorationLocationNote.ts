@@ -6,7 +6,7 @@ import { t, userSettings } from '../systems/UserSettings';
 import { explorationPlanMessage } from '../logic/explorationFeedback';
 import { ScrollPanel } from './ScrollPanel';
 
-/** Building notes own their participation controls; scheduling stays in the day system. */
+/** Building notes show the automatic search party; scheduling stays in the day system. */
 export function renderExplorationLocationNote(
   scene: Phaser.Scene, parent: Phaser.GameObjects.Container,
   box: { x: number; y: number; width: number; height: number },
@@ -25,6 +25,7 @@ export function renderExplorationLocationNote(
     return label;
   };
   let y = text(0, 0, t(location.name), compact ? 16 : 19).height + 10;
+  if (location.address) y += text(0, y, location.address, 12, '#737467').height + 10;
   y += text(0, y, t('Search required: {hours} h', { hours: exploration.getSearchHours(location.id) }), 12, '#982c24').height + 16;
   if (failure) y += text(0, y, failure, 12, '#982c24').height + 12;
   const planned = state.plannedLocationIds.includes(location.id);
@@ -32,28 +33,9 @@ export function renderExplorationLocationNote(
   const companions = exploration.getAvailableCompanions();
   if (companions.length && !location.searched) {
     y += text(0, y, t('Search party'), 13).height + 8;
-    const participants = exploration.getParticipants(location.id);
-    const people = [{ id: 'player', name: t('Player') }, ...companions.map(ally => ({
-      id: ally.id, name: `${ally.firstName} ${ally.lastName}`,
-    }))];
-    for (const person of people) {
-      const checked = participants.includes(person.id);
-      const name = text(30, y + 10, person.name, 14, editable ? '#292b25' : '#737467');
-      const remaining = text(30, y + 14 + name.height,
-        t('Can allocate {hours} more h', { hours: exploration.getAvailableHours(person.id) }), 11, '#737467');
-      const height = Math.max(56, name.height + remaining.height + 24);
-      content.add(scene.add.rectangle(0, y + (height - 18) / 2, 18, 18, 0xe4dca8)
-        .setOrigin(0).setStrokeStyle(1, checked ? 0x982c24 : 0x737467));
-      if (checked) text(1, y + (height - 22) / 2, '✓', 20, '#982c24');
-      if (editable) targets.push({ y, height, action: () => {
-        const next = checked ? participants.filter(id => id !== person.id) : [...participants, person.id];
-        if (!exploration.setParticipants(location.id, next)) {
-          refresh(explorationPlanMessage(exploration.getParticipantChangeBlock(location.id, next), companions, userSettings.locale));
-          return;
-        }
-        refresh();
-      } });
-      y += height;
+    y += text(0, y, t('Player'), 14).height + 8;
+    for (const ally of companions) {
+      y += text(0, y, `${ally.firstName} ${ally.lastName}`, 14).height + 8;
     }
     y += 8;
   }
@@ -65,7 +47,7 @@ export function renderExplorationLocationNote(
     text(8, y + 12, t('Mark for search'), 13, '#fff3dc');
     targets.push({ y, height: 40, action: () => {
       if (!exploration.toggleLocation(location.id)) {
-        refresh(explorationPlanMessage(exploration.getLocationPlanBlock(location.id), companions, userSettings.locale));
+        refresh(explorationPlanMessage(exploration.getLocationPlanBlock(location.id), userSettings.locale));
         return;
       }
       refresh();

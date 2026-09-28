@@ -6,6 +6,8 @@ export type LootTable = Partial<Record<Resource, LootRule>>;
 export interface SearchLocation {
   id: string;
   name: string;
+  /** Fictional street address used as a location label. */
+  address?: string;
   /** Normalized coordinates within the map image. */
   x: number;
   y: number;
@@ -25,14 +27,12 @@ export interface ExplorationState {
 }
 export type SearchBlock = 'SURVIVE THE FIRST NIGHT' | 'UNKNOWN LOCATION' | 'SEARCHED' | 'NOT ENOUGH TIME' | 'DAY COMPLETE' | 'PLAN ACTIVE';
 export type ExplorationPlanBlock = {
-  reason: Exclude<SearchBlock, 'NOT ENOUGH TIME'> | 'NO SEARCHERS' | 'INVALID SEARCHERS';
+  reason: Exclude<SearchBlock, 'NOT ENOUGH TIME'>;
 } | {
   reason: 'NOT ENOUGH TIME';
-  personId: string;
-  /** Total scheduled hours, including work already completed today and waiting. */
+  /** Total scheduled hours, including searches already completed today and shared repair. */
   requiredHours: number;
   availableHours: number;
-  waitingHours: number;
 };
 export type SearchResult = {
   ok: true;
