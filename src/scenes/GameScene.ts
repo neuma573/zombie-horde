@@ -530,14 +530,6 @@ export class GameScene extends Phaser.Scene {
     ] : undefined;
     this.restartKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
     this.pauseKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-    // TEMP: remove this block after companion checks. F8 completes the night in dev only.
-    if (import.meta.env.DEV && this.night) {
-      this.input.keyboard?.on('keydown-F8', () => {
-        if (this.night?.getPhase() === 'COMBAT') {
-          this.night.advanceTime(Math.max(1, this.night.getRemainingMs()), true, 0);
-        }
-      });
-    }
     this.input.on(Phaser.Input.Events.POINTER_MOVE, this.handlePointerMove, this);
     this.input.on(Phaser.Input.Events.POINTER_DOWN, this.handlePointerDown, this);
     this.input.on(Phaser.Input.Events.POINTER_UP, this.handlePointerUp, this);
@@ -2166,7 +2158,6 @@ export class GameScene extends Phaser.Scene {
 
   private finishNight(): void {
     this.mobileControls?.setVisible(false);
-    // Normal victory has no survivors; the temporary dev shortcut can leave actors to clean up.
     for (const zombie of this.zombies) zombie.destroy();
     this.zombies = [];
     this.zombieKnockbacks.clear();
