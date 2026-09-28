@@ -60,11 +60,11 @@ export class LastStandCombat {
     if (!zombie) throw new Error(`Unassigned defense zombie: ${id}`);
     const sector = this.layout.sectors.find(item => item.id === zombie.sectorId)!;
     if (this.integrity.get(sector.id)! > 0) return constrainToArea(position, sector.barricade);
-    if (zombie.enteredDefenseArea) return { x: player.x, y: player.y };
-    return {
-      x: sector.breachArea.x + sector.breachArea.width / 2,
-      y: sector.breachArea.y + sector.breachArea.height / 2,
-    };
+    // Crossing the opening is required, but its center is not an attraction point.
+    if (zombie.enteredDefenseArea || segmentAreaEntry(position, player, sector.breachArea) !== null) {
+      return { x: player.x, y: player.y };
+    }
+    return constrainToArea(player, sector.breachArea);
   }
 
   getPursuitSpeed(id: string): number | undefined {

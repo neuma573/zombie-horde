@@ -74,7 +74,7 @@ describe('LastStandCombat', () => {
   it('requires entry through the breached sector before lethal player contact', () => {
     const system = combat(0);
     expect(system.resolveContacts(player, [motion(1240)], 16)).toBe(false);
-    expect(system.getTarget('z1', { x: 1048, y: 700 }, player.end)).toEqual({ x: 1140, y: 700 });
+    expect(system.getTarget('z1', { x: 1048, y: 700 }, player.end)).toEqual(player.end);
     expect(system.resolveContacts(player, [motion(1140)], 16)).toBe(false);
     expect(system.getTarget('z1', { x: 1140, y: 700 }, player.end)).toEqual(player.end);
     expect(system.resolveContacts(player, [motion(1200)], 16)).toBe(true);
@@ -83,8 +83,20 @@ describe('LastStandCombat', () => {
   it('routes newly spawned zombies through an already breached entrance', () => {
     const system = combat(0);
     system.registerZombie('new', 'mainEntrance');
-    expect(system.getTarget('new', { x: 200, y: 700 }, player.end)).toEqual({ x: 1140, y: 700 });
+    expect(system.getTarget('new', { x: 200, y: 700 }, player.end)).toEqual(player.end);
   });
+  it.each([560, 840])('targets the player immediately after collapse without a center detour at y=%s', y => {
+    const system = combat(RULES.barricadeDamage);
+    const target = { x: 1240, y };
+    expect(system.getTarget('z1', { x: 1048, y }, target)).toEqual({ x: 1068, y });
+    system.resolveContacts({ start: target, end: target, radius: 20 }, [motion(1048, y)], RULES.attackWindupMs);
+
+    expect(system.getSectors()[0].integrity).toBe(0);
+    expect(system.getTarget('z1', { x: 1048, y }, target)).toEqual(target);
+    expect(system.getTarget('z1', { x: 1110, y }, target)).toEqual(target);
+    expect(system.getPhase()).toBe('COMBAT');
+  });
+
   it('detects entry and lethal contact when one movement crosses the entire breach area', () => {
     const system = combat(0);
     expect(system.resolveContacts(player, [{
