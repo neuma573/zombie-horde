@@ -48,6 +48,7 @@ describe('actual barricade repair', () => {
     expect(result).toMatchObject({ locationIds: ['gas', 'fuel-depot'], repaired: 20, hoursSpent: 12 });
     expect(system.getSearchHours('fuel-depot')).toBe(6);
     expect(system.getRepairHours()).toBe(4);
+    expect(system.getTeamRepairSummary()).toEqual({ workers: 1, totalHours: 4 });
     expect(system.getState().barricade).toBe(70);
     expect(system.getUnallocatedHours()).toBe(0);
   });

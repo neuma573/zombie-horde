@@ -14,6 +14,7 @@ export const korean = {
   "Companions {count}/4": "동료 {count}/4",
   "Player": "플레이어",
   "Each person repairs {points} points per hour.": "1인당 시간당 {points}포인트 회복",
+  "Repair: {workers} people · {hours} person-hours · +{repaired}%p": "수리: {workers}명 · 작업 합계 {hours}시간 · +{repaired}%p",
   "Current crew: {count}": "현재 인원 {count}명",
   "Day plan · {used} / {total} h": "하루 계획 · {used} / {total}시간",
   "Search party": "탐색 참여",

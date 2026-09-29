@@ -484,6 +484,10 @@ export class ExplorationScene extends Phaser.Scene {
       const item = label(0, y + 8, value, 14, color).setWordWrapWidth(box.width - 4);
       y += item.height + 18;
     };
+    const repair = this.exploration.getTeamRepairSummary();
+    note(t('Repair: {workers} people · {hours} person-hours · +{repaired}%p', {
+      workers: repair.workers, hours: repair.totalHours, repaired: this.result!.repaired,
+    }), MUTED);
     const events = this.exploration.companions.getEvents();
     for (const event of events.filter(event => event.type === 'died')) {
       note(t('{name} died at {site}.', {
