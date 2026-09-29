@@ -21,6 +21,21 @@ function crewDay(count = 2, barricade = 50) {
 }
 
 describe('actual barricade repair', () => {
+  it('ends the selected route at the first over-budget site even when a later site still fits', () => {
+    const system = dangerousDay();
+    for (const id of ['gas', 'fuel-depot', 'police', 'house-b']) {
+      expect(system.toggleLocation(id)).toBe(true);
+    }
+
+    expect(system.confirmPlan()).toMatchObject({ locationIds: ['gas', 'fuel-depot'], hoursSpent: 8 });
+    for (const id of ['police', 'house-b']) {
+      expect(system.getState().locations.find(location => location.id === id)?.searched).toBe(false);
+    }
+    expect(system.getRecoveredWeapons()).not.toContain('doubleBarrelShotgun');
+    expect(system.getRecoveredWeapons()).not.toContain('burstRifle');
+    expect(system.getUnallocatedHours()).toBe(4);
+  });
+
   it('reduces repair to the time left when a dead searcher slows later exploration', () => {
     const system = dangerousDay();
     system.toggleLocation('gas');

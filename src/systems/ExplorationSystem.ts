@@ -215,7 +215,7 @@ export class ExplorationSystem {
       const hours = this.getSearchHours(location.id, participants);
       const finish = searchHours + hours;
       // Later searches use the surviving team, not a duration frozen before casualties.
-      if (finish > EXPLORATION_HOURS) continue;
+      if (finish > EXPLORATION_HOURS) break;
       this.completedTeams.set(location.id, participants);
       this.completedHours.set(location.id, hours);
       searchHours = finish;
