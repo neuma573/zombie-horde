@@ -19,6 +19,7 @@ export const korean = {
   "Search party": "탐색 참여",
   "Time shortage: {required} h planned / {available} h day": "시간 부족: 하루 {available}시간 중 {required}시간 필요",
   "Mark for search": "탐색 계획에 추가",
+  "Unmark for search": "탐색 계획에서 제외",
   "Courage": "사기",
   "Back": "돌아가기",
   "Available for work tomorrow": "낮 일과는 내일부터 참여",

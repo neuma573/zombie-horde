@@ -209,10 +209,10 @@ export class ExplorationScene extends Phaser.Scene {
     this.text(x, board.y + 8, t('Hazard, KY'), 20, INK, true);
     this.text(sideTabs ? x : x + width, board.y + (sideTabs ? 34 : 10), t('DAY {day}', { day: state.day }), 16, RED, true).setOrigin(sideTabs ? 0 : 1, 0);
     const body = { ...layout.body, x: board.x + layout.body.x, y: board.y + layout.body.y };
-    if (this.planningPage === 'map') this.renderMap(body, state.locations);
+    if (this.planningPage === 'map') this.renderMap(body, state.locations, true);
     else if (this.planningPage === 'site') {
       const selected = state.locations.find(location => location.id === this.selectedId);
-      if (selected) this.locationNote(body, selected, true);
+      if (selected) this.locationNote(body, selected, true, true);
       else this.instruction(body);
     } else {
       this.renderTimeBudget({ ...layout.budget, x: board.x + layout.budget.x, y: board.y + layout.budget.y }, state);
@@ -286,7 +286,7 @@ export class ExplorationScene extends Phaser.Scene {
     this.ui!.add(grain);
   }
 
-  private renderMap(area: Box, locations: SearchLocation[]): void {
+  private renderMap(area: Box, locations: SearchLocation[], inspectFirst = false): void {
     const viewport = { ...area, height: area.height - 24 };
     const mapScale = Math.max(1, viewport.width / 800, viewport.height / 620);
     const box = { x: 0, y: 0, width: 800 * mapScale, height: 620 * mapScale };
@@ -339,6 +339,11 @@ export class ExplorationScene extends Phaser.Scene {
           if (this.selectedId !== location.id) this.noteOffset = { x: 0, y: 0, zoom: 1 };
           this.selectedId = location.id;
           this.feedback = null;
+          if (inspectFirst) {
+            this.planningPage = 'site';
+            this.render();
+            return;
+          }
           if (this.exploration.toggleLocation(location.id)) {
             if (selected) this.selectionStartedAt.delete(location.id);
             else this.selectionStartedAt.set(location.id, this.time.now);
@@ -354,7 +359,6 @@ export class ExplorationScene extends Phaser.Scene {
               userSettings.locale);
             this.feedback = { locationId: location.id, message, until: this.time.now + 2200 };
           }
-          if (this.exploration.getAvailableCompanions().length) this.planningPage = 'site';
           this.render();
         });
     });
@@ -395,7 +399,7 @@ export class ExplorationScene extends Phaser.Scene {
     labels.forEach((label, index) => this.text(box.x + box.width * index / 3, box.y + 32, label, 11, [RED, '#526537', MUTED][index]));
   }
 
-  private locationNote(box: Box, location: SearchLocation, compact: boolean): void {
+  private locationNote(box: Box, location: SearchLocation, compact: boolean, noteAction = false): void {
     renderExplorationLocationNote(this, this.ui!, box, location,
       this.transitionMap ?? this.exploration.getState(), this.exploration, this.noteOffset,
       message => {
@@ -403,7 +407,7 @@ export class ExplorationScene extends Phaser.Scene {
         if (message) this.noteOffset.y = 0;
         this.render();
       }, compact, this.feedback?.locationId === location.id && this.time.now < this.feedback.until
-        ? this.feedback.message : undefined);
+        ? this.feedback.message : undefined, noteAction);
   }
 
   private instruction(box: Box): void {

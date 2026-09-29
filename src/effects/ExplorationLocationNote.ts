@@ -12,6 +12,7 @@ export function renderExplorationLocationNote(
   box: { x: number; y: number; width: number; height: number },
   location: SearchLocation, state: ExplorationState, exploration: ExplorationSystem,
   offset: ViewportState, refresh: (message?: string) => void, compact: boolean, failure?: string,
+  noteAction = false,
 ): void {
   parent.add(scene.add.rectangle(box.x + 3, box.y + 4, box.width, box.height, 0x323429, 0.17).setOrigin(0));
   parent.add(scene.add.rectangle(box.x, box.y, box.width, box.height, 0xe4dca8).setOrigin(0));
@@ -41,10 +42,10 @@ export function renderExplorationLocationNote(
   }
   const status = state.confirmed ? 'DAY COMPLETE' : location.searched ? 'SEARCHED'
     : planned ? 'Marked for search' : 'Tap a building to mark or unmark it.';
-  y += text(0, y, t(status), 12, planned ? '#982c24' : '#737467').height + 8;
-  if (editable && !planned && companions.length) {
+  if (!noteAction || planned || !editable) y += text(0, y, t(status), 12, planned ? '#982c24' : '#737467').height + 8;
+  if (editable && (noteAction || (!planned && companions.length))) {
     content.add(scene.add.rectangle(0, y, width, 40, 0x982c24).setOrigin(0));
-    text(8, y + 12, t('Mark for search'), 13, '#fff3dc');
+    text(8, y + 12, t(planned ? 'Unmark for search' : 'Mark for search'), 13, '#fff3dc');
     targets.push({ y, height: 40, action: () => {
       if (!exploration.toggleLocation(location.id)) {
         refresh(explorationPlanMessage(exploration.getLocationPlanBlock(location.id), userSettings.locale));
