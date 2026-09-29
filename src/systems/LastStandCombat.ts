@@ -41,6 +41,7 @@ export class LastStandCombat {
   getPhase(): NightCombatPhase { return this.phase; }
   getTime(): { minuteOfDay: number } { return { ...this.time }; }
   getRemainingMs(): number { return Math.max(0, this.durationMs - this.elapsedMs); }
+  canSpawnZombies(): boolean { return this.phase === 'COMBAT' && this.getRemainingMs() >= 1e-7; }
   getSectors() {
     return this.layout.sectors.map(config => ({
       ...config,
@@ -59,11 +60,17 @@ export class LastStandCombat {
     if (!zombie) throw new Error(`Unassigned defense zombie: ${id}`);
     const sector = this.layout.sectors.find(item => item.id === zombie.sectorId)!;
     if (this.integrity.get(sector.id)! > 0) return constrainToArea(position, sector.barricade);
-    if (zombie.enteredDefenseArea) return { x: player.x, y: player.y };
-    return {
-      x: sector.breachArea.x + sector.breachArea.width / 2,
-      y: sector.breachArea.y + sector.breachArea.height / 2,
-    };
+    // Crossing the opening is required, but its center is not an attraction point.
+    if (zombie.enteredDefenseArea || segmentAreaEntry(position, player, sector.breachArea) !== null) {
+      return { x: player.x, y: player.y };
+    }
+    return constrainToArea(player, sector.breachArea);
+  }
+
+  getPursuitSpeed(id: string): number | undefined {
+    const zombie = this.zombies.get(id);
+    return zombie && this.integrity.get(zombie.sectorId) === 0
+      ? LAST_STAND_COMBAT_CONFIG.breachedPursuitSpeed : undefined;
   }
 
   getAttackState(id: string) {
@@ -125,7 +132,7 @@ export class LastStandCombat {
     return false;
   }
 
-  advanceTime(deltaMs: number, playerAlive: boolean): void {
+  advanceTime(deltaMs: number, playerAlive: boolean, aliveZombies = this.zombies.size): void {
     if (this.phase !== 'COMBAT') return;
     if (!playerAlive) { this.phase = 'DEFEAT'; return; }
     if (!Number.isFinite(deltaMs) || deltaMs <= 0) return;
@@ -134,7 +141,7 @@ export class LastStandCombat {
     this.time = advanceGameTime(this.time, step, LAST_STAND_TIME_CONFIG);
     if (this.getRemainingMs() < 1e-7) {
       this.time = { minuteOfDay: LAST_STAND_COMBAT_CONFIG.endHour * 60 };
-      this.phase = 'VICTORY';
+      if (aliveZombies === 0) this.phase = 'VICTORY';
     }
   }
 }

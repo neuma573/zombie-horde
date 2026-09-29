@@ -6,6 +6,8 @@ const MIN_RAY_LENGTH = 1e-6;
 export interface ShotEffectEvent {
   origin: Vector2;
   endPoint: Vector2;
+  /** Omitted for player shots. Other shooters retain their own muzzle attachment. */
+  shooterId?: string;
 }
 
 export interface ImpactEffectEvent {

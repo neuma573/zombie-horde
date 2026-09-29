@@ -1,3 +1,6 @@
+import { DefenseBlackout } from '../effects/DefenseBlackout';
+import { CompanionCombat } from '../systems/CompanionCombat';
+import { CompanionCombatView } from '../effects/CompanionCombatView';
 import { fitDefenseCamera } from '../logic/defenseCamera';
 import { DefenseSpawnSystem } from '../systems/DefenseSpawnSystem';
 import { DefenseDefeatView } from '../effects/DefenseDefeatView';
@@ -305,10 +308,13 @@ export class GameScene extends Phaser.Scene {
   private interactionPrompt?: InteractionPrompt;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
+  private companionCombat?: CompanionCombat;
+  private companionView?: CompanionCombatView;
   private night?: LastStandCombat;
   private nightStart?: LastStandCombatStart;
   private defenseView?: DefenseMapView;
   private defeatView?: DefenseDefeatView;
+  private defenseBlackout?: DefenseBlackout;
   private nightDebrief?: NightDebriefView;
   private defenseSpawn?: DefenseSpawnSystem;
 
@@ -318,7 +324,7 @@ export class GameScene extends Phaser.Scene {
 
   init(data?: LastStandCombatStart): void {
     if (this.defenseLayout && data?.slots) {
-      this.nightStart = { ...data, slots: [...data.slots], barricades: { ...data.barricades } };
+      this.nightStart = structuredClone(data);
     }
   }
 
@@ -339,6 +345,7 @@ export class GameScene extends Phaser.Scene {
       this.registry.get(GAME_REGISTRY_KEYS.soundEnabled) !== false,
     );
     this.night = undefined;
+    this.companionCombat = undefined;
     if (this.defenseLayout) {
       if (!this.nightStart) throw new Error('Night combat requires the daytime state and armory loadout');
       this.night = new LastStandCombat(this.defenseLayout, this.nightStart.barricades);
@@ -455,6 +462,13 @@ export class GameScene extends Phaser.Scene {
     this.effects = new CombatEffects(this);
     this.weaponAudio = new WeaponAudio(this);
     this.aimAssistVisual = new AimAssistVisual(this);
+    if (this.defenseLayout && this.nightStart?.companions?.length) {
+      this.companionCombat = new CompanionCombat(this.nightStart.companions, this.defenseLayout.allyPositions,
+        this.defenseLayout.companionRetreat.exit,
+        this.defenseLayout.combatArea, this.defenseLayout.interiorArea,
+        this.defenseLayout.companionRetreat.waypoints);
+      this.companionView = new CompanionCombatView(this, this.companionCombat, this.effects);
+    }
     this.mobileControls = new MobileControls(this, !this.night);
     this.pauseMenu = new PauseMenu(
       this,
@@ -560,8 +574,13 @@ export class GameScene extends Phaser.Scene {
       this.weaponAudio = undefined;
       this.aimAssistVisual?.destroy();
       this.aimAssistVisual = undefined;
+      this.companionView?.destroy();
+      this.companionView = undefined;
+      this.companionCombat = undefined;
       this.defenseView?.destroy();
       this.defenseView = undefined;
+      this.defenseBlackout?.destroy();
+      this.defenseBlackout = undefined;
       this.defeatView?.destroy();
       this.defeatView = undefined;
       this.nightDebrief?.destroy();
@@ -748,7 +767,8 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
-    if (this.night) deltaMs = Math.min(deltaMs, this.night.getRemainingMs());
+    // Dawn stops spawning and the clock, not the simulation of surviving enemies.
+    // LastStandCombat clamps its own clock while combat keeps the full fixed step.
     const reloadRemainingMs = this.weapon.getState().reloadRemainingMs;
     const reloadingWeaponId = reloadRemainingMs !== null
       ? this.weapon.getDefinition().id
@@ -875,12 +895,14 @@ export class GameScene extends Phaser.Scene {
     );
 
     if (this.night) {
-      this.night.advanceTime(deltaMs, this.player.isAlive);
+      this.night.advanceTime(deltaMs, this.player.isAlive, this.zombies.length);
       this.gameTime = this.night.getTime();
       this.defenseView?.update(this.night.getSectors());
     }
     if (!contactDied && this.night?.getPhase() === 'COMBAT') {
-      for (const spawn of this.defenseSpawn!.update(deltaMs, this.zombies.length)) {
+      this.advanceCompanions(deltaMs);
+      const arrivals = this.night.canSpawnZombies() ? this.defenseSpawn!.update(deltaMs, this.zombies.length) : [];
+      for (const spawn of arrivals) {
         this.zombies.push(new Zombie(this, spawn.id, spawn.position.x, spawn.position.y, undefined, ZOMBIE_CONFIG.health, spawn.kind));
         this.night.registerZombie(spawn.id, spawn.sectorId);
       }
@@ -915,6 +937,37 @@ export class GameScene extends Phaser.Scene {
       died: contactDied,
       damageEventCount,
     };
+  }
+
+  private advanceCompanions(deltaMs: number): void {
+    if (!this.companionCombat || !this.night) return;
+    const shots = this.companionCombat.advance(deltaMs, this.night.getSectors()[0].integrity,
+      this.zombies.map(zombie => ({ id: zombie.id, position: { x: zombie.x, y: zombie.y },
+        radius: zombie.hitRadius, health: zombie.health })), this.activeHitscanBlockers());
+    const deadIds = new Set<string>();
+    for (const shot of shots) {
+      this.companionView?.shot(shot);
+      for (const hit of shot.hits) {
+        const zombie = this.zombies.find(zombie => zombie.id === hit.id);
+        if (!zombie || deadIds.has(zombie.id)) continue;
+        const damage = this.damage.apply(zombie, hit.damage);
+        const impact = { position: { x: zombie.x, y: zombie.y }, radius: zombie.hitRadius,
+          died: damage.died, direction: shot.direction, rotation: zombie.rotation,
+          variantKey: zombie.id, appearance: zombie.appearance };
+        zombie.triggerHitReaction(shot.direction);
+        this.effects?.playZombieHit(impact);
+        if (damage.died) {
+          this.effects?.playZombieDeath(impact);
+          deadIds.add(zombie.id);
+          zombie.destroy();
+        }
+      }
+    }
+    this.killCount += deadIds.size;
+    this.zombies = this.zombies.filter(zombie => !deadIds.has(zombie.id));
+    for (const id of deadIds) { this.zombieKnockbacks.delete(id); this.zombieNavigation.delete(id); }
+    if (this.aimTargetId && deadIds.has(this.aimTargetId)) this.clearAimAssist();
+    this.companionView?.update(this.companionCombat, deltaMs);
   }
 
   private resolveContactMovementSegment(
@@ -1049,6 +1102,7 @@ export class GameScene extends Phaser.Scene {
         separationVelocity,
         deltaMs,
         ZOMBIE_CONFIG,
+        this.night?.getPursuitSpeed(zombie.id),
       );
       const nextZombiePosition = moveCircleWithObstacles(
         zombie,
@@ -2106,21 +2160,14 @@ export class GameScene extends Phaser.Scene {
 
   private finishNight(): void {
     this.mobileControls?.setVisible(false);
-    for (const zombie of this.zombies) {
-      this.damage.apply(zombie, zombie.health);
-      this.effects?.playZombieDeath({
-        position: { x: zombie.x, y: zombie.y }, radius: zombie.hitRadius,
-        direction: { x: 0, y: 1 }, rotation: zombie.rotation,
-        variantKey: zombie.id, appearance: zombie.appearance,
-      });
-      zombie.destroy();
-    }
+    for (const zombie of this.zombies) zombie.destroy();
     this.zombies = [];
     this.zombieKnockbacks.clear();
     this.zombieNavigation.clear();
     this.time.delayedCall(500, () => {
       this.nightDebrief = new NightDebriefView(this, this.nightStart!.day, this.killCount, () => {
-        const victory = { day: this.nightStart!.day, barricade: this.night!.getSectors()[0].integrity };
+        const victory = { day: this.nightStart!.day, barricade: this.night!.getSectors()[0].integrity,
+          fledCompanionIds: this.companionCombat?.getFledIds() ?? [] };
         this.scene.stop();
         this.scene.wake('ExplorationScene', victory);
       });
@@ -2130,11 +2177,7 @@ export class GameScene extends Phaser.Scene {
 
   private playDefenseDeath(): void {
     this.mobileControls?.setVisible(false);
-    this.tweens.add({
-      targets: this.player, alpha: 0.55, scaleY: 0.55,
-      angle: this.player.angle + 32, duration: 650, ease: 'Cubic.Out',
-    });
-    this.time.delayedCall(800, () => {
+    this.defenseBlackout = new DefenseBlackout(this, () => {
       this.defeatView = new DefenseDefeatView(this, this.nightStart?.day ?? 1, () => {
         this.scene.stop();
         this.scene.wake('ExplorationScene');

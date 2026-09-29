@@ -19,7 +19,7 @@ import {
 
 export class CombatEffects {
   private readonly active = new Set<Phaser.GameObjects.GameObject>();
-  private readonly muzzleFlashes = new Set<Phaser.GameObjects.Arc>();
+  private readonly muzzleFlashes = new Map<Phaser.GameObjects.Arc, string>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -46,14 +46,14 @@ export class CombatEffects {
       0xfff1a8,
       0.95,
     ).setDepth(WORLD_RENDER_DEPTH.combatEffect);
-    this.muzzleFlashes.add(muzzle);
+    this.muzzleFlashes.set(muzzle, event.shooterId ?? 'player');
     muzzle.once('destroy', () => this.muzzleFlashes.delete(muzzle));
     this.fadeAndDestroy(muzzle, 70, { scale: 1.8 });
   }
 
-  updateMuzzlePosition(position: { x: number; y: number }): void {
-    for (const muzzle of this.muzzleFlashes) {
-      muzzle.setPosition(position.x, position.y);
+  updateMuzzlePosition(position: { x: number; y: number }, shooterId = 'player'): void {
+    for (const [muzzle, owner] of this.muzzleFlashes) {
+      if (owner === shooterId) muzzle.setPosition(position.x, position.y);
     }
   }
 

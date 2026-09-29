@@ -81,6 +81,24 @@ describe('zombie pursuit', () => {
       target, noCrowd, 1000, ZOMBIE_CONFIG)).toEqual(target);
   });
 
+  it('preserves normal pursuit and crowd spacing when no slowdown is applied', () => {
+    const next = movePursuingZombie({ id: 'z', kind: 'normal', position: origin },
+      { x: 1000, y: 100 }, { x: -36, y: 0 }, 1000, ZOMBIE_CONFIG);
+    expect(next).toEqual({ x: 164, y: 100 });
+  });
+
+  it('preserves slowed crowded pursuit across time partitions', () => {
+    const advance = (steps: number[]) => {
+      let position = { ...origin };
+      for (const dt of steps) position = movePursuingZombie({ id: 'z', kind: 'normal', position },
+        { x: 1000, y: 100 }, { x: -36, y: 0 }, dt, ZOMBIE_CONFIG, 38);
+      return position;
+    };
+    expect(advance([1000]).x).toBeCloseTo(124.32);
+    expect(advance(Array(60).fill(1000 / 60)).x).toBeCloseTo(advance([1000]).x);
+    expect(advance([1000]).y).toBe(100);
+  });
+
   it.each([0, -1, NaN, Infinity])('does not move for invalid delta %s', deltaMs => {
     expect(pursue([deltaMs]).position).toEqual(origin);
   });
