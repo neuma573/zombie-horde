@@ -766,7 +766,8 @@ export class GameScene extends Phaser.Scene {
     deltaMs: number,
     audioDelayMs = 0,
   ): { died: boolean; damageEventCount: number } {
-    if (this.night) deltaMs = Math.min(deltaMs, this.night.getRemainingMs());
+    // Dawn stops spawning and the clock, not the simulation of surviving enemies.
+    // LastStandCombat clamps its own clock while combat keeps the full fixed step.
     const reloadRemainingMs = this.weapon.getState().reloadRemainingMs;
     const reloadingWeaponId = reloadRemainingMs !== null
       ? this.weapon.getDefinition().id
