@@ -2,6 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { LastStandArmory } from '../../systems/LastStandArmory';
 
 describe('companion armory', () => {
+  it('clears participation without losing weapons and requires fresh deployment after roster sync', () => {
+    const armory = new LastStandArmory();
+    armory.syncCompanions(['a', 'b']);
+    armory.selectWeapon('pistol');
+    armory.clickSlot(0);
+    armory.addWeapon('burstRifle');
+    armory.assignCompanion('a', 'burstRifle');
+    armory.toggleDeployment('a', 2);
+    armory.toggleDeployment('b', 2);
+    const loadout = armory.getState();
+
+    armory.clearDeployments();
+    armory.syncCompanions(['a', 'b']);
+
+    expect(armory.getDeployedIds()).toEqual([]);
+    expect(armory.getState()).toEqual(loadout);
+    expect(armory.getCompanionWeapon('a')).toBe('burstRifle');
+    expect(armory.toggleDeployment('a', 1)).toBe(true);
+    expect(armory.getDeployedIds()).toEqual(['a']);
+  });
+
   it('equips a rack selection in a companion slot and returns the weapon to the rack on release', () => {
     const armory = new LastStandArmory();
     armory.syncCompanions(['a']);

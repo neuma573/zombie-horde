@@ -537,6 +537,7 @@ export class ExplorationScene extends Phaser.Scene {
       if (!await fadeScene(this, 'out')) { this.exploration.retryNight(); return; }
       this.events.once(Phaser.Scenes.Events.WAKE, (_sys: Phaser.Scenes.Systems, victory?: LastStandNightVictory) => {
         if (victory && this.exploration.completeNight(victory.day, victory.barricade, victory.fledCompanionIds)) {
+          this.armory.clearDeployments();
           this.armoryOpen = false;
           this.result = null;
           this.turnResult = false;

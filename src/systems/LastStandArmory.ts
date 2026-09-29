@@ -44,6 +44,7 @@ export class LastStandArmory {
 
   getCompanionWeapon(id: string): string | null { return this.companionWeapons.get(id) ?? null; }
   getDeployedIds(): string[] { return [...this.deployed]; }
+  clearDeployments(): void { this.deployed.clear(); }
 
   clickCompanionSlot(id: string): boolean {
     if (this.selectedWeapon) return this.assignCompanion(id, this.selectedWeapon);
