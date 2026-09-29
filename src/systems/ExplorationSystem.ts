@@ -150,9 +150,7 @@ export class ExplorationSystem {
   }
 
   canConfirmPlan(): boolean {
-    return this.state.day > 1 && !this.state.confirmed && (this.state.plannedLocationIds.length > 0
-      || this.getTeamRepairSummary().totalHours > 0
-      || this.companions.getActive().length > 0);
+    return this.state.day > 1 && !this.state.confirmed;
   }
 
   beginNight(companionCount: number): boolean {

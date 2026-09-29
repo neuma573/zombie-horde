@@ -142,10 +142,53 @@ describe('day exploration plan', () => {
     expect(system.hasPlannableLocations()).toBe(false);
   });
 
-  it('rejects empty plans and invalid repair hours', () => {
+  it('allows an empty day after the first night while rejecting invalid repair hours', () => {
     const system = createDayTwoExploration();
-    expect(system.confirmPlan()).toBeNull();
     for (const hours of [-1, 0.5, NaN, Infinity]) expect(system.setTeamRepairHours(hours)).toBe(false);
     expect(system.getState().confirmed).toBe(false);
+    expect(system.canConfirmPlan()).toBe(true);
+    expect(system.confirmPlan()).toEqual({ ok: true, locationIds: [], hoursSpent: 0,
+      repaired: 0, loot: { food: 0, ammo: 0, fuel: 0 } });
+    expect(system.getState().confirmed).toBe(true);
+  });
+
+  it('keeps empty plans locked before the first night', () => {
+    const system = new ExplorationSystem();
+    const before = system.getState();
+    expect(system.canConfirmPlan()).toBe(false);
+    expect(system.confirmPlan()).toBeNull();
+    expect(system.getState()).toEqual(before);
+  });
+
+  it('continues successive nights after exhausting every site with no companions and a full barricade', () => {
+    const system = createDayTwoExploration(undefined, () => 0.99);
+    for (const location of system.getState().locations) {
+      if (!system.canPlanLocation(location.id)) {
+        expect(system.confirmPlan()?.ok).toBe(true);
+        expect(system.completeNight(system.getState().day, 100)).toBe(true);
+      }
+      expect(system.toggleLocation(location.id)).toBe(true);
+    }
+    expect(system.confirmPlan()?.ok).toBe(true);
+    expect(system.completeNight(system.getState().day, 100)).toBe(true);
+    expect(system.getState().locations.every(location => location.searched)).toBe(true);
+    expect(system.companions.getActive()).toEqual([]);
+    expect(system.hasPlannableLocations()).toBe(false);
+    const resources = system.getState().resources;
+
+    for (let night = 0; night < 2; night++) {
+      expect(system.canConfirmPlan()).toBe(true);
+      expect(system.confirmPlan()).toEqual({ ok: true, locationIds: [], hoursSpent: 0,
+        repaired: 0, loot: { food: 0, ammo: 0, fuel: 0 } });
+      expect(system.getState()).toMatchObject({ confirmed: true, barricade: 100, resources });
+      expect(system.getRecoveredWeapons()).toEqual([]);
+      const confirmed = system.getState();
+      expect(system.canConfirmPlan()).toBe(false);
+      expect(system.confirmPlan()).toBeNull();
+      expect(system.getState()).toEqual(confirmed);
+      expect(system.beginNight(0)).toBe(true);
+      expect(system.completeNight(confirmed.day, 100)).toBe(true);
+      expect(system.getState().day).toBe(confirmed.day + 1);
+    }
   });
 });
