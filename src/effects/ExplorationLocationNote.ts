@@ -32,14 +32,12 @@ export function renderExplorationLocationNote(
   const planned = state.plannedLocationIds.includes(location.id);
   const editable = !state.confirmed && !exploration.getState().confirmed && !location.searched;
   const companions = exploration.getAvailableCompanions();
-  if (companions.length && !location.searched) {
-    y += text(0, y, t('Search party'), 13).height + 8;
-    y += text(0, y, t('Player'), 14).height + 8;
-    for (const ally of companions) {
-      y += text(0, y, `${ally.firstName} ${ally.lastName}`, 14).height + 8;
-    }
-    y += 8;
+  y += text(0, y, t('Search party'), 13).height + 8;
+  y += text(0, y, t('Player'), 14).height + 8;
+  for (const ally of companions) {
+    y += text(0, y, `${ally.firstName} ${ally.lastName}`, 14).height + 8;
   }
+  y += 8;
   const status = state.confirmed ? 'DAY COMPLETE' : location.searched ? 'SEARCHED'
     : planned ? 'Marked for search' : 'Tap a building to mark or unmark it.';
   if (!noteAction || planned || !editable) y += text(0, y, t(status), 12, planned ? '#982c24' : '#737467').height + 8;

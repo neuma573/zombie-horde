@@ -4,6 +4,15 @@ import { describe, expect, it } from 'vitest';
 // Phaser event wiring is a browser boundary; system tests cannot detect a
 // scene mutating the route before opening the separate note page.
 describe('paged exploration note wiring', () => {
+  it('lists the player before eligible companions even when the party is solo', async () => {
+    const source = await readFile(new URL('../../effects/ExplorationLocationNote.ts', import.meta.url), 'utf8');
+    const party = source.slice(source.indexOf('const companions ='), source.indexOf('const status ='));
+    expect(party).toContain("t('Player')");
+    expect(party.indexOf("t('Player')")).toBeLessThan(party.indexOf('for (const ally of companions)'));
+    expect(party).not.toMatch(/\bif\s*\(/);
+    expect(party).toContain('exploration.getAvailableCompanions()');
+  });
+
   it('opens site notes before any route mutation based on layout rather than companions', async () => {
     const source = await readFile(new URL('../../scenes/ExplorationScene.ts', import.meta.url), 'utf8');
     const pages = source.slice(source.indexOf('  private renderPlanningPages('), source.indexOf('  private renderPlan('));
