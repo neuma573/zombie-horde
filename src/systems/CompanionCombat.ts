@@ -8,7 +8,7 @@ import { PLAYER_CONFIG } from '../config/playerConfig';
 import { consumeFixedSteps, createFixedStepState } from '../logic/fixedStep';
 import { resolveHitscan, type HitscanBlocker, type Vector2 } from '../logic/hitscan';
 import { resolveMeleeHits } from '../logic/meleeAttack';
-import { moveToward, moveWithinBounds } from '../logic/movement';
+import { moveToward } from '../logic/movement';
 import { moveCircleWithObstacles, type RectangleObstacle } from '../logic/obstacleCollision';
 import { applyWeaponRecoil, createPelletDirections } from '../logic/weapon';
 import type { CompanionDeployment } from '../types/companion';
@@ -35,6 +35,7 @@ interface Fighter {
   moveTarget: Vector2 | null;
   repositionWaitMs: number;
   moving: boolean;
+  retreatIndex: number;
 }
 
 /** Fixed-step companion AI. Produces attacks and poses without Phaser or effects. */
@@ -43,7 +44,8 @@ export class CompanionCombat {
   private readonly fighters: Fighter[];
   constructor(deployments: readonly CompanionDeployment[], positions: readonly Vector2[],
     private readonly exit: Vector2, private readonly movementArea?: RectangleObstacle,
-    private readonly engagementArea?: RectangleObstacle) {
+    private readonly engagementArea?: RectangleObstacle,
+    private readonly retreatWaypoints: readonly Vector2[] = []) {
     this.fighters = deployments.map((deployment, index) => ({
       deployment: structuredClone(deployment),
       position: { ...(positions[index] ?? positions[0] ?? exit) },
@@ -52,7 +54,7 @@ export class CompanionCombat {
       state: 'active', direction: { x: -1, y: 0 }, shots: 0, aimSeed: index + 1,
       decisions: 1, targetId: null, aimRemainingMs: 0, pauseRemainingMs: 0,
       burstRemainingMs: 0, burstDirection: { x: -1, y: 0 },
-      home: { ...(positions[index] ?? positions[0] ?? exit) }, moveTarget: null, moving: false,
+      home: { ...(positions[index] ?? positions[0] ?? exit) }, moveTarget: null, moving: false, retreatIndex: 0,
       repositionWaitMs: COMPANION_CONFIG.repositionWaitMs.min + companionDecision(index + 1, 0)
         * (COMPANION_CONFIG.repositionWaitMs.max - COMPANION_CONFIG.repositionWaitMs.min),
     }));
@@ -81,15 +83,18 @@ export class CompanionCombat {
         if (fighter.state === 'active' && shouldCompanionFlee(fighter.deployment.companion.courage, integrity)) fighter.state = 'fleeing';
         if (fighter.state !== 'active') {
           if (fighter.state === 'left') continue;
-          const distance = Math.hypot(this.exit.x - fighter.position.x, this.exit.y - fighter.position.y);
-          const direction = { x: this.exit.x - fighter.position.x, y: this.exit.y - fighter.position.y };
-          fighter.direction = direction;
-          if (distance <= COMPANION_CONFIG.fleeSpeed * SIMULATION_CONFIG.fixedStepMs / 1000) {
-            fighter.position = { ...this.exit }; fighter.state = 'left';
-          } else fighter.position = moveWithinBounds(fighter.position, direction, COMPANION_CONFIG.fleeSpeed,
-            SIMULATION_CONFIG.fixedStepMs, { width: Math.max(this.exit.x, fighter.position.x) + 100,
-              height: Math.max(this.exit.y, fighter.position.y) + 100, padding: 0 });
-          fighter.moving = fighter.state !== 'left';
+          const destination = this.retreatWaypoints[fighter.retreatIndex] ?? this.exit;
+          const start = fighter.position;
+          fighter.direction = { x: destination.x - start.x, y: destination.y - start.y };
+          const desired = moveToward(start, destination, COMPANION_CONFIG.fleeSpeed, SIMULATION_CONFIG.fixedStepMs);
+          fighter.position = moveCircleWithObstacles(start, desired, PLAYER_CONFIG.radius, blockers,
+            { width: Math.max(this.exit.x, start.x, destination.x) + 100,
+              height: Math.max(this.exit.y, start.y, destination.y) + 100, padding: PLAYER_CONFIG.radius });
+          fighter.moving = Math.hypot(fighter.position.x - start.x, fighter.position.y - start.y) > 1e-7;
+          if (Math.hypot(destination.x - fighter.position.x, destination.y - fighter.position.y) < 1e-7) {
+            if (fighter.retreatIndex < this.retreatWaypoints.length) fighter.retreatIndex++;
+            else { fighter.state = 'left'; fighter.moving = false; }
+          }
           continue;
         }
         const definition = fighter.weapon.getDefinition();

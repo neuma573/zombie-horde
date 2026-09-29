@@ -464,8 +464,9 @@ export class GameScene extends Phaser.Scene {
     this.aimAssistVisual = new AimAssistVisual(this);
     if (this.defenseLayout && this.nightStart?.companions?.length) {
       this.companionCombat = new CompanionCombat(this.nightStart.companions, this.defenseLayout.allyPositions,
-        { x: this.defenseLayout.worldSize.width + 40, y: this.defenseLayout.playerSpawn.y },
-        this.defenseLayout.combatArea, this.defenseLayout.interiorArea);
+        this.defenseLayout.companionRetreat.exit,
+        this.defenseLayout.combatArea, this.defenseLayout.interiorArea,
+        this.defenseLayout.companionRetreat.waypoints);
       this.companionView = new CompanionCombatView(this, this.companionCombat, this.effects);
     }
     this.mobileControls = new MobileControls(this, !this.night);

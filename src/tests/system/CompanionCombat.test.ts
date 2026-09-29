@@ -4,6 +4,9 @@ import { createCompanion } from '../../logic/companion';
 import type { CompanionDeployment } from '../../types/companion';
 import { HAZARD_DEFENSE_CONFIG } from '../../config/lastStandCombatConfig';
 import { COMPANION_CONFIG } from '../../config/companionConfig';
+import { PLAYER_CONFIG } from '../../config/playerConfig';
+import { hasDirectPath } from '../../logic/pathfinding';
+import { SIMULATION_CONFIG } from '../../config/simulationConfig';
 
 const position = { x: 200, y: 200 };
 const exit = { x: 500, y: 200 };
@@ -12,6 +15,47 @@ function deployment(courage = 50): CompanionDeployment {
   return { companion: { ...createCompanion('ally', 2, () => 0), courage }, weaponId: null };
 }
 describe('CompanionCombat', () => {
+  it('escapes through the rear doorway from every defense position without crossing walls or fixtures', () => {
+    const layout = HAZARD_DEFENSE_CONFIG;
+    const blockers = [...layout.walls, ...(layout.fixtures ?? []).map(fixture => ({ ...fixture, blocksHitscan: true })),
+      ...layout.sectors.map(sector => ({ ...sector.barricade, blocksHitscan: true }))];
+    for (const home of layout.allyPositions) {
+      for (const offset of [{ x: 0, y: 0 }, { x: 24, y: 0 }, { x: -24, y: 0 }, { x: 0, y: 24 }, { x: 0, y: -24 }]) {
+        const start = { x: home.x + offset.x, y: home.y + offset.y };
+        // Repositioning cannot put a companion inside a fixture in the first place.
+        if (!hasDirectPath(start, start, blockers, PLAYER_CONFIG.radius - 1e-5)) continue;
+        const combat = new CompanionCombat([deployment(0)], [start], layout.companionRetreat.exit,
+          layout.combatArea, layout.interiorArea, layout.companionRetreat.waypoints);
+        let previous = start;
+        for (let elapsed = 0; elapsed < 3000; elapsed += SIMULATION_CONFIG.fixedStepMs) {
+          expect(combat.advance(SIMULATION_CONFIG.fixedStepMs, 100, [], blockers)).toEqual([]);
+          const pose = combat.getPoses()[0];
+          expect(hasDirectPath(previous, pose.position, blockers, PLAYER_CONFIG.radius - 1e-5)).toBe(true);
+          previous = pose.position;
+        }
+        expect(combat.getPoses()[0]).toMatchObject({ state: 'left', position: layout.companionRetreat.exit });
+      }
+    }
+  });
+
+  it('does not walk through an obstructed retreat exit or mark it reached', () => {
+    const combat = new CompanionCombat([deployment(0)], [position], exit);
+    combat.advance(4000, 100, [], [{ x: 300, y: 0, width: 32, height: 500, blocksHitscan: true }]);
+    expect(combat.getPoses()[0].state).toBe('fleeing');
+    expect(combat.getPoses()[0].position.x).toBeLessThanOrEqual(300 - PLAYER_CONFIG.radius);
+  });
+
+  it('follows the same retreat route across different frame sizes', () => {
+    const layout = HAZARD_DEFENSE_CONFIG;
+    const make = () => new CompanionCombat([deployment(0)], [layout.allyPositions[3]], layout.companionRetreat.exit,
+      layout.combatArea, layout.interiorArea, layout.companionRetreat.waypoints);
+    const whole = make();
+    const split = make();
+    whole.advance(1000, 100, [], layout.walls);
+    for (let step = 0; step < 10; step++) split.advance(100, 100, [], layout.walls);
+    expect(split.getPoses()).toEqual(whole.getPoses());
+  });
+
   it('takes time to acquire and aim at a newly visible target', () => {
     const combat = new CompanionCombat([deployment()], [position], exit);
     expect(combat.advance(600, 100, [target], [])).toEqual([]);

@@ -21,6 +21,7 @@ export interface CityDefenseConfig {
   sectors: readonly DefenseSectorConfig[];
   playerSpawn: Vector2;
   allyPositions: readonly Vector2[];
+  companionRetreat: { exit: Vector2; waypoints: readonly Vector2[] };
   /** Entire indoor floor, including the zombie approach in front of the barricade. */
   interiorArea: RectangleObstacle;
   combatArea: RectangleObstacle;

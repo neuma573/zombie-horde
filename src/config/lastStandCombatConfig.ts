@@ -47,6 +47,8 @@ export const HAZARD_DEFENSE_CONFIG: CityDefenseConfig = {
   combatArea: { x: 1100, y: 480, width: 220, height: 440 },
   playerSpawn: { x: 1240, y: 700 },
   allyPositions: [{ x: 1190, y: 560 }, { x: 1240, y: 640 }, { x: 1190, y: 740 }, { x: 1240, y: 830 }],
+  // Gather in the clear aisle before leaving through the east doorway.
+  companionRetreat: { waypoints: [{ x: 1220, y: 700 }], exit: { x: 1380, y: 700 } },
   sectors: [{
     id: 'mainEntrance',
     barricadeId: 'hazard-main',
@@ -68,6 +70,7 @@ export const HAZARD_DEFENSE_CONFIG: CityDefenseConfig = {
     { x: 568, y: 920, width: 784, height: 32, blocksHitscan: true },
     { x: 568, y: 480, width: 32, height: 120, blocksHitscan: true },
     { x: 568, y: 800, width: 32, height: 120, blocksHitscan: true },
-    { x: 1320, y: 480, width: 32, height: 440, blocksHitscan: true },
+    { x: 1320, y: 480, width: 32, height: 160, blocksHitscan: true },
+    { x: 1320, y: 760, width: 32, height: 160, blocksHitscan: true },
   ],
 };
