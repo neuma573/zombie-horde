@@ -67,7 +67,7 @@ export class ExplorationScene extends Phaser.Scene {
     }
   }
 
-  create(data?: { armoryPreview?: boolean }): void {
+  create(): void {
     this.exploration = new ExplorationSystem();
     this.armoryRecipient = 'player';
     this.resultOffset = { x: 0, y: 0, zoom: 1 };
@@ -100,20 +100,6 @@ export class ExplorationScene extends Phaser.Scene {
       this.ui?.destroy(true);
       this.ui = undefined;
     });
-    if (import.meta.env.DEV && data?.armoryPreview) {
-      // Temporary F8 preview: use normal search rules with deterministic loot.
-      this.exploration = new ExplorationSystem(undefined, () => 0);
-      this.exploration.completeNight(1, 100);
-      this.exploration.search('police');
-      for (let index = 0; index < 3; index++) {
-        this.exploration.companions.resolveSearch(2, 'preview', [], 1);
-      }
-      for (const weapon of ['burstRifle', 'doubleBarrelShotgun', 'policeBaton']) this.armory.addWeapon(weapon);
-      this.armory.selectWeapon('pistol');
-      this.armory.clickSlot(0);
-      this.diaryOpen = false;
-      this.armoryOpen = true;
-    }
     this.render();
   }
 
