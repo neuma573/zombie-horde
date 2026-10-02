@@ -62,6 +62,11 @@ export class MainMenuScene extends Phaser.Scene {
     this.selectedClassId = null;
     this.gameStartPending = false;
     document.getElementById('boot-loading')?.remove();
+    if (import.meta.env.DEV) {
+      const preview = () => { void this.startExploration(true); };
+      this.input.keyboard?.on('keydown-F8', preview);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.keyboard?.off('keydown-F8', preview));
+    }
     const debugUrl = new URL(window.location.href);
     if (debugUrl.searchParams.get('debug') === 'assets') {
       void this.startAssetDebug();
@@ -614,7 +619,7 @@ export class MainMenuScene extends Phaser.Scene {
     return object;
   }
 
-  private async startExploration(): Promise<void> {
+  private async startExploration(armoryPreview = false): Promise<void> {
     if (this.gameStartPending) return;
     this.gameStartPending = true;
     try {
@@ -629,7 +634,7 @@ export class MainMenuScene extends Phaser.Scene {
         this.cameras.main.fadeOut(500, 0, 0, 0);
       });
       this.input.enabled = true;
-      this.scene.start('ExplorationScene');
+      this.scene.start('ExplorationScene', { armoryPreview });
     } catch (error) {
       console.error('Failed to load exploration.', error);
     } finally {

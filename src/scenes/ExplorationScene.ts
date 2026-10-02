@@ -67,7 +67,7 @@ export class ExplorationScene extends Phaser.Scene {
     }
   }
 
-  create(): void {
+  create(data?: { armoryPreview?: boolean }): void {
     this.exploration = new ExplorationSystem();
     this.armoryRecipient = 'player';
     this.resultOffset = { x: 0, y: 0, zoom: 1 };
@@ -100,6 +100,20 @@ export class ExplorationScene extends Phaser.Scene {
       this.ui?.destroy(true);
       this.ui = undefined;
     });
+    if (import.meta.env.DEV && data?.armoryPreview) {
+      // Temporary F8 preview: use normal search rules with deterministic loot.
+      this.exploration = new ExplorationSystem(undefined, () => 0);
+      this.exploration.completeNight(1, 100);
+      this.exploration.search('police');
+      for (let index = 0; index < 3; index++) {
+        this.exploration.companions.resolveSearch(2, 'preview', [], 1);
+      }
+      for (const weapon of ['burstRifle', 'doubleBarrelShotgun', 'policeBaton']) this.armory.addWeapon(weapon);
+      this.armory.selectWeapon('pistol');
+      this.armory.clickSlot(0);
+      this.diaryOpen = false;
+      this.armoryOpen = true;
+    }
     this.render();
   }
 
@@ -112,7 +126,7 @@ export class ExplorationScene extends Phaser.Scene {
     const portrait = availableHeight > availableWidth;
     const paged = !this.armoryOpen && usesExplorationPages(availableWidth, availableHeight);
     const scale = this.armoryOpen
-      ? getArmoryViewportScale(availableWidth, availableHeight)
+      ? getArmoryViewportScale(availableWidth, availableHeight, this.exploration.companions.getActive().length > 0)
       : paged ? 1 : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
     const width = availableWidth / scale;
     const height = availableHeight / scale;
@@ -130,7 +144,7 @@ export class ExplorationScene extends Phaser.Scene {
       return;
     }
     const boardWidth = Math.min(portrait ? 580 : 1160, width - 32);
-    const boardHeight = Math.min(820, height - 64);
+    const boardHeight = Math.min(this.armoryOpen && width >= 992 && height >= 624 ? 680 : 820, height - 64);
     const board: Box = { x: (width - boardWidth) / 2, y: (height - boardHeight) / 2 + 12, width: boardWidth, height: boardHeight };
     const compact = board.height < 620;
     const mainMenu = this.text(board.x, board.y - 30, '← ' + t('MAIN MENU'), 12, '#b9b9a6');
