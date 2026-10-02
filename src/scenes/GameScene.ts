@@ -1,5 +1,5 @@
 import { DefenseBlackout } from '../effects/DefenseBlackout';
-import { CompanionCombat } from '../systems/CompanionCombat';
+import { CompanionCombat, type CompanionShot } from '../systems/CompanionCombat';
 import { CompanionCombatView } from '../effects/CompanionCombatView';
 import { fitDefenseCamera } from '../logic/defenseCamera';
 import { DefenseSpawnSystem } from '../systems/DefenseSpawnSystem';
@@ -900,7 +900,8 @@ export class GameScene extends Phaser.Scene {
       this.defenseView?.update(this.night.getSectors());
     }
     if (!contactDied && this.night?.getPhase() === 'COMBAT') {
-      this.advanceCompanions(deltaMs);
+      const companionShots = this.advanceCompanions(deltaMs);
+      this.weaponAudio?.queueCompanionShots(companionShots, audioDelayMs);
       const arrivals = this.night.canSpawnZombies() ? this.defenseSpawn!.update(deltaMs, this.zombies.length) : [];
       for (const spawn of arrivals) {
         this.zombies.push(new Zombie(this, spawn.id, spawn.position.x, spawn.position.y, undefined, ZOMBIE_CONFIG.health, spawn.kind));
@@ -939,8 +940,8 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
-  private advanceCompanions(deltaMs: number): void {
-    if (!this.companionCombat || !this.night) return;
+  private advanceCompanions(deltaMs: number): CompanionShot[] {
+    if (!this.companionCombat || !this.night) return [];
     const shots = this.companionCombat.advance(deltaMs, this.night.getSectors()[0].integrity,
       this.zombies.map(zombie => ({ id: zombie.id, position: { x: zombie.x, y: zombie.y },
         radius: zombie.hitRadius, health: zombie.health })), this.activeHitscanBlockers());
@@ -968,6 +969,7 @@ export class GameScene extends Phaser.Scene {
     for (const id of deadIds) { this.zombieKnockbacks.delete(id); this.zombieNavigation.delete(id); }
     if (this.aimTargetId && deadIds.has(this.aimTargetId)) this.clearAimAssist();
     this.companionView?.update(this.companionCombat, deltaMs);
+    return shots;
   }
 
   private resolveContactMovementSegment(

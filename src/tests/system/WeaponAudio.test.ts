@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { WeaponAudio } from '../../effects/WeaponAudio';
+import type { CompanionShot } from '../../systems/CompanionCombat';
 
 interface ScheduledAudio {
   delay: number;
@@ -257,5 +258,51 @@ describe('WeaponAudio', () => {
     audio.cancelReload();
 
     expect(stopped).toContain('audio-shotgun-reload-breech-close');
+  });
+});
+
+
+function companionShot(overrides: Partial<CompanionShot> = {}): CompanionShot {
+  return { companionId: 'ally', weaponId: 'pistol', shotId: 1,
+    origin: { x: 0, y: 0 }, direction: { x: 1, y: 0 }, endPoint: { x: 100, y: 0 },
+    melee: false, hits: [], ...overrides };
+}
+
+describe('companion gunfire audio', () => {
+  it('plays a shotgun discharge once for all its pellets', () => {
+    const { runtime, played } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+    audio.queueCompanionShots(Array.from({ length: 8 }, () => companionShot({ weaponId: 'doubleBarrelShotgun' })), 0);
+    audio.flushQueuedShots();
+    expect(played).toEqual(['audio-shotgun-shot-01', 'audio-shotgun-tail']);
+  });
+
+  it('plays simultaneous companions separately even with matching shot numbers', () => {
+    const { runtime, played } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+    audio.queueCompanionShots([companionShot(), companionShot({ companionId: 'other', weaponId: 'burstRifle' })], 0);
+    audio.flushQueuedShots();
+    expect(played).toEqual(['audio-pistol-shot-01', 'audio-pistol-tail-01', 'audio-rifle-shot-01', 'audio-rifle-tail-01']);
+  });
+
+  it('preserves burst audio spacing while catching up simulation steps', () => {
+    const { runtime, played, scheduled } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+    for (const [shotId, offset] of [[1, 10], [2, 75], [3, 140]]) {
+      audio.queueCompanionShots([companionShot({ weaponId: 'burstRifle', shotId })], offset);
+    }
+    audio.flushQueuedShots();
+    expect(played).toEqual(['audio-rifle-shot-01', 'audio-rifle-tail-01']);
+    expect(scheduled.map(event => event.delay)).toEqual([65, 130]);
+    for (const event of scheduled) event.run();
+    expect(played.filter(key => key.startsWith('audio-rifle-shot'))).toHaveLength(3);
+  });
+
+  it('does not play gunfire for a melee attack', () => {
+    const { runtime, played } = createAudioRuntime();
+    const audio = new WeaponAudio(runtime);
+    audio.queueCompanionShots([companionShot({ melee: true, weaponId: 'policeBaton' })], 0);
+    audio.flushQueuedShots();
+    expect(played).toEqual([]);
   });
 });

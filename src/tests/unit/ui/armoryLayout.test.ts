@@ -49,3 +49,49 @@ describe('armory controls layout', () => {
     },
   );
 });
+
+
+describe('armory companion preparation layout', () => {
+  it.each([[320, 360], [390, 844], [844, 390], [1280, 800]])(
+    'separates the full roster, rack and deployment controls at %i by %i', (width, height) => {
+      const scale = getArmoryViewportScale(width, height, true);
+      const boardWidth = Math.min(height > width ? 580 : 1160, width / scale - 32);
+      const boardHeight = Math.min(820, height / scale - 64);
+      const headerHeight = boardWidth < 600 ? 222 : 156;
+      const layout = getArmoryControlsLayout(boardWidth, boardHeight, headerHeight);
+      expect(layout.viewport.y).toBeGreaterThanOrEqual(headerHeight);
+      expect(layout.viewport.height).toBeGreaterThanOrEqual(72);
+      expect(layout.viewport.width).toBeGreaterThanOrEqual(72);
+      expect(layout.slotHeight).toBeGreaterThanOrEqual(44);
+      const slotsBottom = layout.slotY + (layout.side ? layout.slotHeight * 2 + 10 : layout.slotHeight);
+      expect(slotsBottom).toBeLessThanOrEqual(layout.buttonY - 26);
+      expect(layout.buttonY + 44).toBeLessThanOrEqual(boardHeight);
+    },
+  );
+});
+
+
+describe('armory desktop roster beside the rack', () => {
+  it.each([[960, 560], [1160, 680], [1160, 820]])(
+    'separates the roster, weapons, slots and start button at %i by %i', (width, height) => {
+      const layout = getArmoryControlsLayout(width, height, 156, 'left');
+      expect(layout.desktop).toBe(true);
+      const rosterRight = 20 + 236;
+      const rosterBottom = 88 + 4 * 86 + 78;
+      expect(layout.viewport.x).toBeGreaterThan(rosterRight);
+      expect(rosterBottom).toBeLessThan(height - 20);
+      expect(layout.viewport.y + layout.viewport.height).toBeLessThan(layout.slotY);
+      expect(layout.controlsX).toBeGreaterThan(rosterRight);
+      expect(layout.controlsX + layout.controlsWidth).toBeLessThan(layout.buttonX);
+      expect(layout.slotY + layout.slotHeight).toBeLessThanOrEqual(height - 20);
+      expect(layout.buttonX + layout.buttonWidth).toBeLessThanOrEqual(width - 20);
+      expect(layout.buttonY + 44).toBeLessThanOrEqual(height - 16);
+    },
+  );
+
+  it('keeps the top roster layout when the screen cannot fit a side roster', () => {
+    const layout = getArmoryControlsLayout(580, 780, 222, 'left');
+    expect(layout.desktop).toBe(false);
+    expect(layout.viewport.y).toBeGreaterThanOrEqual(222);
+  });
+});

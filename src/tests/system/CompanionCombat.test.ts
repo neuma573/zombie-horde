@@ -316,3 +316,21 @@ describe('CompanionCombat', () => {
     expect(combat.getPoses()[0]).toMatchObject({ state: 'left', distanceToExit: 0 });
   });
 });
+
+
+describe('companion discharge events', () => {
+  it('identifies all pellets of one shotgun discharge with the same weapon and shot number', () => {
+    const combat = new CompanionCombat([{ ...deployment(), weaponId: 'doubleBarrelShotgun' }], [position], exit);
+    const shots = combat.advance(1500, 100, [target], []);
+    expect(shots.length).toBeGreaterThan(1);
+    expect(new Set(shots.map(shot => shot.shotId)).size).toBe(1);
+    expect(shots.every(shot => shot.weaponId === 'doubleBarrelShotgun')).toBe(true);
+  });
+
+  it('identifies the fallback sidearm as a pistol for effects', () => {
+    const combat = new CompanionCombat([deployment()], [position], exit);
+    const shots = combat.advance(1500, 100, [target], []);
+    expect(shots).toHaveLength(1);
+    expect(shots[0]).toMatchObject({ weaponId: 'pistol', shotId: 1, melee: false });
+  });
+});

@@ -10,7 +10,7 @@ import { resolveHitscan, type HitscanBlocker, type Vector2 } from '../logic/hits
 import { resolveMeleeHits } from '../logic/meleeAttack';
 import { moveToward } from '../logic/movement';
 import { moveCircleWithObstacles, type RectangleObstacle } from '../logic/obstacleCollision';
-import { applyWeaponRecoil, createPelletDirections } from '../logic/weapon';
+import { applyWeaponRecoil, createPelletDirections, type WeaponId } from '../logic/weapon';
 import type { CompanionDeployment } from '../types/companion';
 import { WeaponSystem } from './WeaponSystem';
 
@@ -18,7 +18,7 @@ export interface CompanionCombatTarget {
   id: string; position: Vector2; radius: number; health: number;
 }
 export interface CompanionShot {
-  companionId: string; origin: Vector2; direction: Vector2; endPoint: Vector2;
+  companionId: string; weaponId: WeaponId; shotId: number; origin: Vector2; direction: Vector2; endPoint: Vector2;
   melee: boolean; hits: Array<{ id: string; damage: number }>;
 }
 interface Fighter {
@@ -210,7 +210,7 @@ export class CompanionCombat {
           .map(hit => ({ id: hit.id, damage: definition.config.damage }))
         : result.hits.map(hit => ({ id: hit.targetId, damage: definition.config.damage }));
       for (const hit of hits) health.set(hit.id, Math.max(0, (health.get(hit.id) ?? 0) - hit.damage));
-      return { companionId: fighter.deployment.companion.id, origin: { ...fighter.position },
+      return { companionId: fighter.deployment.companion.id, weaponId: definition.id, shotId: fighter.shots, origin: { ...fighter.position },
         direction, endPoint: result.endPoint, melee: definition.attackType === 'melee', hits };
     });
   }

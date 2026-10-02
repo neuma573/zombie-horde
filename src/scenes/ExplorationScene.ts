@@ -112,7 +112,7 @@ export class ExplorationScene extends Phaser.Scene {
     const portrait = availableHeight > availableWidth;
     const paged = !this.armoryOpen && usesExplorationPages(availableWidth, availableHeight);
     const scale = this.armoryOpen
-      ? getArmoryViewportScale(availableWidth, availableHeight)
+      ? getArmoryViewportScale(availableWidth, availableHeight, this.exploration.companions.getActive().length > 0)
       : paged ? 1 : Math.min(1, availableWidth / (portrait ? 360 : 800), availableHeight / (portrait ? 740 : 500));
     const width = availableWidth / scale;
     const height = availableHeight / scale;
@@ -130,7 +130,7 @@ export class ExplorationScene extends Phaser.Scene {
       return;
     }
     const boardWidth = Math.min(portrait ? 580 : 1160, width - 32);
-    const boardHeight = Math.min(820, height - 64);
+    const boardHeight = Math.min(this.armoryOpen && width >= 992 && height >= 624 ? 680 : 820, height - 64);
     const board: Box = { x: (width - boardWidth) / 2, y: (height - boardHeight) / 2 + 12, width: boardWidth, height: boardHeight };
     const compact = board.height < 620;
     const mainMenu = this.text(board.x, board.y - 30, '← ' + t('MAIN MENU'), 12, '#b9b9a6');

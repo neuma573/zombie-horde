@@ -5,6 +5,7 @@ import {
   WEAPON_AUDIO_CONFIG,
 } from '../config/weaponAudioConfig';
 import type { WeaponId } from '../logic/weapon';
+import type { CompanionShot } from '../systems/CompanionCombat';
 
 interface AudioTimer {
   remove(dispatchCallback?: boolean): void;
@@ -79,6 +80,18 @@ export class WeaponAudio {
       weaponId,
       offsetMs: Math.max(0, offsetMs),
     });
+  }
+
+  /** One cue per discharge, even when the combat event contains several pellets. */
+  queueCompanionShots(shots: readonly CompanionShot[], offsetMs: number): void {
+    const seen = new Set<string>();
+    for (const shot of shots) {
+      if (shot.melee) continue;
+      const key = `${shot.companionId}:${shot.shotId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      this.queueShot(shot.weaponId, offsetMs);
+    }
   }
 
   flushQueuedShots(): number {
